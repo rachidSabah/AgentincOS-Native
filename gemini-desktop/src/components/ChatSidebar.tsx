@@ -24,6 +24,7 @@ import {
   Terminal,
   FolderOpen,
   Star,
+  Check,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -436,27 +437,31 @@ export function ChatSidebar() {
                       <div
                         key={conv.id}
                         className={cn(
-                          "group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-sm transition-all duration-200",
+                          "relative group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-sm transition-all duration-200",
                           selectMode && selectedIds.has(conv.id)
                             ? "bg-primary/10 border border-primary/30"
                             : activeConversationId === conv.id
-                            ? "bg-accent text-accent-foreground font-medium"
+                            ? "bg-accent text-accent-foreground font-medium pl-4"
                             : "hover:bg-accent/50 text-muted-foreground"
                         )}
-                        onClick={(e) => {
-                          if (selectMode) {
-                            toggleSelect(conv.id, e);
-                          } else {
-                            setActiveConversationId(conv.id);
-                          }
-                        }}
-                        onDoubleClick={() => {
-                          if (!selectMode) {
-                            setEditingId(conv.id);
-                            setEditTitle(conv.title);
-                          }
-                        }}
                       >
+                        {/* Active indicator bar */}
+                        {activeConversationId === conv.id && (
+                          <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-full z-20" />
+                        )}
+
+                        {/* Row selection click target */}
+                        <div
+                          className="absolute inset-0 z-0 rounded-lg"
+                          onClick={(e) => {
+                            if (selectMode) {
+                              toggleSelect(conv.id, e);
+                            } else {
+                              setActiveConversationId(conv.id);
+                            }
+                          }}
+                        />
+
                         {/* Checkbox in select mode, icon otherwise */}
                         {selectMode ? (
                           <Checkbox
@@ -470,64 +475,90 @@ export function ChatSidebar() {
                               });
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="shrink-0"
+                            className="shrink-0 z-10"
                           />
                         ) : (
-                          <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
+                          <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400 z-10" />
                         )}
 
                         {editingId === conv.id ? (
-                          <Input
-                            ref={inputRef}
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleRename(conv.id);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            onBlur={() => handleRename(conv.id)}
-                            className="h-6 text-xs flex-1"
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                          <div className="flex-1 flex items-center gap-1 z-10">
+                            <Input
+                              ref={inputRef}
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRename(conv.id);
+                                if (e.key === "Escape") setEditingId(null);
+                              }}
+                              className="h-7 text-xs flex-1 bg-background"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-emerald-500 hover:bg-emerald-500/20 hover:text-emerald-500 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRename(conv.id);
+                              }}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/20 hover:text-destructive shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingId(null);
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         ) : (
-                          <span className="flex-1 truncate text-xs">{conv.title}</span>
+                          <span className="flex-1 truncate text-xs z-10 pointer-events-none select-none">
+                            {conv.title}
+                          </span>
                         )}
 
                         {!selectMode && editingId !== conv.id && (
-                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 dark:bg-accent/90 shadow-sm border border-border/50 rounded-md p-0.5 shrink-0">
+                          <div className="relative flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-auto z-10">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 text-amber-500 hover:bg-amber-500/15 rounded-md"
+                              className="h-7 w-7 text-amber-500 hover:bg-amber-500/20 hover:text-amber-500"
+                              title="Unfavorite"
                               onClick={(e) => toggleFavorite(conv.id, true, e)}
-                              title="Remove from Favorites"
                             >
-                              <Star className="h-3 w-3 fill-amber-500" />
+                              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 hover:bg-primary/10 hover:text-primary rounded-md"
+                              className="h-7 w-7 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+                              title="Rename"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingId(conv.id);
                                 setEditTitle(conv.title);
                               }}
-                              title="Rename Chat"
                             >
-                              <Pencil className="h-3 w-3" />
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 hover:bg-destructive/15 text-destructive rounded-md"
+                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                              title="Delete"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDeleteDialogId(conv.id);
                               }}
-                              title="Delete Chat"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         )}
@@ -546,27 +577,31 @@ export function ChatSidebar() {
                       <div
                         key={conv.id}
                         className={cn(
-                          "group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-sm transition-all duration-200",
+                          "relative group flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer text-sm transition-all duration-200",
                           selectMode && selectedIds.has(conv.id)
                             ? "bg-primary/10 border border-primary/30"
                             : activeConversationId === conv.id
-                            ? "bg-accent text-accent-foreground font-medium"
+                            ? "bg-accent text-accent-foreground font-medium pl-4"
                             : "hover:bg-accent/50 text-muted-foreground"
                         )}
-                        onClick={(e) => {
-                          if (selectMode) {
-                            toggleSelect(conv.id, e);
-                          } else {
-                            setActiveConversationId(conv.id);
-                          }
-                        }}
-                        onDoubleClick={() => {
-                          if (!selectMode) {
-                            setEditingId(conv.id);
-                            setEditTitle(conv.title);
-                          }
-                        }}
                       >
+                        {/* Active indicator bar */}
+                        {activeConversationId === conv.id && (
+                          <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-full z-20" />
+                        )}
+
+                        {/* Row selection click target */}
+                        <div
+                          className="absolute inset-0 z-0 rounded-lg"
+                          onClick={(e) => {
+                            if (selectMode) {
+                              toggleSelect(conv.id, e);
+                            } else {
+                              setActiveConversationId(conv.id);
+                            }
+                          }}
+                        />
+
                         {/* Checkbox in select mode, icon otherwise */}
                         {selectMode ? (
                           <Checkbox
@@ -580,64 +615,90 @@ export function ChatSidebar() {
                               });
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="shrink-0"
+                            className="shrink-0 z-10"
                           />
                         ) : (
-                          <MessageSquare className="h-4 w-4 shrink-0" />
+                          <MessageSquare className="h-4 w-4 shrink-0 z-10" />
                         )}
 
                         {editingId === conv.id ? (
-                          <Input
-                            ref={inputRef}
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleRename(conv.id);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            onBlur={() => handleRename(conv.id)}
-                            className="h-6 text-xs flex-1"
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                          <div className="flex-1 flex items-center gap-1 z-10">
+                            <Input
+                              ref={inputRef}
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRename(conv.id);
+                                if (e.key === "Escape") setEditingId(null);
+                              }}
+                              className="h-7 text-xs flex-1 bg-background"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-emerald-500 hover:bg-emerald-500/20 hover:text-emerald-500 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRename(conv.id);
+                              }}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/20 hover:text-destructive shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingId(null);
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         ) : (
-                          <span className="flex-1 truncate text-xs">{conv.title}</span>
+                          <span className="flex-1 truncate text-xs z-10 pointer-events-none select-none">
+                            {conv.title}
+                          </span>
                         )}
 
                         {!selectMode && editingId !== conv.id && (
-                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 dark:bg-accent/90 shadow-sm border border-border/50 rounded-md p-0.5 shrink-0">
+                          <div className="relative flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-auto z-10">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 hover:bg-amber-500/10 hover:text-amber-500 rounded-md"
+                              className="h-7 w-7 text-muted-foreground hover:bg-amber-500/20 hover:text-amber-500"
+                              title="Favorite"
                               onClick={(e) => toggleFavorite(conv.id, false, e)}
-                              title="Add to Favorites"
                             >
-                              <Star className="h-3 w-3" />
+                              <Star className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 hover:bg-primary/10 hover:text-primary rounded-md"
+                              className="h-7 w-7 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+                              title="Rename"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingId(conv.id);
                                 setEditTitle(conv.title);
                               }}
-                              title="Rename Chat"
                             >
-                              <Pencil className="h-3 w-3" />
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5 hover:bg-destructive/15 text-destructive rounded-md"
+                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                              title="Delete"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDeleteDialogId(conv.id);
                               }}
-                              title="Delete Chat"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         )}
