@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<files>
+  <file id="1">
+    <contenthash>214fb24187ea43be167170359c0e18ea310ff48e</contenthash>
+    <contextid>1</contextid>
+    <component>mod_label</component>
+    <filearea>intro</filearea>
+    <itemid>0</itemid>
+    <filepath>/</filepath>
+    <filename>logo.png</filename>
+    <userid>1</userid>
+    <filesize>314412</filesize>
+    <mimetype>image/png</mimetype>
+    <status>0</status>
+    <timecreated>1777560969</timecreated>
+    <timemodified>1777560969</timemodified>
+    <source>$@NULL@$</source>
+    <author>$@NULL@$</author>
+    <license>$@NULL@$</license>
+    <sortorder>0</sortorder>
+  </file>
+</files>
