@@ -54,4 +54,6 @@ prompt
 server.log
 # Database files (keep the folder, ignore the actual db)
 /db/*.db
+/prisma/db/*.db
+*.db
 /uploads/
