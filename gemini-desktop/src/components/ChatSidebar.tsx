@@ -525,7 +525,7 @@ export function ChatSidebar() {
                         )}
 
                         {!selectMode && editingId !== conv.id && (
-                          <div className="relative flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-auto z-10">
+                          <div className="relative flex items-center gap-0.5 shrink-0 ml-auto z-10">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -665,7 +665,7 @@ export function ChatSidebar() {
                         )}
 
                         {!selectMode && editingId !== conv.id && (
-                          <div className="relative flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-auto z-10">
+                          <div className="relative flex items-center gap-0.5 shrink-0 ml-auto z-10">
                             <Button
                               variant="ghost"
                               size="icon"
