@@ -13,11 +13,14 @@ import {
   Sparkles,
   FileText,
   Check,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import type { Attachment, Message } from "@/lib/types";
+import { ReadAloud } from "@/components/ReadAloud";
 
 export function ChatWindow() {
   const {
@@ -350,6 +353,7 @@ function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating }
             >
               <RefreshCw className="h-3 w-3" />
             </Button>
+            <ReadAloud text={message.content} />
           </div>
         )}
 

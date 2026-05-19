@@ -19,9 +19,14 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  Play,
+  Globe,
 } from "lucide-react";
+import { SearchPanel } from "@/components/SearchPanel";
 import { cn } from "@/lib/utils";
 import type { Attachment } from "@/lib/types";
+import { VoiceInput } from "@/components/VoiceInput";
+import { CodeRunner } from "@/components/CodeRunner";
 
 const STANDARD_PROMPTS = [
   { title: "💡 Explain Code", content: "Can you explain this code in detail and break down how it works?" },
@@ -36,9 +41,11 @@ export function ChatInput() {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [codeRunnerOpen, setCodeRunnerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const {
     activeConversationId,
@@ -391,6 +398,41 @@ export function ChatInput() {
               <TooltipContent side="top">Attach files</TooltipContent>
             </Tooltip>
 
+            <VoiceInput
+              onTranscript={(text) =>
+                setInput((prev) => (prev ? prev + " " + text : text))
+              }
+              disabled={uiStore.isGenerating}
+            />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => setCodeRunnerOpen(true)}
+                >
+                  <Play className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Code runner</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn("h-9 w-9 shrink-0", searchOpen && "text-primary")}
+                  onClick={() => setSearchOpen(!searchOpen)}
+                >
+                  <Globe className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Search web</TooltipContent>
+            </Tooltip>
+
             <div className="flex-1 relative">
               <Textarea
                 ref={textareaRef}
@@ -441,6 +483,13 @@ export function ChatInput() {
             </p>
           </div>
         </div>
+
+        <SearchPanel
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+        />
+
+        <CodeRunner open={codeRunnerOpen} onOpenChange={setCodeRunnerOpen} />
       </div>
     </TooltipProvider>
   );
