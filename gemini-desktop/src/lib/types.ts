@@ -16,6 +16,16 @@ export interface Skill {
   description: string;
 }
 
+export interface Memory {
+  id: string;
+  key: string;
+  content: string;
+  source: string;
+  embedding: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Prompt {
   id: string;
   title: string;
@@ -44,6 +54,9 @@ export interface Message {
   content: string;
   attachments: string | null;
   metadata: string | null;
+  toolCalls?: string | null;
+  edited?: boolean;
+  parentId?: string | null;
   createdAt: string;
   conversation?: Conversation;
 }
@@ -62,6 +75,7 @@ export interface MessageMetadata {
     completion?: number;
     total?: number;
   };
+  cost?: number;
   duration?: number;
   isStreaming?: boolean;
 }

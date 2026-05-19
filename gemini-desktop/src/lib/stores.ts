@@ -43,7 +43,9 @@ interface ChatState {
   updateConversation: (id: string, data: Partial<Conversation>) => void;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, content: string) => void;
+  editMessage: (id: string, content: string) => void;
   removeMessage: (id: string) => void;
+  deleteMessagesFrom: (messageId: string) => void;
   setStreamingContent: (content: string) => void;
   appendStreamingContent: (chunk: string) => void;
   clearStreamingContent: () => void;
@@ -78,8 +80,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({
       messages: s.messages.map((m) => (m.id === id ? { ...m, content } : m)),
     })),
+  editMessage: (id, content) =>
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.id === id ? { ...m, content, edited: true } : m
+      ),
+    })),
   removeMessage: (id) =>
     set((s) => ({ messages: s.messages.filter((m) => m.id !== id) })),
+  deleteMessagesFrom: (messageId) =>
+    set((s) => {
+      const idx = s.messages.findIndex((m) => m.id === messageId);
+      if (idx === -1) return s;
+      return { messages: s.messages.slice(0, idx) };
+    }),
   setStreamingContent: (content) => set({ streamingContent: content }),
   appendStreamingContent: (chunk) =>
     set((s) => ({ streamingContent: s.streamingContent + chunk })),

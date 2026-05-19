@@ -4,115 +4,184 @@ import { spawn, exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { parseToolCalls, executeToolCall, getToolsPrompt, type ToolCallResult } from "@/lib/tools";
+import { countTokens, estimateCost } from "@/lib/tokens";
+
+async function extractMemoriesFromText(
+  assistantText: string,
+  model: string,
+  targetModel: string,
+  isCustomProvider: boolean,
+  providerData: any,
+  providerEnv: any,
+  apiKey: string | undefined,
+  sourceId: string
+) {
+  if (!assistantText || assistantText.length <= 200) return;
+
+  const extractionPrompt = `Extract any important facts, preferences, or memories from this conversation that should be remembered for future interactions. Respond with ONLY a JSON array of { "key": string, "content": string } objects. If there's nothing worth remembering, respond with an empty array [].
+
+Conversation text:
+${assistantText.slice(0, 4000)}`;
+
+  try {
+    let responseText = "";
+    const controller = new ReadableStream({
+      start(c) { c.close(); }
+    });
+    const encoder = new TextEncoder();
+
+    if (isCustomProvider && providerData) {
+      const baseUrl = (providerData.baseUrl?.replace(/\/$/, "") || "https://api.openai.com/v1").replace("://localhost", "://127.0.0.1");
+      const url = `${baseUrl}/chat/completions`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${providerData.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages: [{ role: "user", content: extractionPrompt }],
+          stream: false,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        responseText = data.choices?.[0]?.message?.content || "";
+      }
+    } else {
+      const cliArgs = model.includes("/") && !model.startsWith("openai/") && !model.startsWith("anthropic/") && !model.startsWith("google/") && !model.startsWith("vertex/")
+        ? ["--model", model.split("/")[1]]
+        : model === "auto" ? [] : ["--model", model];
+
+      responseText = await new Promise<string>((resolve, reject) => {
+        const proc = spawn("gemini", [...cliArgs, "--no-stream"], {
+          env: { ...process.env, ...providerEnv, ...(apiKey ? { GEMINI_API_KEY: apiKey } : {}) },
+          shell: true,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+
+        let output = "";
+        proc.stdout.on("data", (chunk: Buffer) => { output += chunk.toString(); });
+        let errOut = "";
+        proc.stderr.on("data", (chunk: Buffer) => { errOut += chunk.toString(); });
+
+        proc.on("close", (code) => {
+          if (code === 0) resolve(output);
+          else { console.error(`Memory extraction CLI error ${code}: ${errOut}`); resolve(""); }
+        });
+        proc.on("error", () => resolve(""));
+
+        proc.stdin?.write(extractionPrompt);
+        proc.stdin?.end();
+      });
+    }
+
+    if (!responseText) return;
+
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return;
+
+    const extracted: { key: string; content: string }[] = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(extracted) || extracted.length === 0) return;
+
+    for (const item of extracted) {
+      if (item.key && item.content) {
+        await db.memory.create({
+          data: { key: item.key, content: item.content, source: sourceId },
+        });
+        console.log(`[Memory] Saved: ${item.key}`);
+      }
+    }
+  } catch (error) {
+    console.error("[Memory Extraction Error]:", error);
+  }
+}
+import { countTokens, estimateCost } from "@/lib/tokens";
 
 export const maxDuration = 120;
+
+const TOOLS_DESCRIPTION = getToolsPrompt();
 
 const LOCAL_SYSTEM_INSTRUCTIONS = `
 [LOCAL AGENT CAPABILITIES]
 You are a highly capable Local AI Assistant with direct access to the user's local operating system, files, and terminal. You can autonomously execute commands, read/write files, and list directories.
 
-To perform a local action, you MUST use one of the following XML tool tags in your response. Keep commands brief and explain to the user what you are doing before executing.
+${TOOLS_DESCRIPTION}
 
-1. Execute a command in the Windows terminal (CMD/Powershell):
+You can also use XML tool tags for backward compatibility:
+
+1. Execute a command in the terminal:
 <local_cmd>command_here</local_cmd>
-Example: <local_cmd>dir C:\\Users\\piopi\\Desktop</local_cmd>
 
-2. List files and folders in a directory:
+2. List files and folders:
 <list_files>directory_path_here</list_files>
-Example: <list_files>C:\\Users\\piopi\\Desktop</list_files>
 
-3. Read the content of a file:
+3. Read file content:
 <read_file>file_path_here</read_file>
-Example: <read_file>C:\\Users\\piopi\\Desktop\\notes.txt</read_file>
 
 4. Create or overwrite a file:
 <write_file path="file_path_here">file_content_here</write_file>
-Example: <write_file path="C:\\Users\\piopi\\Desktop\\script.py">print("Hello from AI")</write_file>
 
-When you run a command or access a file, wait for the system to return the output. The system will automatically execute your tool tag, append the result to the conversation, and trigger your next turn.
+When you call a tool, the system will automatically execute it, append the result to the conversation, and trigger your next turn.
 `;
 
-async function runTools(text: string, workspacePath?: string): Promise<{ toolRun: boolean; result: string }> {
-  const cmdRegex = /<local_cmd>([\s\S]*?)<\/local_cmd>/;
-  const listRegex = /<list_files>([\s\S]*?)<\/list_files>/;
-  const readRegex = /<read_file>([\s\S]*?)<\/read_file>/;
-  const writeRegex = /<write_file\s+path="([\s\S]*?)">([\s\S]*?)<\/write_file>/;
+async function parseAndExecuteTools(
+  text: string,
+  workspacePath: string | undefined,
+  controller: ReadableStreamDefaultController,
+  encoder: TextEncoder,
+  requestId: string,
+  allToolCalls: ToolCallResult[]
+): Promise<{ toolRun: boolean; resultSummary: string }> {
+  const calls = parseToolCalls(text);
 
-  let toolRun = false;
-  let result = "";
-
-  const cmdMatch = text.match(cmdRegex);
-  const listMatch = text.match(listRegex);
-  const readMatch = text.match(readRegex);
-  const writeMatch = text.match(writeRegex);
-
-  const desktopPath = path.join(os.homedir(), "Desktop");
-  const activeDir = (workspacePath && fs.existsSync(workspacePath)) ? path.resolve(workspacePath) : desktopPath;
-
-  if (cmdMatch) {
-    toolRun = true;
-    const command = cmdMatch[1].trim();
-    console.log(`Executing Local Command: ${command} in ${activeDir}`);
-    result = await new Promise<string>((resolve) => {
-      exec(command, { cwd: activeDir }, (error, stdout, stderr) => {
-        resolve(`[Command stdout]:\n${stdout || "(no stdout)"}\n[Command stderr]:\n${stderr || "(no stderr)"}\n[Status Code]: ${error ? error.code : 0}`);
-      });
-    });
-  } else if (listMatch) {
-    toolRun = true;
-    const targetDir = listMatch[1].trim() || "";
-    console.log(`Listing Local Files in: ${targetDir || activeDir}`);
-    try {
-      const resolved = targetDir ? path.resolve(activeDir, targetDir) : activeDir;
-      if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
-        const files = fs.readdirSync(resolved);
-        result = `Files/folders inside ${resolved}:\n` + files.map(f => {
-          try {
-            const stats = fs.statSync(path.join(resolved, f));
-            return `- ${stats.isDirectory() ? "[DIR]" : "[FILE]"} ${f}`;
-          } catch {
-            return `- [UNKNOWN] ${f}`;
-          }
-        }).join("\n");
-      } else {
-        result = `Error: Path is not a directory or does not exist: ${resolved}`;
-      }
-    } catch (e: any) {
-      result = `Error listing files: ${e.message}`;
-    }
-  } else if (readMatch) {
-    toolRun = true;
-    const targetFile = readMatch[1].trim();
-    console.log(`Reading Local File: ${targetFile}`);
-    try {
-      const resolved = path.resolve(activeDir, targetFile);
-      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
-        result = fs.readFileSync(resolved, "utf-8");
-      } else {
-        result = `Error: File not found or is a directory: ${resolved}`;
-      }
-    } catch (e: any) {
-      result = `Error reading file: ${e.message}`;
-    }
-  } else if (writeMatch) {
-    toolRun = true;
-    const targetFile = writeMatch[1].trim();
-    const content = writeMatch[2];
-    console.log(`Writing Local File to: ${targetFile}`);
-    try {
-      const resolved = path.resolve(activeDir, targetFile);
-      const parentDir = path.dirname(resolved);
-      if (!fs.existsSync(parentDir)) {
-        fs.mkdirSync(parentDir, { recursive: true });
-      }
-      fs.writeFileSync(resolved, content, "utf-8");
-      result = `Successfully wrote file to ${resolved}`;
-    } catch (e: any) {
-      result = `Error writing file: ${e.message}`;
-    }
+  if (calls.length === 0) {
+    return { toolRun: false, resultSummary: "" };
   }
 
-  return { toolRun, result };
+  console.log(`[${requestId}] Found ${calls.length} tool call(s) in response`);
+  const results: string[] = [];
+
+  for (const call of calls) {
+    console.log(`[${requestId}] Executing tool: ${call.name}`);
+
+    controller.enqueue(
+      encoder.encode(
+        `data: ${JSON.stringify({ type: "tool_call", toolName: call.name, id: `tc_${allToolCalls.length + 1}` })}\n\n`
+      )
+    );
+
+    const result = await executeToolCall(call, workspacePath);
+
+    controller.enqueue(
+      encoder.encode(
+        `data: ${JSON.stringify({ type: "tool_result", toolName: result.name, result: result.result, status: result.status, timestamp: result.timestamp })}\n\n`
+      )
+    );
+
+    allToolCalls.push(result);
+
+    let formattedResult: string;
+    try {
+      const parsed = JSON.parse(result.result);
+      formattedResult = JSON.stringify(parsed, null, 2);
+    } catch {
+      formattedResult = result.result;
+    }
+
+    results.push(
+      `Tool: ${result.name}\nStatus: ${result.status}\nResult:\n${formattedResult}`
+    );
+  }
+
+  return {
+    toolRun: true,
+    resultSummary: results.join("\n\n---\n\n"),
+  };
 }
 
 async function queryLLM(
@@ -386,10 +455,15 @@ export async function POST(req: NextRequest) {
           let currentHistory = [...conversationHistory];
           let iteration = 0;
           const maxIterations = 5;
+          let totalResponseText = "";
+          const allToolCalls: ToolCallResult[] = [];
 
           const baseSystemPrompt = agentSystemPrompt || manualSystemPrompt || "";
           const assignedSkillsText = agentSkills.length > 0 ? `[Assigned Skills]: ${agentSkills.join(", ")}` : "";
           const basePromptWithSkills = assignedSkillsText ? `${baseSystemPrompt}\n${assignedSkillsText}` : baseSystemPrompt;
+
+          let lastAssistantText = "";
+          const conversationId = (body as any).conversationId || "unknown";
 
           while (iteration < maxIterations) {
             iteration++;
@@ -412,28 +486,56 @@ export async function POST(req: NextRequest) {
               requestId
             );
 
-            // Execute any tool outputs in responseText
-            const { toolRun, result } = await runTools(responseText, workspacePath);
+            totalResponseText += responseText;
+
+            const { toolRun, resultSummary } = await parseAndExecuteTools(
+              responseText,
+              workspacePath,
+              controller,
+              encoder,
+              requestId,
+              allToolCalls
+            );
 
             if (!toolRun) {
-              break; // Done!
+              lastAssistantText = responseText;
+              break;
             }
 
-            // Stream progress update to UI
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
               type: "chunk", 
-              content: `\n\n⚙️ **[Executed System Action]**:\n\`\`\`\n${result}\n\`\`\`\n` 
+              content: `\n\n⚙️ **[Executed System Action]**:\n\`\`\`\n${resultSummary}\n\`\`\`\n` 
             })}\n\n`));
 
-            // Append assistant response and system response to history
             currentHistory.push({ role: "user", content: currentPrompt });
             currentHistory.push({ role: "assistant", content: responseText });
 
-            // Next turn prompt
-            currentPrompt = `Here is the result of the local tool execution you requested:\n${result}\n\nPlease proceed with the next steps or give your final answer based on this result.`;
+            currentPrompt = `Here is the result of the tool execution:\n${resultSummary}\n\nPlease proceed with the next steps or give your final answer based on this result.`;
           }
 
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", duration: 0 })}\n\n`));
+          const promptContext = [
+            basePromptWithSkills,
+            LOCAL_SYSTEM_INSTRUCTIONS,
+            ...conversationHistory.map((m: any) => m.content),
+            prompt,
+          ].join(" ");
+          const promptTokens = countTokens(promptContext);
+          const completionTokens = countTokens(totalResponseText);
+          const totalTokens = promptTokens + completionTokens;
+          const { cost } = estimateCost(model, promptTokens, completionTokens);
+
+          extractMemoriesFromText(
+            totalResponseText,
+            model,
+            targetModel,
+            isCustomProvider,
+            providerData,
+            providerEnv,
+            apiKey,
+            conversationId
+          ).catch((err) => console.error("[Memory Extraction Failed]:", err));
+
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", duration: 0, tokens: { prompt: promptTokens, completion: completionTokens, total: totalTokens }, cost, toolCalls: allToolCalls })}\n\n`));
           controller.close();
         } catch (error: any) {
           console.error(`[${requestId}] Stream Error:`, error);

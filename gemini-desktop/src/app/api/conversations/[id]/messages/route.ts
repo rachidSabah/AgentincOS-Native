@@ -25,7 +25,7 @@ export async function POST(
   try {
     const { id: conversationId } = await params;
     const body = await req.json();
-    const { role, content, agentId, attachments, metadata } = body;
+    const { role, content, agentId, attachments, metadata, toolCalls } = body;
 
     const message = await db.message.create({
       data: {
@@ -35,6 +35,7 @@ export async function POST(
         agentId,
         attachments: attachments ? JSON.stringify(attachments) : null,
         metadata: metadata ? JSON.stringify(metadata) : null,
+        toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
       },
     });
 

@@ -15,12 +15,17 @@ import {
   Check,
   Volume2,
   VolumeX,
+  Pencil,
+  GitBranch,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import type { Attachment, Message } from "@/lib/types";
+import type { Attachment, Message, MessageMetadata } from "@/lib/types";
 import { ReadAloud } from "@/components/ReadAloud";
+import { ToolCallDisplay } from "@/components/ToolCallDisplay";
+import { formatTokens, getTokenColor } from "@/lib/tokens";
 
 export function ChatWindow() {
   const {
@@ -34,6 +39,8 @@ export function ChatWindow() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
 
   // Auto-scroll to bottom when new messages or chunks arrive
   useEffect(() => {
@@ -61,6 +68,68 @@ export function ChatWindow() {
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
       // fallback
+    }
+  };
+
+  const handleEdit = async (messageId: string) => {
+    const trimmed = editContent.trim();
+    if (!trimmed) return;
+
+    useChatStore.getState().editMessage(messageId, trimmed);
+
+    try {
+      await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: trimmed }),
+      });
+    } catch (error) {
+      console.error("Failed to save edit:", error);
+    }
+
+    setEditingMessageId(null);
+    setEditContent("");
+  };
+
+  const handleBranch = async (messageId: string) => {
+    const state = useChatStore.getState();
+    const conv = state.getActiveConversation();
+    if (!conv) return;
+
+    const msgIndex = state.messages.findIndex((m) => m.id === messageId);
+    const messagesToCopy = state.messages.slice(0, msgIndex + 1);
+
+    try {
+      const newConvRes = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${conv.title} (fork)`,
+          model: conv.model,
+          systemPrompt: conv.systemPrompt,
+        }),
+      });
+      if (!newConvRes.ok) throw new Error("Failed to create fork conversation");
+      const newConv = await newConvRes.json();
+
+      for (const msg of messagesToCopy) {
+        await fetch(`/api/conversations/${newConv.id}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: msg.role,
+            content: msg.content,
+            agentId: msg.agentId,
+            attachments: msg.attachments,
+            metadata: msg.metadata,
+          }),
+        });
+      }
+
+      useChatStore.getState().addConversation(newConv);
+      state.setActiveConversationId(newConv.id);
+    } catch (error) {
+      console.error("Failed to branch conversation:", error);
     }
   };
 
@@ -94,6 +163,7 @@ export function ChatWindow() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = "";
+      let collectedToolCalls: any[] = [];
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -108,9 +178,18 @@ export function ChatWindow() {
               if (data.type === "chunk") {
                 fullContent += data.content;
                 useChatStore.getState().setStreamingContent(fullContent);
+              } else if (data.type === "tool_call") {
+                useChatStore.getState().setStreamingContent(fullContent + `\n\n*Running tool: ${data.toolName}...*`);
+              } else if (data.type === "tool_result") {
+                useChatStore.getState().setStreamingContent(fullContent);
+                collectedToolCalls.push({
+                  name: data.toolName,
+                  result: data.result,
+                  status: data.status,
+                  timestamp: data.timestamp,
+                });
               } else if (data.type === "done") {
                 useChatStore.getState().clearStreamingContent();
-                // Save the assistant message
                 const res = await fetch(`/api/conversations/${activeConversationId}/messages`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -118,6 +197,7 @@ export function ChatWindow() {
                     role: "assistant",
                     content: fullContent,
                     metadata: { model: conv?.model, duration: data.duration },
+                    toolCalls: data.toolCalls || collectedToolCalls,
                   }),
                 });
                 if (!res.ok) throw new Error("Failed to save regenerated message");
@@ -126,6 +206,10 @@ export function ChatWindow() {
               } else if (data.type === "error") {
                 useChatStore.getState().clearStreamingContent();
               }
+            } catch {}
+          }
+        }
+      }
             } catch {}
           }
         }
@@ -167,7 +251,7 @@ export function ChatWindow() {
             </div>
           )}
 
-          {messages.map((message) => (
+          {messages.map((message, idx) => (
             <MessageBubble
               key={message.id}
               message={message}
@@ -175,6 +259,20 @@ export function ChatWindow() {
               onCopy={handleCopy}
               onRegenerate={handleRegenerate}
               isGenerating={false}
+              isEditing={editingMessageId === message.id}
+              editContent={editingMessageId === message.id ? editContent : ""}
+              hasSubsequentMessages={message.role === "user" && idx < messages.length - 1}
+              onStartEdit={(msg) => {
+                setEditingMessageId(msg.id);
+                setEditContent(msg.content);
+              }}
+              onCancelEdit={() => {
+                setEditingMessageId(null);
+                setEditContent("");
+              }}
+              onEditContentChange={setEditContent}
+              onSaveEdit={handleEdit}
+              onBranch={handleBranch}
             />
           ))}
 
@@ -188,12 +286,21 @@ export function ChatWindow() {
                 content: streamingContent,
                 attachments: null,
                 metadata: null,
+                edited: false,
                 createdAt: new Date().toISOString(),
               }}
               copiedId={null}
               onCopy={handleCopy}
               onRegenerate={() => {}}
               isGenerating={true}
+              isEditing={false}
+              editContent=""
+              hasSubsequentMessages={false}
+              onStartEdit={() => {}}
+              onCancelEdit={() => {}}
+              onEditContentChange={() => {}}
+              onSaveEdit={() => {}}
+              onBranch={() => {}}
             />
           )}
 
@@ -236,9 +343,17 @@ interface MessageBubbleProps {
   onCopy: (content: string, id: string) => void;
   onRegenerate: (id: string) => void;
   isGenerating: boolean;
+  isEditing: boolean;
+  editContent: string;
+  hasSubsequentMessages: boolean;
+  onStartEdit: (message: Message) => void;
+  onCancelEdit: () => void;
+  onEditContentChange: (content: string) => void;
+  onSaveEdit: (messageId: string) => void;
+  onBranch: (messageId: string) => void;
 }
 
-function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating }: MessageBubbleProps) {
+function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating, isEditing, editContent, hasSubsequentMessages, onStartEdit, onCancelEdit, onEditContentChange, onSaveEdit, onBranch }: MessageBubbleProps) {
   const [showRaw, setShowRaw] = useState(false);
   const { agents } = useAgentStore();
   const isUser = message.role === "user";
@@ -250,6 +365,21 @@ function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating }
   try {
     attachments = message.attachments ? JSON.parse(message.attachments) : [];
   } catch {}
+
+  let messageMetadata: MessageMetadata | null = null;
+  try {
+    messageMetadata = message.metadata ? JSON.parse(message.metadata) : null;
+  } catch {}
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSaveEdit(message.id);
+    }
+    if (e.key === "Escape") {
+      onCancelEdit();
+    }
+  };
 
   return (
     <div className={cn("flex items-start gap-3 group", isUser && "flex-row-reverse")}>
@@ -306,7 +436,37 @@ function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating }
               : "bg-muted/50 rounded-tl-md"
           )}
         >
-          {isAssistant ? (
+          {isEditing ? (
+            <div className="space-y-2">
+              <textarea
+                className="w-full bg-background/80 text-foreground rounded-md p-2 text-sm resize-none min-h-[60px] focus:outline-none focus:ring-1 focus:ring-primary"
+                value={editContent}
+                onChange={(e) => onEditContentChange(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                autoFocus
+              />
+              <div className="flex justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                  onClick={() => onSaveEdit(message.id)}
+                >
+                  <Check className="h-3 w-3 mr-1" />
+                  Save
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] text-destructive hover:bg-destructive/10"
+                  onClick={onCancelEdit}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : isAssistant ? (
             <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-pre:my-2 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-blockquote:my-2">
               <ReactMarkdown>{message.content}</ReactMarkdown>
               {isGenerating && (
@@ -317,6 +477,9 @@ function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating }
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
           )}
         </div>
+
+        {/* Tool calls */}
+        {isAssistant && <ToolCallDisplay toolCalls={message.toolCalls} />}
 
         {/* Action buttons */}
         {isAssistant && !isGenerating && (
@@ -354,6 +517,45 @@ function MessageBubble({ message, copiedId, onCopy, onRegenerate, isGenerating }
               <RefreshCw className="h-3 w-3" />
             </Button>
             <ReadAloud text={message.content} />
+            {messageMetadata?.tokens?.total != null && (
+              <span
+                className={cn(
+                  "text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-muted/60",
+                  getTokenColor(messageMetadata.tokens.total)
+                )}
+                title={`Prompt: ${formatTokens(messageMetadata.tokens.prompt || 0)} / Completion: ${formatTokens(messageMetadata.tokens.completion || 0)}`}
+              >
+                {formatTokens(messageMetadata.tokens.total)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {isUser && !isGenerating && !isEditing && (
+          <div className="flex items-center gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => onStartEdit(message)}
+              title="Edit message"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            {hasSubsequentMessages && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => onBranch(message.id)}
+                title="Fork conversation"
+              >
+                <GitBranch className="h-3 w-3" />
+              </Button>
+            )}
+            {message.edited && (
+              <span className="text-[10px] text-muted-foreground/70">(edited)</span>
+            )}
           </div>
         )}
 

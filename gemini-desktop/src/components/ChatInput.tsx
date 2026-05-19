@@ -119,6 +119,7 @@ export function ChatInput() {
       content: trimmed,
       attachments: attachments.length > 0 ? JSON.stringify(attachments) : null,
       metadata: null,
+      edited: false,
       createdAt: new Date().toISOString(),
     };
 
@@ -174,6 +175,8 @@ export function ChatInput() {
       const decoder = new TextDecoder();
       let fullContent = "";
 
+      let collectedToolCalls: any[] = [];
+
       while (reader && !abortRef.current) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -187,9 +190,19 @@ export function ChatInput() {
               if (data.type === "chunk") {
                 fullContent += data.content;
                 setStreamingContent(fullContent);
+              } else if (data.type === "tool_call") {
+                const { setStreamingContent } = useChatStore.getState();
+                setStreamingContent(fullContent + `\n\n*Running tool: ${data.toolName}...*`);
+              } else if (data.type === "tool_result") {
+                useChatStore.getState().setStreamingContent(fullContent);
+                collectedToolCalls.push({
+                  name: data.toolName,
+                  result: data.result,
+                  status: data.status,
+                  timestamp: data.timestamp,
+                });
               } else if (data.type === "done") {
                 clearStreamingContent();
-                // Save assistant message to DB
                 try {
                   const res = await fetch(`/api/conversations/${convId}/messages`, {
                     method: "POST",
@@ -198,7 +211,8 @@ export function ChatInput() {
                       role: "assistant",
                       content: fullContent,
                       agentId: activeAgentId,
-                      metadata: { model, duration: data.duration },
+                      metadata: { model, duration: data.duration, tokens: data.tokens, cost: data.cost },
+                      toolCalls: data.toolCalls || collectedToolCalls,
                     }),
                   });
                   if (!res.ok) throw new Error("Failed to save assistant message");
@@ -243,6 +257,7 @@ export function ChatInput() {
             content: fullContent + "\n\n*[Generation stopped]*",
             attachments: null,
             metadata: null,
+            edited: false,
             createdAt: new Date().toISOString(),
           });
         }
@@ -257,6 +272,7 @@ export function ChatInput() {
         content: `**Error:** Failed to get response. ${errorMsg}`,
         attachments: null,
         metadata: null,
+        edited: false,
         createdAt: new Date().toISOString(),
       });
     } finally {

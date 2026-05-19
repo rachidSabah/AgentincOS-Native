@@ -4,10 +4,11 @@ import { useUIStore, useSettingsStore, useAgentStore, useSkillStore, useChatStor
 import { cn } from "@/lib/utils";
 import { ClawHubLogo, ClawHubText } from "./ClawHubLogo";
 import {
-  PanelLeft, Settings, Bot, Zap, ChevronDown, Check,
+  PanelLeft, Settings, Bot, Zap, ChevronDown, Check, BarChart3,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { TokenDashboard } from "./TokenDashboard";
 
 export function TopBar() {
   const { toggleSidebar, setSettingsOpen } = useUIStore();
@@ -19,6 +20,7 @@ export function TopBar() {
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
   const [skillDropdownOpen, setSkillDropdownOpen] = useState(false);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [tokenDashboardOpen, setTokenDashboardOpen] = useState(false);
 
   const agentRef = useRef<HTMLDivElement>(null);
   const skillRef = useRef<HTMLDivElement>(null);
@@ -219,10 +221,21 @@ export function TopBar() {
       {/* Spacer */}
       <div className="flex-1" />
 
+      {/* Token Dashboard */}
+      <button
+        onClick={() => setTokenDashboardOpen(true)}
+        className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        title="Token Usage Dashboard"
+      >
+        <BarChart3 className="h-4 w-4" />
+      </button>
+
       {/* Settings */}
       <button onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Settings (Ctrl+,)">
         <Settings className="h-4 w-4" />
       </button>
+
+      <TokenDashboard open={tokenDashboardOpen} onOpenChange={setTokenDashboardOpen} />
     </div>
   );
 }

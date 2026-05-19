@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MemoryPanel } from "@/components/MemoryPanel";
 import {
   Plus,
   MessageSquare,
@@ -25,6 +26,7 @@ import {
   Star,
   Download,
   Check,
+  Brain,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -314,6 +316,10 @@ export function ChatSidebar() {
               <TabsTrigger value="skills" className="flex-1 text-[10px] px-1 gap-1 justify-center">
                 <Wrench className="h-3 w-3 shrink-0" />
                 <span>Skills</span>
+              </TabsTrigger>
+              <TabsTrigger value="memory" className="flex-1 text-[10px] px-1 gap-1 justify-center">
+                <Brain className="h-3 w-3 shrink-0" />
+                <span>Memory</span>
               </TabsTrigger>
 
             </TabsList>
@@ -877,6 +883,10 @@ export function ChatSidebar() {
               </ScrollArea>
             </TabsContent>
 
+            {/* ── MEMORY TAB ── */}
+            <TabsContent value="memory" className="mt-3">
+              <MemoryPanel />
+            </TabsContent>
 
           </Tabs>
         </div>
