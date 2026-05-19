@@ -21,9 +21,9 @@ import {
   X,
   Wrench,
   BookOpen,
-  Terminal,
   FolderOpen,
   Star,
+  Download,
   Check,
 } from "lucide-react";
 import {
@@ -100,60 +100,6 @@ export function ChatSidebar() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Terminal state
-  const [terminalHistory, setTerminalHistory] = useState<{ type: "input" | "output" | "error"; text: string }[]>([
-    { type: "output", text: "Proxima local terminal initialized. Ready for shell operations." }
-  ]);
-  const [terminalInput, setTerminalInput] = useState("");
-  const [currentCwd, setCurrentCwd] = useState(settings.workspacePath || "");
-  const [isRunningCommand, setIsRunningCommand] = useState(false);
-  const terminalBottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (settings.workspacePath) {
-      setCurrentCwd(settings.workspacePath);
-    }
-  }, [settings.workspacePath]);
-
-  useEffect(() => {
-    if (terminalBottomRef.current) {
-      terminalBottomRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [terminalHistory]);
-
-  const runTerminalCommand = async () => {
-    if (!terminalInput.trim() || isRunningCommand) return;
-    const cmd = terminalInput.trim();
-    setTerminalHistory((prev) => [...prev, { type: "input", text: `${currentCwd || "~"}> ${cmd}` }]);
-    setTerminalInput("");
-    setIsRunningCommand(true);
-
-    try {
-      const res = await fetch("/api/local/cmd", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: cmd, cwd: currentCwd }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setTerminalHistory((prev) => [...prev, { type: "error", text: data.error }]);
-      } else {
-        if (data.stdout) {
-          setTerminalHistory((prev) => [...prev, { type: "output", text: data.stdout }]);
-        }
-        if (data.stderr) {
-          setTerminalHistory((prev) => [...prev, { type: "error", text: data.stderr }]);
-        }
-        if (!data.stdout && !data.stderr) {
-          setTerminalHistory((prev) => [...prev, { type: "output", text: "(Command completed with no output)" }]);
-        }
-      }
-    } catch (e: any) {
-      setTerminalHistory((prev) => [...prev, { type: "error", text: `Failed to execute: ${e.message}` }]);
-    } finally {
-      setIsRunningCommand(false);
-    }
-  };
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -270,6 +216,30 @@ export function ChatSidebar() {
     );
   };
 
+  const handleExport = async (convId: string, format: "markdown" | "json") => {
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: convId, format }),
+      });
+      if (!res.ok) {
+        toast.error("Failed to export conversation");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chat-${convId}.${format === "markdown" ? "md" : "json"}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported as ${format.toUpperCase()}`);
+    } catch {
+      toast.error("Failed to export conversation");
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col h-full bg-card/50 border-r border-border">
@@ -345,10 +315,7 @@ export function ChatSidebar() {
                 <Wrench className="h-3 w-3 shrink-0" />
                 <span>Skills</span>
               </TabsTrigger>
-              <TabsTrigger value="terminal" className="flex-1 text-[10px] px-1 gap-1 justify-center">
-                <Terminal className="h-3 w-3 shrink-0" />
-                <span>Terminal</span>
-              </TabsTrigger>
+
             </TabsList>
 
             {/* ── CHATS TAB ── */}
@@ -425,7 +392,7 @@ export function ChatSidebar() {
               </div>
 
               {/* Conversation List */}
-              <ScrollArea className="h-[calc(100vh-220px)] -mx-2 px-2">
+              <ScrollArea className="h-[calc(100vh-220px)] pr-1">
                 {/* ── FAVORITES SECTION ── */}
                 {favoriteConversations.length > 0 && (
                   <div className="mb-4">
@@ -525,20 +492,32 @@ export function ChatSidebar() {
                         )}
 
                         {!selectMode && editingId !== conv.id && (
-                          <div className="relative flex items-center gap-0.5 shrink-0 ml-auto z-10">
+                          <div className="flex items-center gap-1 shrink-0 ml-2 z-10">
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-7 w-7 text-amber-500 hover:bg-amber-500/20 hover:text-amber-500"
+                              className="h-7 w-7 border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
                               title="Unfavorite"
                               onClick={(e) => toggleFavorite(conv.id, true, e)}
                             >
                               <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+                              className="h-7 w-7 border-muted-foreground/30 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/50"
+                              title="Export"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExport(conv.id, "markdown");
+                              }}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 border-muted-foreground/30 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/50"
                               title="Rename"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -549,9 +528,9 @@ export function ChatSidebar() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                              className="h-7 w-7 border-muted-foreground/30 text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
                               title="Delete"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -665,20 +644,32 @@ export function ChatSidebar() {
                         )}
 
                         {!selectMode && editingId !== conv.id && (
-                          <div className="relative flex items-center gap-0.5 shrink-0 ml-auto z-10">
+                          <div className="flex items-center gap-1 shrink-0 ml-2 z-10">
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-amber-500/20 hover:text-amber-500"
+                              className="h-7 w-7 border-amber-500/30 text-amber-500/70 hover:bg-amber-500/10 hover:text-amber-500 hover:border-amber-500/50"
                               title="Favorite"
                               onClick={(e) => toggleFavorite(conv.id, false, e)}
                             >
                               <Star className="h-3.5 w-3.5" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-primary/20 hover:text-primary"
+                              className="h-7 w-7 border-muted-foreground/30 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/50"
+                              title="Export"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExport(conv.id, "markdown");
+                              }}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 border-muted-foreground/30 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/50"
                               title="Rename"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -689,9 +680,9 @@ export function ChatSidebar() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                              className="h-7 w-7 border-muted-foreground/30 text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
                               title="Delete"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -735,7 +726,7 @@ export function ChatSidebar() {
                 />
               </div>
 
-              <ScrollArea className="h-[calc(100vh-220px)] -mx-2 px-2">
+              <ScrollArea className="h-[calc(100vh-220px)] pr-1">
                 <div className="space-y-1">
                   {filteredAgents.map((agent) => (
                     <div
@@ -821,7 +812,7 @@ export function ChatSidebar() {
                 />
               </div>
 
-              <ScrollArea className="h-[calc(100vh-220px)] -mx-2 px-2">
+              <ScrollArea className="h-[calc(100vh-220px)] pr-1">
                 <div className="space-y-1">
                   {filteredSkills.map((skill) => (
                     <div
@@ -886,91 +877,7 @@ export function ChatSidebar() {
               </ScrollArea>
             </TabsContent>
 
-            {/* ── TERMINAL TAB ── */}
-            <TabsContent value="terminal" className="mt-3 space-y-3 flex flex-col h-[calc(100vh-220px)]">
-              <div className="flex-1 flex flex-col min-h-0 bg-background/90 rounded-lg border border-border/80 p-2.5 font-mono text-[10px] relative overflow-hidden shadow-inner">
-                <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
-                
-                <ScrollArea className="flex-1 pr-1">
-                  <div className="space-y-1.5 whitespace-pre-wrap leading-relaxed">
-                    {terminalHistory.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          item.type === "input" ? "text-primary/95 font-semibold" :
-                          item.type === "error" ? "text-destructive/90" : "text-muted-foreground/90"
-                        )}
-                      >
-                        {item.text}
-                      </div>
-                    ))}
-                    {isRunningCommand && (
-                      <div className="text-primary/70 animate-pulse flex items-center gap-1.5">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
-                        Running...
-                      </div>
-                    )}
-                    <div ref={terminalBottomRef} />
-                  </div>
-                </ScrollArea>
-              </div>
 
-              <div className="flex gap-1">
-                <Input
-                  placeholder="Type shell command..."
-                  value={terminalInput}
-                  onChange={(e) => setTerminalInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") runTerminalCommand();
-                  }}
-                  disabled={isRunningCommand}
-                  className="h-8 text-[11px] font-mono bg-background/50 flex-1 border-border/80 focus-visible:ring-primary/40"
-                />
-                <Button
-                  size="sm"
-                  className="h-8 px-2.5 text-xs gap-1"
-                  onClick={runTerminalCommand}
-                  disabled={isRunningCommand || !terminalInput.trim()}
-                >
-                  Run
-                </Button>
-              </div>
-
-              <div className="flex flex-wrap gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-1.5 text-[9px] font-mono text-muted-foreground"
-                  onClick={() => setTerminalInput("dir")}
-                >
-                  dir
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-1.5 text-[9px] font-mono text-muted-foreground"
-                  onClick={() => setTerminalInput("git status")}
-                >
-                  git status
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-1.5 text-[9px] font-mono text-muted-foreground"
-                  onClick={() => setTerminalInput("npm run dev")}
-                >
-                  npm run dev
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-1.5 text-[9px] font-mono text-muted-foreground"
-                  onClick={() => setTerminalHistory([{ type: "output", text: "Terminal cleared." }])}
-                >
-                  clear
-                </Button>
-              </div>
-            </TabsContent>
           </Tabs>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import React from "react";
 
 export type Theme = "dark" | "light" | "system";
-const STORAGE_KEY = "gemini-desktop-theme";
+const STORAGE_KEY = "clawhub-desktop-theme";
 
 function getSystemTheme(): "dark" | "light" {
   if (typeof window === "undefined") return "dark";

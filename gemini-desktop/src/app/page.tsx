@@ -165,10 +165,10 @@ function DashboardContent() {
       <div
         className={cn(
           "shrink-0 transition-all duration-300 ease-in-out overflow-hidden",
-          sidebarOpen ? "w-[280px]" : "w-0"
+          sidebarOpen ? "w-[320px]" : "w-0"
         )}
       >
-        <div className="w-[280px] h-full">
+        <div className="w-[320px] h-full">
           <ChatSidebar />
         </div>
       </div>
