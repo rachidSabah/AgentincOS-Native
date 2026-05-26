@@ -138,7 +138,7 @@ export function TopBar() {
       <div className="flex items-center gap-4">
         <h1 className="text-white font-bold text-lg tracking-wide">{viewLabels[activeView] || 'Mission Control'}</h1>
         <span className="text-[#8888aa] text-sm hidden lg:block">
-          {activeView === 'mission-control' ? 'The Goldie Mission Stack — 4 layers, 1 compound system.' : ''}
+          {activeView === 'mission-control' ? 'All systems operational — 4 agents online.' : ''}
         </span>
       </div>
       <div className="flex items-center gap-3">
@@ -154,6 +154,123 @@ export function TopBar() {
         </div>
       </div>
     </header>
+  );
+}
+
+/* ───────── QUICK STATS ───────── */
+export function QuickStats() {
+  const { agents, systemMetrics } = useOSStore();
+  const liveAgents = agents.filter(a => a.status === 'live').length;
+  const totalRequests = agents.reduce((sum, a) => sum + a.requests, 0);
+
+  const stats = [
+    { label: 'Agents Online', value: `${liveAgents}/${agents.length}`, color: '#00ffff', icon: Radio },
+    { label: 'Total Requests', value: totalRequests.toLocaleString(), color: '#9d4edd', icon: Activity },
+    { label: 'Avg Latency', value: `${systemMetrics.avgLatency}ms`, color: '#00ff88', icon: Zap },
+    { label: 'Vault Entries', value: systemMetrics.vaultEntries.toLocaleString(), color: '#ffaa00', icon: Database },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {stats.map((stat, i) => (
+        <motion.div key={stat.label}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.08 }}
+          className="rounded-xl border bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4 card-hover"
+          style={{ borderColor: `${stat.color}20`, background: `linear-gradient(135deg, ${stat.color}06, ${stat.color}02)` }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <stat.icon size={14} style={{ color: stat.color }} />
+            <span className="text-[10px] text-[#8888aa] uppercase tracking-wider">{stat.label}</span>
+          </div>
+          <div className="text-white font-mono font-bold text-xl">{stat.value}</div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+/* ───────── NETWORK TOPOLOGY ───────── */
+export function NetworkTopology() {
+  const { agents, stackLayers, setActiveView } = useOSStore();
+
+  // Hub-and-spoke layout: OpenClaw at center, others around it
+  const cx = 150, cy = 120;
+  const positions = [
+    { x: 150, y: 40, label: 'Claude', layer: 1, color: '#00ffff', id: 'claude' },
+    { x: 150, y: 120, label: 'OpenClaw', layer: 2, color: '#9d4edd', id: 'openclaw' },
+    { x: 40, y: 200, label: 'Hermes', layer: 3, color: '#00ff88', id: 'hermes' },
+    { x: 260, y: 200, label: 'Self Vault', layer: 4, color: '#ffaa00', id: 'vault' },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-5 lg:col-span-2">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Network size={14} className="text-[#9d4edd]" /> Network Topology
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">MESH ACTIVE</span>
+      </div>
+
+      <svg viewBox="0 0 300 240" className="w-full max-w-md mx-auto">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+            <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        {/* Connection lines */}
+        {/* OpenClaw to all others */}
+        {positions.filter(p => p.id !== 'openclaw').map(p => (
+          <line key={`line-${p.id}`} x1={cx} y1={cy} x2={p.x} y2={p.y}
+            stroke={p.color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="4 4">
+            <animate attributeName="stroke-dashoffset" from="8" to="0" dur="2s" repeatCount="indefinite" />
+          </line>
+        ))}
+        {/* Data flow particles */}
+        {positions.filter(p => p.id !== 'openclaw').map(p => (
+          <circle key={`particle-${p.id}`} r="2" fill={p.color} opacity="0.8">
+            <animateMotion dur={`${2 + Math.random() * 2}s`} repeatCount="indefinite"
+              path={`M${cx},${cy} L${p.x},${p.y}`} />
+          </circle>
+        ))}
+
+        {/* Nodes */}
+        {positions.map((p) => {
+          const agent = agents.find(a => a.id === p.id);
+          const isHub = p.id === 'openclaw';
+          return (
+            <g key={p.id} className="cursor-pointer" onClick={() => setActiveView(`layer-${stackLayers.find(l => l.number === p.layer)?.id || 'intelligence'}`)}>
+              {/* Outer glow */}
+              <circle cx={p.x} cy={p.y} r={isHub ? 28 : 22} fill={`${p.color}10`} stroke={`${p.color}30`} strokeWidth="1" />
+              {/* Inner circle */}
+              <circle cx={p.x} cy={p.y} r={isHub ? 20 : 16} fill={`${p.color}15`} stroke={p.color} strokeWidth="1.5" filter="url(#glow)" />
+              {/* Pulse ring */}
+              <circle cx={p.x} cy={p.y} r={isHub ? 24 : 18} fill="none" stroke={p.color} strokeWidth="0.5" opacity="0.5">
+                <animate attributeName="r" from={isHub ? 20 : 16} to={isHub ? 34 : 28} dur="2s" repeatCount="indefinite" />
+                <animate attributeName="opacity" from="0.5" to="0" dur="2s" repeatCount="indefinite" />
+              </circle>
+              {/* Layer badge */}
+              <text x={p.x} y={p.y + 1} textAnchor="middle" dominantBaseline="middle" fill={p.color} fontSize="9" fontFamily="monospace" fontWeight="bold">
+                L{p.layer}
+              </text>
+              {/* Label */}
+              <text x={p.x} y={p.y + (isHub ? 38 : 32)} textAnchor="middle" fill="#ccccdd" fontSize="10" fontFamily="sans-serif">
+                {p.label}
+              </text>
+              {/* Status dot */}
+              {agent?.status === 'live' && (
+                <circle cx={p.x + (isHub ? 16 : 12)} cy={p.y - (isHub ? 16 : 12)} r="3" fill="#00ff88">
+                  <animate attributeName="opacity" from="1" to="0.3" dur="1.5s" repeatCount="indefinite" />
+                </circle>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 

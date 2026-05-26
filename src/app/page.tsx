@@ -2,11 +2,11 @@
 
 import { useOSStore } from '@/lib/store';
 import {
-  Sidebar, TopBar, StackPyramid, LayerCard, AgentStatusBar,
+  Sidebar, TopBar, LayerCard, AgentStatusBar,
   SystemMonitor, LogStream, LatencyGraph, ControlRoom,
   CommandPalette, GoalsView, JournalView, MemoryView,
   HermesFeatureGrid, CompoundVisualizer, SelfLayerExplanation,
-  OmiObsidianStatus,
+  OmiObsidianStatus, NetworkTopology, QuickStats,
 } from '@/components/dashboard';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
@@ -58,35 +58,25 @@ export default function HomePage() {
       case 'mission-control':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            {/* Quick Stats */}
+            <QuickStats />
+
             {/* Agent Status Bar */}
             <div>
-              <div className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-3">Live Stack Status</div>
+              <div className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-3">Live Agents</div>
               <AgentStatusBar />
             </div>
 
-            {/* Stack Pyramid + Compound Visualizer */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <StackPyramid />
-              <CompoundVisualizer />
-            </div>
-
-            {/* Layer Cards */}
-            <div>
-              <div className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-3">The Four Layers</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {stackLayers.map(layer => (
-                  <LayerCard key={layer.id} layer={layer} />
-                ))}
-              </div>
+            {/* Main Dashboard Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <SystemMonitor />
+              <NetworkTopology />
             </div>
 
             {/* Bottom Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <SystemMonitor />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <LogStream />
-              <div className="space-y-4">
-                <LatencyGraph />
-              </div>
+              <LatencyGraph />
             </div>
           </motion.div>
         );
