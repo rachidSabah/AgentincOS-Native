@@ -15,8 +15,12 @@ export function Sidebar() {
   const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, agents, stackLayers } = useOSStore();
   const liveCount = agents.filter((a) => a.status === 'live').length;
 
-  const layerNav = [
+  const mainNav = [
     { id: 'mission-control', label: 'Mission Control', icon: Radio, layer: 0 },
+    { id: 'stack-overview', label: 'Mission Stack', icon: Sparkles, layer: 0 },
+  ];
+
+  const layerNav = [
     { id: 'layer-intelligence', label: 'L1 Intelligence', icon: Crown, layer: 1 },
     { id: 'layer-execution', label: 'L2 Execution', icon: Route, layer: 2 },
     { id: 'layer-research', label: 'L3 Research', icon: FlaskConical, layer: 3 },
@@ -52,11 +56,11 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-        {!sidebarCollapsed && <div className="px-3 mb-2 text-[10px] text-[#8888aa] uppercase tracking-widest">Stack Layers</div>}
-        {layerNav.map((item) => {
+        {/* Main Nav */}
+        {!sidebarCollapsed && <div className="px-3 mb-2 text-[10px] text-[#8888aa] uppercase tracking-widest">Navigation</div>}
+        {mainNav.map((item) => {
           const isActive = activeView === item.id;
-          const layerData = stackLayers.find(l => l.number === item.layer);
-          const dotColor = item.layer === 0 ? '#9d4edd' : (layerData?.color || '#8888aa');
+          const dotColor = '#9d4edd';
           return (
             <button key={item.id} onClick={() => setActiveView(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative ${
@@ -79,6 +83,34 @@ export function Sidebar() {
             </button>
           );
         })}
+
+        {/* Layer Nav */}
+        <div className="pt-4">
+          {!sidebarCollapsed && <div className="px-3 mb-2 text-[10px] text-[#8888aa] uppercase tracking-widest">Stack Layers</div>}
+          {layerNav.map((item) => {
+            const isActive = activeView === item.id;
+            const layerData = stackLayers.find(l => l.number === item.layer);
+            const dotColor = layerData?.color || '#8888aa';
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group relative ${
+                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.08)]'
+                }`}
+                style={isActive ? { background: `${dotColor}15` } : {}}
+              >
+                {isActive && <motion.div layoutId="sidebar-layer-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: dotColor }} />}
+                <item.icon size={16} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: dotColor } : {}} />
+                <AnimatePresence>
+                  {!sidebarCollapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[13px] font-medium truncate">
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            );
+          })}
+        </div>
 
         {/* S.E.L.F Section */}
         <div className="pt-6">
@@ -124,6 +156,7 @@ export function TopBar() {
 
   const viewLabels: Record<string, string> = {
     'mission-control': 'Mission Control',
+    'stack-overview': 'Goldie Mission Stack',
     'layer-intelligence': 'Layer 1 — Intelligence',
     'layer-execution': 'Layer 2 — Execution',
     'layer-research': 'Layer 3 — Research',
@@ -340,6 +373,118 @@ export function StackPyramid() {
           <span className="text-[10px] text-[#ffaa00]">72%</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ───────── STACK OVERVIEW (inner page) ───────── */
+export function StackOverview() {
+  const { stackLayers, setActiveView, systemMetrics } = useOSStore();
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-white font-bold text-xl tracking-wider uppercase flex items-center gap-3">
+            <Sparkles size={20} className="text-[#ffaa00]" />
+            The Goldie Mission Stack
+          </h2>
+          <span className="text-[10px] text-[#8888aa] font-mono">4 LAYERS ACTIVE</span>
+        </div>
+        <p className="text-[#8888aa] text-sm max-w-2xl">
+          Four layers that compound over time. Intelligence directs, Execution routes, Research works, and Self remembers.
+          Day one this is good. Day thirty this is wild.
+        </p>
+      </motion.div>
+
+      {/* Layer Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {stackLayers.map((layer, i) => (
+          <motion.button
+            key={layer.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            onClick={() => setActiveView(`layer-${layer.id}`)}
+            className="text-left group"
+          >
+            <div className="rounded-2xl border overflow-hidden transition-all duration-300 card-hover cursor-pointer"
+              style={{ borderColor: `${layer.color}25`, background: `linear-gradient(135deg, ${layer.color}08, ${layer.color}03)` }}>
+              {/* Color accent bar */}
+              <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${layer.color}, transparent)` }} />
+              <div className="p-5">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${layer.color}20, ${layer.color}08)`, border: `1px solid ${layer.color}30` }}>
+                    {layer.icon}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
+                        L{layer.number}
+                      </span>
+                      <span className="text-white font-semibold text-base">{layer.name}</span>
+                    </div>
+                    <p className="text-[12px]" style={{ color: `${layer.color}bb` }}>{layer.role}</p>
+                  </div>
+                </div>
+                <p className="text-[#ccccdd] text-[13px] leading-relaxed line-clamp-3">{layer.description}</p>
+                <div className="mt-3 flex items-center gap-2 text-[11px] font-medium group-hover:gap-3 transition-all" style={{ color: `${layer.color}aa` }}>
+                  View Layer Details <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
+                </div>
+              </div>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+
+      {/* Compounding Indicator */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="rounded-2xl border border-[rgba(255,170,0,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
+            <TrendingUp size={16} className="text-[#ffaa00]" />
+            Compounding Progress
+          </h3>
+          <span className="text-[10px] text-[#ffaa00] font-mono">DAY {systemMetrics.compoundDays}</span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Vault Size</div>
+            <div className="text-white font-mono text-lg font-bold">{systemMetrics.vaultSize} GB</div>
+          </div>
+          <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Entries</div>
+            <div className="text-[#ffaa00] font-mono text-lg font-bold">{systemMetrics.vaultEntries.toLocaleString()}</div>
+          </div>
+          <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Compounding</div>
+            <div className="text-[#00ff88] font-mono text-lg font-bold">{systemMetrics.compoundDays}d</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-2.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+            <motion.div className="h-full rounded-full bg-gradient-to-r from-[#9d4edd] to-[#ffaa00]"
+              initial={{ width: '0%' }} animate={{ width: '72%' }} transition={{ duration: 2, ease: 'easeOut' }} />
+          </div>
+          <span className="text-sm text-[#ffaa00] font-mono font-bold">72%</span>
+        </div>
+        <div className="flex justify-between text-[10px] text-[#8888aa] mt-2">
+          <span>Day 1 — Good</span>
+          <span>Day 30 — Wild</span>
+        </div>
+      </motion.div>
     </div>
   );
 }
@@ -732,7 +877,8 @@ export function CommandPalette() {
   const { commandPaletteOpen, setCommandPaletteOpen, setActiveView, setControlRoomAgent } = useOSStore();
   const [query, setQuery] = useState('');
   const commands = [
-    { id: 'mc', label: 'Mission Control', desc: 'View the Goldie Mission Stack', action: () => setActiveView('mission-control') },
+    { id: 'mc', label: 'Mission Control', desc: 'Main dashboard overview', action: () => setActiveView('mission-control') },
+    { id: 'stack', label: 'Mission Stack', desc: 'Goldie Mission Stack layers', action: () => setActiveView('stack-overview') },
     { id: 'l1', label: 'Layer 1 — Intelligence', desc: 'Claude CEO layer', action: () => setActiveView('layer-intelligence') },
     { id: 'l2', label: 'Layer 2 — Execution', desc: 'OpenClaw router layer', action: () => setActiveView('layer-execution') },
     { id: 'l3', label: 'Layer 3 — Research', desc: 'Hermes worker layer', action: () => setActiveView('layer-research') },

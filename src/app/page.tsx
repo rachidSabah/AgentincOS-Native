@@ -2,11 +2,12 @@
 
 import { useOSStore } from '@/lib/store';
 import {
-  Sidebar, TopBar, LayerCard, AgentStatusBar,
+  Sidebar, TopBar, AgentStatusBar,
   SystemMonitor, LogStream, LatencyGraph, ControlRoom,
   CommandPalette, GoalsView, JournalView, MemoryView,
   HermesFeatureGrid, CompoundVisualizer, SelfLayerExplanation,
   OmiObsidianStatus, NetworkTopology, QuickStats,
+  LayerCard, StackOverview,
 } from '@/components/dashboard';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
@@ -30,16 +31,16 @@ export default function HomePage() {
   // Live log simulation
   useEffect(() => {
     const messages = [
-      { agent: 'Claude', layer: 1 as const, level: 'info' as const, message: 'Reasoning pipeline routed decision to Hermes via OpenClaw' },
+      { agent: 'Claude', layer: 1 as const, level: 'info' as const, message: 'Reasoning pipeline active — decision routed to Hermes' },
       { agent: 'Hermes', layer: 3 as const, level: 'success' as const, message: 'Kanban task completed: competitor-analysis-q2' },
       { agent: 'OpenClaw', layer: 2 as const, level: 'info' as const, message: 'Agent routing table refreshed — 4 agents connected' },
       { agent: 'Self Vault', layer: 4 as const, level: 'success' as const, message: 'OMI exported 47 notes to Obsidian vault today' },
       { agent: 'Hermes', layer: 3 as const, level: 'info' as const, message: 'Skill execution completed: web_search (routed by OpenClaw)' },
       { agent: 'Claude', layer: 1 as const, level: 'info' as const, message: 'Pulled 23 memory entries from vault for context-rich response' },
-      { agent: 'OpenClaw', layer: 2 as const, level: 'success' as const, message: 'Session handoff: Claude (L1) → Hermes (L3) complete' },
+      { agent: 'OpenClaw', layer: 2 as const, level: 'success' as const, message: 'Session handoff: Claude → Hermes complete' },
       { agent: 'Self Vault', layer: 4 as const, level: 'info' as const, message: 'Goal progress updated: 3 goals advanced this week' },
       { agent: 'Hermes', layer: 3 as const, level: 'warn' as const, message: 'Browser pool at capacity — scheduling research for off-peak' },
-      { agent: 'Claude', layer: 1 as const, level: 'success' as const, message: 'CEO layer decision: prioritize vault compounding this quarter' },
+      { agent: 'Claude', layer: 1 as const, level: 'success' as const, message: 'CEO decision: prioritize vault compounding this quarter' },
     ];
     const interval = setInterval(() => {
       const msg = messages[Math.floor(Math.random() * messages.length)];
@@ -76,6 +77,17 @@ export default function HomePage() {
             {/* Bottom Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <LogStream />
+              <LatencyGraph />
+            </div>
+          </motion.div>
+        );
+
+      case 'stack-overview':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <StackOverview />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <SystemMonitor />
               <LatencyGraph />
             </div>
           </motion.div>
@@ -163,7 +175,7 @@ export default function HomePage() {
 
         {/* Bottom Dock — shows all 4 layer agents */}
         <div className="h-12 flex items-center justify-center gap-2 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.8)] backdrop-blur-md">
-          {agents.map((agent, i) => (
+          {agents.map((agent) => (
             <motion.button key={agent.id} onClick={() => setControlRoomAgent(agent.id)}
               whileHover={{ scale: 1.1, y: -4 }} whileTap={{ scale: 0.95 }} className="relative group">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs border transition-all"
