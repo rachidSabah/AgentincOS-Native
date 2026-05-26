@@ -6,9 +6,301 @@ import {
   Brain, Cpu, Network, HardDrive, Activity, Radio, Zap, ChevronDown,
   Menu, Command, Shield, Search, Target, BookOpen, Database, Mic,
   FileText, TrendingUp, Eye, Headphones, PenLine, Sparkles, Crown,
-  Route, FlaskConical, Gem,
+  Route, FlaskConical, Gem, ArrowRight, MessageSquare, Terminal,
+  Globe, Layers, Clock, Cpu as CpuIcon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+/* ───────── AGENT HERO CARDS (Front Page) ───────── */
+export function AgentHeroCards() {
+  const { agents, setControlRoomAgent, setActiveView, stackLayers } = useOSStore();
+
+  const heroAgents = [
+    {
+      ...agents.find(a => a.id === 'claude')!,
+      layerData: stackLayers.find(l => l.id === 'intelligence')!,
+      heroIcon: Crown,
+      accentGradient: 'from-[#00ffff]/20 to-[#00ffff]/5',
+      borderAccent: '#00ffff',
+      features: ['MCP Protocol', 'Code Execution', 'Vision Pipeline', '64K Context'],
+      tagline: 'The CEO of the Stack',
+    },
+    {
+      ...agents.find(a => a.id === 'openclaw')!,
+      layerData: stackLayers.find(l => l.id === 'execution')!,
+      heroIcon: Route,
+      accentGradient: 'from-[#9d4edd]/20 to-[#9d4edd]/5',
+      borderAccent: '#9d4edd',
+      features: ['Agent Routing', 'Session Mgmt', 'Multi-Model', 'Coordination'],
+      tagline: 'The Router',
+    },
+    {
+      ...agents.find(a => a.id === 'hermes')!,
+      layerData: stackLayers.find(l => l.id === 'research')!,
+      heroIcon: FlaskConical,
+      accentGradient: 'from-[#00ff88]/20 to-[#00ff88]/5',
+      borderAccent: '#00ff88',
+      features: ['2,550+ Skills', 'Browser Automation', 'Kanban Tasks', 'MCP Server'],
+      tagline: 'The Worker',
+    },
+    {
+      ...agents.find(a => a.id === 'vault')!,
+      layerData: stackLayers.find(l => l.id === 'self')!,
+      heroIcon: Gem,
+      accentGradient: 'from-[#ffaa00]/20 to-[#ffaa00]/5',
+      borderAccent: '#ffaa00',
+      features: ['Obsidian Vault', 'OMI Recording', 'Goal Tracking', 'Memory Search'],
+      tagline: 'The Identity',
+    },
+  ];
+
+  return (
+    <section aria-label="Agent Status Cards" className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Radio size={16} className="text-[#00ffff]" /> Live Agents
+        </h2>
+        <span className="text-[10px] text-[#8888aa] font-mono tracking-wider">{agents.filter(a => a.status === 'live').length}/{agents.length} ONLINE</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {heroAgents.map((agent, i) => {
+          const IconComp = agent.heroIcon;
+          return (
+            <motion.article
+              key={agent.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.5 }}
+              className="group relative rounded-2xl border overflow-hidden cursor-pointer card-hover"
+              style={{
+                borderColor: `${agent.borderAccent}30`,
+                background: `linear-gradient(145deg, ${agent.borderAccent}08, ${agent.borderAccent}02, rgba(18,18,42,0.6))`,
+              }}
+              onClick={() => setControlRoomAgent(agent.id)}
+            >
+              {/* Top accent line */}
+              <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${agent.borderAccent}, ${agent.borderAccent}40, transparent)` }} />
+
+              <div className="p-5">
+                {/* Header row */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center"
+                      style={{ background: `linear-gradient(135deg, ${agent.borderAccent}20, ${agent.borderAccent}08)`, border: `1px solid ${agent.borderAccent}30` }}>
+                      <IconComp size={20} style={{ color: agent.borderAccent }} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-bold text-base">{agent.name}</h3>
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: `${agent.borderAccent}20`, color: agent.borderAccent }}>
+                          L{agent.layer}
+                        </span>
+                      </div>
+                      <p className="text-[11px] mt-0.5" style={{ color: `${agent.borderAccent}aa` }}>{agent.tagline}</p>
+                    </div>
+                  </div>
+                  {/* Status */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative">
+                      <div className={`w-2.5 h-2.5 rounded-full ${agent.status === 'live' ? 'animate-pulse-glow' : ''}`}
+                        style={{ backgroundColor: agent.status === 'live' ? agent.borderAccent : '#8888aa' }} />
+                      {agent.status === 'live' && (
+                        <div className="absolute inset-0 w-2.5 h-2.5 rounded-full animate-ping opacity-30"
+                          style={{ backgroundColor: agent.borderAccent }} />
+                      )}
+                    </div>
+                    <span className={`text-[9px] font-bold tracking-wider ${agent.status === 'live' ? 'text-[#00ff88]' : 'text-[#8888aa]'}`}>
+                      {agent.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <p className="text-[#ccccdd] text-xs leading-relaxed mb-3 line-clamp-2">{agent.description}</p>
+
+                {/* Features grid */}
+                <div className="grid grid-cols-2 gap-1.5 mb-4">
+                  {agent.features.map(feat => (
+                    <div key={feat} className="flex items-center gap-1.5 text-[10px]">
+                      <div className="w-1 h-1 rounded-full" style={{ backgroundColor: agent.borderAccent }} />
+                      <span className="text-[#aaaacc]">{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Metrics */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2 text-center">
+                    <div className="text-[9px] text-[#8888aa] uppercase tracking-wider">Uptime</div>
+                    <div className="text-white text-xs font-mono font-bold">{agent.uptime}</div>
+                  </div>
+                  <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2 text-center">
+                    <div className="text-[9px] text-[#8888aa] uppercase tracking-wider">Latency</div>
+                    <div className="text-xs font-mono font-bold" style={{ color: agent.latency > 300 ? '#ffaa00' : '#00ff88' }}>{agent.latency}ms</div>
+                  </div>
+                  <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2 text-center">
+                    <div className="text-[9px] text-[#8888aa] uppercase tracking-wider">Requests</div>
+                    <div className="text-white text-xs font-mono font-bold">{(agent.requests / 1000).toFixed(1)}K</div>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+                  {agent.tags.map(tag => (
+                    <span key={tag} className="text-[9px] px-2 py-0.5 rounded-full border font-medium tracking-wider"
+                      style={{ borderColor: `${agent.borderAccent}30`, color: agent.borderAccent, background: `${agent.borderAccent}08` }}>
+                      {tag}
+                    </span>
+                  ))}
+                  {agent.model && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full border border-[rgba(0,255,255,0.2)] text-[#00ffff] bg-[rgba(0,255,255,0.05)] font-mono">
+                      {agent.model}
+                    </span>
+                  )}
+                </div>
+
+                {/* CTA Button */}
+                <button
+                  className="w-full text-center text-xs py-2.5 rounded-lg border transition-all duration-300 group-hover:border-opacity-60 font-medium flex items-center justify-center gap-2"
+                  style={{ color: `${agent.borderAccent}cc`, borderColor: `${agent.borderAccent}25`, background: `${agent.borderAccent}08` }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${agent.borderAccent}50`; e.currentTarget.style.background = `${agent.borderAccent}15`; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = `${agent.borderAccent}25`; e.currentTarget.style.background = `${agent.borderAccent}08`; }}
+                  onClick={(e) => { e.stopPropagation(); setControlRoomAgent(agent.id); }}
+                >
+                  <MessageSquare size={12} /> OPEN CONTROL ROOM <ArrowRight size={12} className="transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+
+              {/* Scan-line effect on hover */}
+              <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                <div className="absolute inset-0 animate-scan" style={{ background: `linear-gradient(transparent 50%, ${agent.borderAccent}05 50%)`, backgroundSize: '100% 4px' }} />
+              </div>
+            </motion.article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ───────── SEO SILO STRUCTURE ───────── */
+export function SEOSilo() {
+  const { agents, stackLayers, setActiveView, systemMetrics } = useOSStore();
+
+  const siloSections = [
+    {
+      title: 'Intelligence Layer',
+      description: 'Claude serves as the CEO — reasoning, planning, and decision-making with full tool access, MCP integration, and code execution capabilities.',
+      color: '#00ffff',
+      icon: Crown,
+      viewId: 'layer-intelligence',
+      keywords: ['Claude AI', 'AI Reasoning', 'MCP Protocol', 'Code Execution', 'Vision Pipeline'],
+    },
+    {
+      title: 'Execution Layer',
+      description: 'OpenClaw routes tasks between agents, manages sessions, and handles multi-agent coordination. Every agent communication flows through this gateway.',
+      color: '#9d4edd',
+      icon: Route,
+      viewId: 'layer-execution',
+      keywords: ['Agent Routing', 'Session Management', 'Multi-Agent', 'OpenClaw Gateway', 'Task Coordination'],
+    },
+    {
+      title: 'Research Layer',
+      description: 'Hermes executes tool calls, manages Kanban task lists, runs 2,550+ skills, and handles deep research with browser automation and MCP server support.',
+      color: '#00ff88',
+      icon: FlaskConical,
+      viewId: 'layer-research',
+      keywords: ['Hermes Agent', 'AI Skills', 'Browser Automation', 'MCP Server', 'Kanban Tasks'],
+    },
+    {
+      title: 'Self Layer',
+      description: 'OMI records screen and microphone continuously, auto-exporting to your Obsidian vault. This growing knowledge base personalises every agent response.',
+      color: '#ffaa00',
+      icon: Gem,
+      viewId: 'layer-self',
+      keywords: ['Obsidian Vault', 'OMI Recording', 'Goal Tracking', 'AI Memory', 'Knowledge Base'],
+    },
+  ];
+
+  return (
+    <section aria-label="SEO Content Silo" className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Layers size={16} className="text-[#9d4edd]" /> Mission Stack Architecture
+        </h2>
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+          <button onClick={() => setActiveView('mission-control')} className="hover:text-white transition-colors">Home</button>
+          <span>/</span>
+          <span className="text-[#9d4edd]">Stack Architecture</span>
+        </nav>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {siloSections.map((section, i) => (
+          <motion.div
+            key={section.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
+            className="rounded-xl border overflow-hidden card-hover cursor-pointer group"
+            style={{ borderColor: `${section.color}20`, background: `linear-gradient(135deg, ${section.color}06, ${section.color}02)` }}
+            onClick={() => setActiveView(section.viewId)}
+          >
+            <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${section.color}, transparent)` }} />
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${section.color}15, ${section.color}05)`, border: `1px solid ${section.color}20` }}>
+                  <section.icon size={16} style={{ color: section.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-semibold text-sm mb-1">{section.title}</h3>
+                  <p className="text-[#aaaacc] text-xs leading-relaxed line-clamp-2 mb-2">{section.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {section.keywords.map(kw => (
+                      <span key={kw} className="text-[8px] px-1.5 py-0.5 rounded-full border font-medium"
+                        style={{ borderColor: `${section.color}25`, color: `${section.color}aa`, background: `${section.color}08` }}>
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-[#8888aa] group-hover:text-white transition-colors flex-shrink-0 mt-1" />
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Structured data summary */}
+      <div className="rounded-xl border border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Terminal size={14} className="text-[#8888aa]" />
+          <h3 className="text-[#8888aa] text-xs font-mono uppercase tracking-wider">System Architecture Overview</h3>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Total Layers</div>
+            <div className="text-white font-mono text-lg font-bold">4</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Active Agents</div>
+            <div className="text-[#00ffff] font-mono text-lg font-bold">{systemMetrics.activeAgents}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Compounding</div>
+            <div className="text-[#00ff88] font-mono text-lg font-bold">Day {systemMetrics.compoundDays}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Total Skills</div>
+            <div className="text-[#ffaa00] font-mono text-lg font-bold">2,550+</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /* ───────── SIDEBAR ───────── */
 export function Sidebar() {
