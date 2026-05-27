@@ -15,6 +15,12 @@ export interface StackLayer {
   glowColor: string;
   icon: string;
   isUnlocked: boolean;
+  whatItDoes: string;
+  keyCapabilities: string[];
+  example: string;
+  quote: string;
+  flowLabel: string;
+  flowIcon: string;
 }
 
 export interface Goal {
@@ -44,7 +50,8 @@ export interface MemoryEntry {
 export interface Agent {
   id: string;
   name: string;
-  layer: number;
+  layer: number; // primary layer
+  layers: number[]; // all layers this agent participates in
   status: AgentStatus;
   description: string;
   uptime: string;
@@ -78,6 +85,52 @@ export interface SystemMetrics {
   compoundDays: number;
 }
 
+export interface HermesConnection {
+  installed: boolean;
+  running: boolean;
+  version?: string;
+  apiEndpoint?: string;
+  model?: string;
+  latency?: number;
+  lastChecked?: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'agent' | 'system';
+  content: string;
+  timestamp: number;
+  agentId?: string;
+}
+
+export interface AgentAnalytics {
+  totalSessions: number;
+  totalTokens: number;
+  totalToolCalls: number;
+  modelsUsed: string[];
+  activityByHour: number[]; // 24-element array, index=hour, value=request count
+  peakHour: number;
+  avgResponseTime: number;
+  lastSessionStart: number | null;
+}
+
+export interface HermesSkill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  source: 'builtin' | 'mcp' | 'plugin';
+}
+
+export interface KanbanTask {
+  id: string;
+  title: string;
+  status: 'todo' | 'in_progress' | 'done';
+  priority: 'low' | 'medium' | 'high';
+  assignedTo: string; // agent id
+  createdAt: number;
+}
+
 interface OSState {
   activeView: string;
   setActiveView: (view: string) => void;
@@ -91,6 +144,7 @@ interface OSState {
   goals: Goal[];
   journal: JournalEntry[];
   memories: MemoryEntry[];
+  addMemory: (memory: MemoryEntry) => void;
   controlRoomAgent: string | null;
   setControlRoomAgent: (id: string | null) => void;
   commandPaletteOpen: boolean;
@@ -99,6 +153,34 @@ interface OSState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   selfSearchQuery: string;
   setSelfSearchQuery: (q: string) => void;
+  hermesConnection: HermesConnection;
+  setHermesConnection: (conn: Partial<HermesConnection>) => void;
+  chatHistories: Record<string, ChatMessage[]>;
+  addChatMessage: (agentId: string, msg: ChatMessage) => void;
+  clearChatHistory: (agentId: string) => void;
+  isChatStreaming: boolean;
+  setIsChatStreaming: (streaming: boolean) => void;
+  selectedAgentId: string | null;
+  setSelectedAgentId: (id: string | null) => void;
+  agentAnalytics: Record<string, AgentAnalytics>;
+  setAgentAnalytics: (agentId: string, analytics: Partial<AgentAnalytics>) => void;
+  hermesSkills: HermesSkill[];
+  setHermesSkills: (skills: HermesSkill[]) => void;
+  kanbanTasks: KanbanTask[];
+  addKanbanTask: (task: KanbanTask) => void;
+  updateKanbanTask: (id: string, updates: Partial<KanbanTask>) => void;
+  totalTokensUsed: number;
+  incrementTokens: (count: number) => void;
+}
+
+function generateActivityByHour(peakHour: number): number[] {
+  const hours: number[] = [];
+  for (let i = 0; i < 24; i++) {
+    const dist = Math.abs(i - peakHour);
+    const base = Math.max(5, 100 - dist * 12 + Math.random() * 20);
+    hours.push(Math.round(base));
+  }
+  return hours;
 }
 
 export const useOSStore = create<OSState>((set) => ({
@@ -107,52 +189,130 @@ export const useOSStore = create<OSState>((set) => ({
 
   stackLayers: [
     {
-      id: 'intelligence',
+      id: 'interaction',
       number: 1,
-      name: 'Intelligence',
-      role: 'CEO — Thinking, Planning, Decisions',
+      name: 'Interaction & Perception',
+      role: 'Input — Voice, Text, Image, Video',
       agent: 'claude',
-      description: 'Claude is the CEO of the stack. It\'s the thinking, planning and decision-making layer. Wired directly into Agent OS with full tool access, MCPs attached, and the ability to write and execute code. Anything that needs reasoning gets routed here first.',
-      color: '#00ffff',
-      glowColor: 'rgba(0,255,255,0.15)',
+      description: 'Turns voice, text, image, and video into usable signals. This is the AI\'s front door — the first point of contact between users and the system. Every input flows through this layer before being routed deeper.',
+      color: '#FF8C42',
+      glowColor: 'rgba(255,140,66,0.15)',
+      icon: '🎤',
+      isUnlocked: true,
+      whatItDoes: 'Turns voice, text, image, and video into usable signals.',
+      keyCapabilities: ['Multimodal input understanding', 'Intent detection', 'Adaptive user interaction'],
+      example: 'A support agent understands a voice complaint, reads a screenshot, and replies in context.',
+      quote: 'This is the AI\'s front door.',
+      flowLabel: 'Input',
+      flowIcon: '📥',
+    },
+    {
+      id: 'knowledge',
+      number: 2,
+      name: 'Knowledge Acquisition',
+      role: 'Retrieve — Research & Information',
+      agent: 'hermes',
+      description: 'Finds the right information from internal and external sources. Good answers depend on good information — this layer ensures agents always have the data they need before responding or acting.',
+      color: '#FFB627',
+      glowColor: 'rgba(255,182,39,0.15)',
+      icon: '🔍',
+      isUnlocked: true,
+      whatItDoes: 'Finds the right information from internal and external sources.',
+      keyCapabilities: ['Data retrieval across systems', 'Search + synthesis', 'Fact-checking and validation'],
+      example: 'A research agent pulls product docs, CRM notes, and web data before answering.',
+      quote: 'Good answers depend on good information.',
+      flowLabel: 'Retrieve',
+      flowIcon: '🔎',
+    },
+    {
+      id: 'orchestration',
+      number: 3,
+      name: 'Agent Orchestration',
+      role: 'Coordinate — Multi-Agent Routing',
+      agent: 'openclaw',
+      description: 'Coordinates multiple agents, roles, and tasks toward one goal. This is where agents become a team — routing, delegating, and synchronizing work across the entire system.',
+      color: '#E8751A',
+      glowColor: 'rgba(232,117,26,0.15)',
+      icon: '👥',
+      isUnlocked: true,
+      whatItDoes: 'Coordinates multiple agents, roles, and tasks toward one goal.',
+      keyCapabilities: ['Task routing', 'Role delegation', 'Dynamic workflow coordination'],
+      example: 'One agent researches, another writes, and another reviews before delivery.',
+      quote: 'This is where agents become a team.',
+      flowLabel: 'Coordinate',
+      flowIcon: '🔄',
+    },
+    {
+      id: 'cognition',
+      number: 4,
+      name: 'Cognitive Reasoning',
+      role: 'Reason — Planning & Decision-Making',
+      agent: 'claude',
+      description: 'Plans, evaluates options, and reasons through multi-step problems. Reasoning turns information into decisions — this layer is the strategic brain of the entire system.',
+      color: '#E63946',
+      glowColor: 'rgba(230,57,70,0.15)',
       icon: '🧠',
       isUnlocked: true,
+      whatItDoes: 'Plans, evaluates options, and reasons through multi-step problems.',
+      keyCapabilities: ['Structured planning', 'Self-reflection and error correction', 'Reasoning with rules and logic'],
+      example: 'A finance agent compares scenarios, spots inconsistencies, and recommends the best path.',
+      quote: 'Reasoning turns information into decisions.',
+      flowLabel: 'Reason',
+      flowIcon: '🧠',
     },
     {
       id: 'execution',
-      number: 2,
-      name: 'Execution',
-      role: 'Router — Multi-Agent Coordination',
-      agent: 'openclaw',
-      description: 'OpenClaw is the local agent gateway. It routes tasks between agents, manages sessions, and handles multi-agent coordination. Like the router in your house — everything connects through it, and nothing talks to anything else without going through OpenClaw first.',
-      color: '#9d4edd',
-      glowColor: 'rgba(157,78,221,0.15)',
-      icon: '🔀',
-      isUnlocked: true,
-    },
-    {
-      id: 'research',
-      number: 3,
-      name: 'Research',
-      role: 'Worker — Tool Calls, Skills, Workflows',
+      number: 5,
+      name: 'Execution & Integration',
+      role: 'Act — Tools, APIs, Workflows',
       agent: 'hermes',
-      description: 'Hermes runs the tool calls, the Kanban task lists, the skills and plugins, the multi-step workflows on schedule, and the deeper research tasks like competitor analysis. This is the layer that goes off and does the work in the background while Claude plans and OpenClaw routes.',
-      color: '#00ff88',
-      glowColor: 'rgba(0,255,136,0.15)',
-      icon: '🔬',
+      description: 'Takes action using tools, APIs, and automated workflows. Without action, intelligence stays theoretical — this layer bridges the gap between thinking and doing.',
+      color: '#7B2CBF',
+      glowColor: 'rgba(123,44,191,0.15)',
+      icon: '⚡',
       isUnlocked: true,
+      whatItDoes: 'Takes action using tools, APIs, and automated workflows.',
+      keyCapabilities: ['Tool use', 'API execution', 'Workflow automation and monitoring'],
+      example: 'An operations agent updates a ticket, books a meeting, and sends a confirmation.',
+      quote: 'Without action, intelligence stays theoretical.',
+      flowLabel: 'Act',
+      flowIcon: '⚡',
     },
     {
-      id: 'self',
-      number: 4,
-      name: 'Self',
-      role: 'Identity — Obsidian Vault + OMI',
+      id: 'memory',
+      number: 6,
+      name: 'Memory, Learning & Context',
+      role: 'Remember — Context & Personalization',
       agent: 'vault',
-      description: 'OMI records your screen and microphone all day, takes notes on what you\'re working on, and exports everything to your Obsidian vault. That vault becomes a continuously growing knowledge base about who you are, what your goals are, who your team is, and how your business actually runs. Every agent in the stack pulls from this vault for personalised, context-rich output.',
-      color: '#ffaa00',
-      glowColor: 'rgba(255,170,0,0.15)',
-      icon: '💎',
+      description: 'Stores context, preferences, and past interactions to improve future performance. Memory makes agents feel consistent and personal — every interaction builds on the last.',
+      color: '#2E86AB',
+      glowColor: 'rgba(46,134,171,0.15)',
+      icon: '💾',
       isUnlocked: true,
+      whatItDoes: 'Stores context, preferences, and past interactions to improve future performance.',
+      keyCapabilities: ['Short-term and long-term memory', 'Personalization', 'Continuous improvement'],
+      example: 'A customer agent remembers past issues and tailors future responses.',
+      quote: 'Memory makes agents feel consistent and personal.',
+      flowLabel: 'Remember',
+      flowIcon: '💾',
+    },
+    {
+      id: 'governance',
+      number: 7,
+      name: 'Deployment, Governance & Infrastructure',
+      role: 'Govern — Security, Scale, Reliability',
+      agent: 'openclaw',
+      description: 'Provides the secure, scalable foundation that keeps the system reliable. Trustworthy AI needs strong guardrails — this layer ensures safety, observability, and production-readiness.',
+      color: '#1B998B',
+      glowColor: 'rgba(27,153,139,0.15)',
+      icon: '🛡️',
+      isUnlocked: true,
+      whatItDoes: 'Provides the secure, scalable foundation that keeps the system reliable.',
+      keyCapabilities: ['Secure hosting', 'Policies and safety controls', 'Observability and performance tracking'],
+      example: 'An enterprise agent platform enforces permissions, logs actions, and scales safely.',
+      quote: 'Trustworthy AI needs strong guardrails.',
+      flowLabel: 'Govern',
+      flowIcon: '🛡️',
     },
   ],
 
@@ -160,57 +320,61 @@ export const useOSStore = create<OSState>((set) => ({
     {
       id: 'claude',
       name: 'Claude',
-      layer: 1,
+      layer: 4,
+      layers: [1, 4],
       status: 'live',
-      description: 'The CEO of the stack. Thinking, planning, and decision-making. Full tool access, MCPs attached, code execution.',
+      description: 'The CEO of the stack. Handles Interaction & Perception (L1) and Cognitive Reasoning (L4). Plans, evaluates, and decides with full tool access and code execution.',
       uptime: '4d 12h 33m',
       latency: 142,
       requests: 12847,
       model: 'claude-3.5-sonnet',
-      color: '#00ffff',
-      tags: ['REASONING', 'MCP', 'CODE'],
+      color: '#E63946',
+      tags: ['REASONING', 'MCP', 'CODE', 'PERCEPTION'],
       lastActive: '2s ago',
     },
     {
       id: 'openclaw',
       name: 'OpenClaw',
-      layer: 2,
+      layer: 3,
+      layers: [3, 7],
       status: 'live',
-      description: 'The router. Routes tasks between agents, manages sessions, handles multi-agent coordination. Nothing talks without going through OpenClaw first.',
+      description: 'The router and governor. Handles Agent Orchestration (L3) and Governance (L7). Routes tasks, coordinates agents, and ensures system security and reliability.',
       uptime: '2d 8h 15m',
       latency: 89,
       requests: 8932,
       model: 'multi-model',
-      color: '#9d4edd',
-      tags: ['ROUTING', 'SESSIONS', 'COORDINATION'],
+      color: '#E8751A',
+      tags: ['ROUTING', 'GOVERNANCE', 'COORDINATION', 'SECURITY'],
       lastActive: '5s ago',
     },
     {
       id: 'hermes',
       name: 'Hermes',
-      layer: 3,
+      layer: 2,
+      layers: [2, 5],
       status: 'live',
-      description: 'The worker. Tool calls, Kanban, skills, plugins, scheduled workflows, competitor analysis. Goes off and does the work in the background.',
+      description: 'The worker. Handles Knowledge Acquisition (L2) and Execution (L5). Researches, retrieves information, and takes action through tools, APIs, and workflows.',
       uptime: '6d 1h 45m',
       latency: 203,
       requests: 24531,
       model: 'hermes-3',
-      color: '#00ff88',
-      tags: ['SKILLS', 'KANBAN', 'RESEARCH'],
+      color: '#FFB627',
+      tags: ['SKILLS', 'RESEARCH', 'EXECUTION', 'KANBAN'],
       lastActive: '1s ago',
     },
     {
       id: 'vault',
       name: 'Self Vault',
-      layer: 4,
+      layer: 6,
+      layers: [6],
       status: 'live',
-      description: 'Obsidian Vault + OMI. Continuously growing knowledge base. Every agent pulls from this for personalised, context-rich output.',
+      description: 'The identity. Handles Memory, Learning & Context (L6). OMI records + Obsidian vault create a continuously growing, compound knowledge base about you and your work.',
       uptime: '30d 4h 12m',
       latency: 34,
       requests: 89234,
       model: 'obsidian+omi',
-      color: '#ffaa00',
-      tags: ['IDENTITY', 'COMPOUND', 'VAULT'],
+      color: '#2E86AB',
+      tags: ['IDENTITY', 'COMPOUND', 'VAULT', 'MEMORY'],
       lastActive: '0s ago',
     },
   ],
@@ -221,16 +385,16 @@ export const useOSStore = create<OSState>((set) => ({
     })),
 
   logs: [
-    { id: '1', timestamp: '04:48:12', agent: 'Claude', layer: 1, level: 'success', message: 'Reasoning pipeline active — CEO layer online' },
-    { id: '2', timestamp: '04:48:10', agent: 'Hermes', layer: 3, level: 'info', message: 'Skill registry synced: 2,550 skills available for research tasks' },
-    { id: '3', timestamp: '04:48:08', agent: 'OpenClaw', layer: 2, level: 'info', message: 'Agent gateway routing table refreshed — 3 agents connected' },
-    { id: '4', timestamp: '04:47:55', agent: 'Self Vault', layer: 4, level: 'success', message: 'OMI recording exported to Obsidian vault — 47 new notes today' },
-    { id: '5', timestamp: '04:47:42', agent: 'Hermes', layer: 3, level: 'info', message: 'Kanban task completed: competitor-analysis-q2' },
-    { id: '6', timestamp: '04:47:30', agent: 'Claude', layer: 1, level: 'info', message: 'Decision routed to Hermes via OpenClaw: deep-dive research' },
-    { id: '7', timestamp: '04:47:15', agent: 'OpenClaw', layer: 2, level: 'success', message: 'Session coordination: Claude → Hermes handoff complete' },
-    { id: '8', timestamp: '04:46:58', agent: 'Self Vault', layer: 4, level: 'info', message: 'Goal progress updated: 3 goals advanced this week' },
-    { id: '9', timestamp: '04:46:40', agent: 'Hermes', layer: 3, level: 'warn', message: 'Scheduled workflow delayed: browser pool at capacity' },
-    { id: '10', timestamp: '04:46:22', agent: 'Claude', layer: 1, level: 'info', message: 'Pulled context from vault — 23 relevant memory entries loaded' },
+    { id: '1', timestamp: '04:48:12', agent: 'Claude', layer: 4, level: 'success', message: 'Cognitive Reasoning pipeline active — CEO layer online' },
+    { id: '2', timestamp: '04:48:10', agent: 'Hermes', layer: 2, level: 'info', message: 'Knowledge Acquisition: skill registry synced — 2,550 skills available' },
+    { id: '3', timestamp: '04:48:08', agent: 'OpenClaw', layer: 3, level: 'info', message: 'Agent Orchestration: routing table refreshed — 4 agents connected' },
+    { id: '4', timestamp: '04:47:55', agent: 'Self Vault', layer: 6, level: 'success', message: 'Memory layer: OMI recording exported — 47 new notes today' },
+    { id: '5', timestamp: '04:47:42', agent: 'Hermes', layer: 5, level: 'info', message: 'Execution layer: Kanban task completed — competitor-analysis-q2' },
+    { id: '6', timestamp: '04:47:30', agent: 'Claude', layer: 1, level: 'info', message: 'Interaction layer: multimodal input received — voice + screenshot' },
+    { id: '7', timestamp: '04:47:15', agent: 'OpenClaw', layer: 7, level: 'success', message: 'Governance: session coordination complete — all permissions verified' },
+    { id: '8', timestamp: '04:46:58', agent: 'Self Vault', layer: 6, level: 'info', message: 'Memory layer: goal progress updated — 3 goals advanced this week' },
+    { id: '9', timestamp: '04:46:40', agent: 'Hermes', layer: 2, level: 'warn', message: 'Knowledge retrieval: browser pool at capacity — scheduling for off-peak' },
+    { id: '10', timestamp: '04:46:22', agent: 'Claude', layer: 4, level: 'info', message: 'Cognitive Reasoning: pulled 23 memory entries for context-rich response' },
   ],
   addLog: (log) => set((state) => ({ logs: [log, ...state.logs].slice(0, 50) })),
 
@@ -250,7 +414,7 @@ export const useOSStore = create<OSState>((set) => ({
 
   goals: [
     { id: 'g1', title: 'Ship Agent OS v2.0 to production', progress: 72, timeline: 'this month', category: 'Product' },
-    { id: 'g2', title: 'Reduce p99 latency below 200ms across all layers', progress: 45, timeline: 'this week', category: 'Performance' },
+    { id: 'g2', title: 'Reduce p99 latency below 200ms across all 7 layers', progress: 45, timeline: 'this week', category: 'Performance' },
     { id: 'g3', title: 'Expand Hermes skill registry to 3,000+', progress: 85, timeline: 'this quarter', category: 'Research' },
     { id: 'g4', title: 'Enable cross-agent memory sharing protocol', progress: 30, timeline: 'this month', category: 'Infrastructure' },
     { id: 'g5', title: 'Deploy autonomous task delegation pipeline', progress: 60, timeline: 'this quarter', category: 'Automation' },
@@ -260,8 +424,8 @@ export const useOSStore = create<OSState>((set) => ({
   journal: [
     { id: 'j1', date: 'Today', type: 'voice', content: 'Completed Hermes MCP integration — all stdio transports verified. Routed through OpenClaw, no conflicts. The stack is compounding beautifully.', source: 'OMI' },
     { id: 'j2', date: 'Today', type: 'text', content: 'OpenClaw session management refactored for horizontal scaling. Now handles 3x concurrent agent sessions without degradation.', source: 'Manual' },
-    { id: 'j3', date: 'Yesterday', type: 'voice', content: 'Claude vision pipeline upgraded to support multi-frame analysis. The CEO layer can now reason over video streams. Massive unlock for research delegation.', source: 'OMI' },
-    { id: 'j4', date: 'Yesterday', type: 'text', content: 'Vault crossed 12,000 entries. The Self layer is starting to compound — agents are giving noticeably better advice. Day one this was good. Day thirty is wild.', source: 'Manual' },
+    { id: 'j3', date: 'Yesterday', type: 'voice', content: 'Claude vision pipeline upgraded to support multi-frame analysis. The Cognition layer can now reason over video streams. Massive unlock for research delegation.', source: 'OMI' },
+    { id: 'j4', date: 'Yesterday', type: 'text', content: 'Vault crossed 12,000 entries. The Memory layer is starting to compound — agents are giving noticeably better advice. Day one this was good. Day thirty is wild.', source: 'Manual' },
     { id: 'j5', date: '2 days ago', type: 'voice', content: 'Set up OMI continuous recording. Screen + mic all day, auto-export to Obsidian. The knowledge base grows on its own now. That\'s the lever.', source: 'OMI' },
   ],
 
@@ -271,9 +435,11 @@ export const useOSStore = create<OSState>((set) => ({
     { id: 'm3', timestamp: '1h ago', content: 'Claude MCMC mode requires 64K+ token context window. Vision pipeline active. Full code execution capabilities enabled.', agent: 'Claude', tags: ['compute', 'vision'] },
     { id: 'm4', timestamp: '3h ago', content: 'Browser automation: cloud (Browserbase) / local (Chromium/CDP). Hermes uses this for competitor analysis and web research tasks.', agent: 'Hermes', tags: ['browser', 'research'] },
     { id: 'm5', timestamp: '6h ago', content: 'Vault structure: Goals/ tracked weekly, Journal/ daily entries, Memory/ auto-saved from every chat. All agents read from vault for context.', agent: 'Self Vault', tags: ['vault', 'structure'] },
-    { id: 'm6', timestamp: '1d ago', content: 'The difference between generic AI and personalised AI is the Self layer. Without it, agents give generic answers. With it, they give advice as if they\'ve worked at your company for two years.', agent: 'Self Vault', tags: ['insight', 'compound'] },
+    { id: 'm6', timestamp: '1d ago', content: 'The difference between generic AI and personalised AI is the Memory layer. Without it, agents give generic answers. With it, they give advice as if they\'ve worked at your company for two years.', agent: 'Self Vault', tags: ['insight', 'compound'] },
     { id: 'm7', timestamp: '2d ago', content: 'OMI records screen + mic all day → exports to Obsidian vault. This is what makes the system compound. Every day it knows more about you, your business, and your priorities.', agent: 'Self Vault', tags: ['omi', 'recording'] },
   ],
+
+  addMemory: (memory) => set((state) => ({ memories: [memory, ...state.memories] })),
 
   controlRoomAgent: null,
   setControlRoomAgent: (id) => set({ controlRoomAgent: id }),
@@ -286,4 +452,101 @@ export const useOSStore = create<OSState>((set) => ({
 
   selfSearchQuery: '',
   setSelfSearchQuery: (q) => set({ selfSearchQuery: q }),
+
+  hermesConnection: {
+    installed: false,
+    running: false,
+    lastChecked: 0,
+  },
+  setHermesConnection: (conn) => set((state) => ({
+    hermesConnection: { ...state.hermesConnection, ...conn },
+  })),
+
+  chatHistories: {},
+  addChatMessage: (agentId, msg) => set((state) => ({
+    chatHistories: {
+      ...state.chatHistories,
+      [agentId]: [...(state.chatHistories[agentId] || []), msg],
+    },
+  })),
+  clearChatHistory: (agentId) => set((state) => ({
+    chatHistories: {
+      ...state.chatHistories,
+      [agentId]: [],
+    },
+  })),
+
+  isChatStreaming: false,
+  setIsChatStreaming: (streaming) => set({ isChatStreaming: streaming }),
+
+  selectedAgentId: 'hermes',
+  setSelectedAgentId: (id) => set({ selectedAgentId: id }),
+
+  agentAnalytics: {
+    claude: {
+      totalSessions: 847,
+      totalTokens: 2400000,
+      totalToolCalls: 4231,
+      modelsUsed: ['claude-3.5-sonnet', 'claude-3-opus'],
+      activityByHour: generateActivityByHour(10),
+      peakHour: 10,
+      avgResponseTime: 1200,
+      lastSessionStart: Date.now() - 120000,
+    },
+    openclaw: {
+      totalSessions: 523,
+      totalTokens: 1100000,
+      totalToolCalls: 8234,
+      modelsUsed: ['multi-model', 'gpt-4', 'claude-3-sonnet'],
+      activityByHour: generateActivityByHour(14),
+      peakHour: 14,
+      avgResponseTime: 800,
+      lastSessionStart: Date.now() - 300000,
+    },
+    hermes: {
+      totalSessions: 1203,
+      totalTokens: 5600000,
+      totalToolCalls: 18432,
+      modelsUsed: ['hermes-3', 'gpt-4', 'claude-3.5-sonnet'],
+      activityByHour: generateActivityByHour(11),
+      peakHour: 11,
+      avgResponseTime: 2100,
+      lastSessionStart: Date.now() - 60000,
+    },
+    vault: {
+      totalSessions: 892,
+      totalTokens: 800000,
+      totalToolCalls: 342,
+      modelsUsed: ['obsidian+omi', 'embedding-ada-002'],
+      activityByHour: generateActivityByHour(9),
+      peakHour: 9,
+      avgResponseTime: 300,
+      lastSessionStart: Date.now() - 5000,
+    },
+  },
+  setAgentAnalytics: (agentId, analytics) => set((state) => ({
+    agentAnalytics: {
+      ...state.agentAnalytics,
+      [agentId]: { ...state.agentAnalytics[agentId], ...analytics },
+    },
+  })),
+
+  hermesSkills: [],
+  setHermesSkills: (skills) => set({ hermesSkills: skills }),
+
+  kanbanTasks: [
+    { id: 'kt1', title: 'Deploy Hermes v3.2 to production', status: 'in_progress', priority: 'high', assignedTo: 'hermes', createdAt: Date.now() - 86400000 },
+    { id: 'kt2', title: 'Implement cross-agent memory sharing', status: 'todo', priority: 'high', assignedTo: 'openclaw', createdAt: Date.now() - 172800000 },
+    { id: 'kt3', title: 'Optimize vault query latency', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: Date.now() - 259200000 },
+    { id: 'kt4', title: 'Research competitor AI stacks', status: 'in_progress', priority: 'medium', assignedTo: 'hermes', createdAt: Date.now() - 43200000 },
+    { id: 'kt5', title: 'Review Claude MCP integration docs', status: 'todo', priority: 'low', assignedTo: 'claude', createdAt: Date.now() - 345600000 },
+    { id: 'kt6', title: 'Set up OMI continuous recording', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: Date.now() - 432000000 },
+  ],
+  addKanbanTask: (task) => set((state) => ({ kanbanTasks: [...state.kanbanTasks, task] })),
+  updateKanbanTask: (id, updates) => set((state) => ({
+    kanbanTasks: state.kanbanTasks.map(t => t.id === id ? { ...t, ...updates } : t),
+  })),
+
+  totalTokensUsed: 0,
+  incrementTokens: (count) => set((state) => ({ totalTokensUsed: state.totalTokensUsed + count })),
 }));
