@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { findHermesBinary, isHermesInstalled } from "@/lib/hermes";
+import { findHermesBinaryAsync, isHermesInstalledAsync } from "@/lib/hermes";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Check that Hermes is installed
-  if (!isHermesInstalled()) {
+  const installed = await isHermesInstalledAsync();
+  if (!installed) {
     return NextResponse.json(
       {
         error: "Hermes is not installed",
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const bin = findHermesBinary();
+  const bin = await findHermesBinaryAsync();
   if (!bin) {
     return NextResponse.json(
       { error: "Hermes binary not found" },

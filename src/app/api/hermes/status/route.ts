@@ -1,55 +1,91 @@
 import { NextResponse } from "next/server";
-import { execSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import {
-  getHermesApiEndpoint,
+  getHermesApiEndpointCached,
   isHermesRunning,
-  isHermesProcessRunning,
+  isHermesProcessRunningAsync,
   measureHermesLatency,
-  getHermesModel,
-  findHermesBinary,
+  getHermesModelAsync,
+  findHermesBinaryAsync,
+  hermesFetch,
+  getCachedStatus,
+  setCachedStatus,
   type HermesStatusResult,
 } from "@/lib/hermes";
 
+const execFileAsync = promisify(execFile);
+
 export async function GET() {
+  // Check cache first
+  const cached = getCachedStatus();
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
   try {
-    const apiEndpoint = getHermesApiEndpoint();
+    const apiEndpoint = getHermesApiEndpointCached();
     const [apiAlive, processAlive, latency, model] = await Promise.all([
       isHermesRunning(apiEndpoint),
-      Promise.resolve(isHermesProcessRunning()),
+      isHermesProcessRunningAsync(),
       measureHermesLatency(apiEndpoint),
-      Promise.resolve(getHermesModel()),
+      getHermesModelAsync(),
     ]);
 
     const online = apiAlive || processAlive;
 
-    // Attempt to get uptime via CLI
+    // Attempt to get uptime via CLI (async)
     let uptime: string | undefined;
-    const bin = findHermesBinary();
+    const bin = await findHermesBinaryAsync();
     if (bin && online) {
       try {
-        const out = execSync(
-          `${bin} gateway status --json 2>/dev/null || ${bin} status --json 2>/dev/null`,
-          { encoding: "utf-8", timeout: 5000 },
-        ).trim();
+        const { stdout } = await execFileAsync(
+          bin,
+          ["gateway", "status", "--json"],
+          { timeout: 5000 },
+        );
+        const out = stdout.trim();
         if (out) {
-          const parsed = JSON.parse(out);
-          uptime = parsed.uptime ?? parsed.uptime_seconds
-            ? formatUptime(parsed.uptime_seconds)
-            : undefined;
+          try {
+            const parsed = JSON.parse(out);
+            uptime = parsed.uptime ?? parsed.uptime_seconds
+              ? formatUptime(parsed.uptime_seconds)
+              : undefined;
+          } catch {
+            // Try fallback command
+          }
         }
       } catch {
-        // Not available — leave undefined
+        // Try alternative status command
+        try {
+          const { stdout } = await execFileAsync(
+            bin,
+            ["status", "--json"],
+            { timeout: 5000 },
+          );
+          const out = stdout.trim();
+          if (out) {
+            const parsed = JSON.parse(out);
+            uptime = parsed.uptime ?? parsed.uptime_seconds
+              ? formatUptime(parsed.uptime_seconds)
+              : undefined;
+          }
+        } catch {
+          // Not available
+        }
       }
     }
 
-    // Attempt to count active sessions
+    // Attempt to count active sessions (async)
     let activeSessions: number | undefined;
     if (bin && online) {
       try {
-        const out = execSync(`${bin} sessions list --json 2>/dev/null`, {
-          encoding: "utf-8",
-          timeout: 5000,
-        }).trim();
+        const { stdout } = await execFileAsync(
+          bin,
+          ["sessions", "list", "--json"],
+          { timeout: 5000 },
+        );
+        const out = stdout.trim();
         if (out) {
           const parsed = JSON.parse(out);
           if (Array.isArray(parsed)) {
@@ -61,16 +97,15 @@ export async function GET() {
           }
         }
       } catch {
-        // Not available — leave undefined
+        // Not available
       }
     }
 
     // Try to get uptime from the API
     if (!uptime && apiAlive) {
       try {
-        const res = await fetch(`${apiEndpoint}/v1/status`, {
+        const res = await hermesFetch("/v1/status", {
           method: "GET",
-          signal: AbortSignal.timeout(3000),
         });
         if (res.ok) {
           const data = await res.json();
@@ -92,6 +127,9 @@ export async function GET() {
       ...(model && { model }),
       ...(latency !== undefined && { latency }),
     };
+
+    // Cache the status
+    setCachedStatus(result);
 
     return NextResponse.json(result);
   } catch (error) {

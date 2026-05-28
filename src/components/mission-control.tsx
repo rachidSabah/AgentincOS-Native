@@ -7,7 +7,7 @@ import {
   MessageSquare, Target, BookOpen, Database, Mic,
   TrendingUp, Search, Sparkles, Activity, Clock,
   BarChart3, Settings, Terminal, ChevronRight, MicOff,
-  Eye as EyeIcon, Users, Wrench, Lock, Lightbulb,
+  Eye as EyeIcon, Users, Wrench, Lock, Lightbulb, Wifi, WifiOff,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
@@ -130,6 +130,7 @@ export function LiveWorkspace() {
     hermesConnection, chatHistories, addChatMessage,
     clearChatHistory, isChatStreaming, setIsChatStreaming,
     addMemory, addLog, incrementTokens,
+    sseConnectionStatus, hermesSkills, addSkillExecution, addKanbanTask,
   } = useOSStore();
 
   const agentId = selectedAgentId || 'hermes';
@@ -149,6 +150,55 @@ export function LiveWorkspace() {
     { label: 'Summarize journal', prompt: 'Summarize my recent journal entries and identify key patterns' },
     { label: 'Peak productivity', prompt: 'What are my most productive hours based on the analytics data?' },
   ] : [];
+
+  // Latency color
+  const latencyColor = hermesConnection.latency
+    ? hermesConnection.latency < 100 ? '#00ff88'
+    : hermesConnection.latency < 500 ? '#ffaa00' : '#ff4444'
+    : '#8888aa';
+
+  // Execute a skill
+  const executeSkill = async (skillName: string) => {
+    const executionId = `exec-${Date.now()}`;
+    addSkillExecution({
+      id: executionId,
+      skill: skillName,
+      status: 'running',
+      startedAt: Date.now(),
+    });
+    addLog({
+      id: `skill-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+      agent: 'Hermes',
+      layer: 5,
+      level: 'info',
+      message: `Executing skill: ${skillName}`,
+    });
+    try {
+      const res = await fetch('/api/hermes/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill: skillName, stream: false }),
+      });
+      const data = await res.json();
+      addSkillExecution({
+        id: executionId,
+        skill: skillName,
+        status: data.success ? 'completed' : 'failed',
+        result: data.result ?? data.error,
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+      });
+    } catch {
+      addSkillExecution({
+        id: executionId,
+        skill: skillName,
+        status: 'failed',
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+      });
+    }
+  };
 
   useEffect(() => {
     if (agent && primaryLayer && messages.length === 0) {
@@ -318,6 +368,16 @@ export function LiveWorkspace() {
                   LIVE API
                 </span>
               )}
+              {isHermesLive && hermesConnection.latency !== undefined && (
+                <span className="text-[8px] px-1.5 py-0.5 rounded-full font-mono font-bold" style={{ color: latencyColor, backgroundColor: `${latencyColor}15` }}>
+                  {hermesConnection.latency}ms
+                </span>
+              )}
+              {isHermesLive && sseConnectionStatus === 'connected' && (
+                <span className="text-[7px] px-1 py-0.5 rounded-full bg-[rgba(0,255,136,0.1)] text-[#00ff88] flex items-center gap-0.5">
+                  <Wifi size={7} /> SSE
+                </span>
+              )}
             </div>
             <p className="text-[10px]" style={{ color: `${agent.color}aa` }}>{primaryLayer.role}</p>
           </div>
@@ -369,6 +429,40 @@ export function LiveWorkspace() {
                 <Sparkles size={9} /> {qa.label}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Hermes Quick Skill Actions */}
+      {isHermesLive && !isChatStreaming && hermesSkills.length > 0 && (
+        <div className="px-5 pb-2">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Zap size={9} className="text-[#FFB627]" />
+            <span className="text-[8px] text-[#8888aa] uppercase tracking-widest">Quick Skills</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {hermesSkills.slice(0, 4).map((skill) => (
+              <button key={skill.id}
+                onClick={() => executeSkill(skill.name)}
+                className="text-[8px] px-2 py-1 rounded-md border border-[rgba(255,182,39,0.2)] text-[#FFB627] bg-[rgba(255,182,39,0.05)] hover:bg-[rgba(255,182,39,0.1)] transition-colors flex items-center gap-0.5">
+                <Zap size={7} /> {skill.name}
+              </button>
+            ))}
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/hermes/kanban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'New research task', priority: 'medium', assignedTo: 'hermes' }),
+                  });
+                  const data = await res.json();
+                  if (data.task) addKanbanTask(data.task);
+                } catch { /* ignore */ }
+              }}
+              className="text-[8px] px-2 py-1 rounded-md border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.05)] hover:bg-[rgba(123,44,191,0.1)] transition-colors flex items-center gap-0.5">
+              <Target size={7} /> + Task
+            </button>
           </div>
         </div>
       )}

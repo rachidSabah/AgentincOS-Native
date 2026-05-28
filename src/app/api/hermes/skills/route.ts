@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import {
-  isHermesInstalled,
-  findHermesBinary,
-  getHermesApiEndpoint,
+  isHermesInstalledAsync,
+  findHermesBinaryAsync,
+  getHermesApiEndpointCached,
   isHermesRunning,
+  hermesFetch,
+  getCachedSkills,
+  setCachedSkills,
   type HermesSkill,
 } from "@/lib/hermes";
+
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Fallback skill list (used when Hermes CLI is not available)
@@ -68,73 +74,91 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category") ?? undefined;
   const source = searchParams.get("source") ?? undefined;
 
-  const bin = findHermesBinary();
-  const apiEndpoint = getHermesApiEndpoint();
+  // Check skills cache first
+  const cached = getCachedSkills();
+  if (cached && !query && !category && !source) {
+    return NextResponse.json({
+      skills: cached.data,
+      total: cached.data.length,
+      source: cached.source,
+      hermesAvailable: await isHermesInstalledAsync(),
+      hermesRunning: await isHermesRunning(),
+      cached: true,
+    });
+  }
+
+  const bin = await findHermesBinaryAsync();
+  const apiEndpoint = getHermesApiEndpointCached();
   const running = await isHermesRunning(apiEndpoint);
 
   let skills: HermesSkill[] = [];
   let fromHermes = false;
 
-  // Strategy 1: Try `hermes skills list --json` via CLI
-  if (bin) {
-    try {
-      const cmd = `${bin} skills list --json 2>/dev/null`;
-      const output = execSync(cmd, {
-        encoding: "utf-8",
-        timeout: 15000,
-      }).trim();
+  // If we have cached skills and just need to filter, use them
+  if (cached && (query || category || source)) {
+    skills = cached.data;
+    fromHermes = cached.source === "hermes";
+  } else {
+    // Strategy 1: Try `hermes skills list --json` via CLI (async)
+    if (bin) {
+      try {
+        const { stdout } = await execFileAsync(bin, ["skills", "list", "--json"], {
+          timeout: 15000,
+        });
+        const output = stdout.trim();
 
-      if (output) {
-        const parsed = JSON.parse(output);
-        // Hermes CLI may return an array or an object with a skills/items key
-        if (Array.isArray(parsed)) {
-          skills = parsed;
-        } else if (Array.isArray(parsed.skills)) {
-          skills = parsed.skills;
-        } else if (Array.isArray(parsed.items)) {
-          skills = parsed.items;
-        } else {
-          // Try to extract skill-like objects from the top-level keys
-          skills = Object.values(parsed).filter(
-            (v): v is HermesSkill =>
-              typeof v === "object" && v !== null && "name" in v,
-          );
+        if (output) {
+          const parsed = JSON.parse(output);
+          if (Array.isArray(parsed)) {
+            skills = parsed;
+          } else if (Array.isArray(parsed.skills)) {
+            skills = parsed.skills;
+          } else if (Array.isArray(parsed.items)) {
+            skills = parsed.items;
+          } else {
+            skills = Object.values(parsed).filter(
+              (v): v is HermesSkill =>
+                typeof v === "object" && v !== null && "name" in v,
+            );
+          }
+          fromHermes = true;
         }
-        fromHermes = true;
+      } catch {
+        // CLI failed — fall through to API or fallback
       }
-    } catch {
-      // CLI failed — fall through to API or fallback
     }
-  }
 
-  // Strategy 2: Try the Hermes API server for skills
-  if (!fromHermes && running) {
-    try {
-      const res = await fetch(`${apiEndpoint}/v1/skills`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(5000),
-      });
+    // Strategy 2: Try the Hermes API server for skills
+    if (!fromHermes && running) {
+      try {
+        const res = await hermesFetch("/v1/skills", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          skills = data;
-        } else if (Array.isArray(data.skills)) {
-          skills = data.skills;
-        } else if (Array.isArray(data.items)) {
-          skills = data.items;
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            skills = data;
+          } else if (Array.isArray(data.skills)) {
+            skills = data.skills;
+          } else if (Array.isArray(data.items)) {
+            skills = data.items;
+          }
+          fromHermes = true;
         }
-        fromHermes = true;
+      } catch {
+        // API failed — fall through to fallback
       }
-    } catch {
-      // API failed — fall through to fallback
     }
-  }
 
-  // Strategy 3: Use the hardcoded fallback list
-  if (!fromHermes) {
-    skills = FALLBACK_SKILLS;
+    // Strategy 3: Use the hardcoded fallback list
+    if (!fromHermes) {
+      skills = FALLBACK_SKILLS;
+    }
+
+    // Cache the unfiltered results
+    setCachedSkills(skills, fromHermes ? "hermes" : "fallback");
   }
 
   // Apply filters
@@ -167,7 +191,7 @@ export async function GET(request: NextRequest) {
     skills: filtered,
     total: filtered.length,
     source: fromHermes ? "hermes" : "fallback",
-    hermesAvailable: isHermesInstalled(),
+    hermesAvailable: await isHermesInstalledAsync(),
     hermesRunning: running,
   });
 }

@@ -8,7 +8,7 @@ import {
   HermesFeatureGrid, CompoundVisualizer, SelfLayerExplanation,
   OmiObsidianStatus, NetworkTopology, QuickStats,
   LayerCard, StackOverview, AgentHeroCards, SEOSilo,
-  HermesConnectionBanner, useHermesDetection,
+  HermesConnectionBanner, HermesQuickActions, useHermesDetection,
   Stack3DVisualization, LayerFlowDiagram, LayerFlowView,
 } from '@/components/dashboard';
 import { AgentRail, LiveWorkspace, BrainPanel } from '@/components/mission-control';

@@ -1722,7 +1722,7 @@ export function OmiObsidianStatus() {
 
 /* ───────── HERMES AUTO-DETECTION HOOK ───────── */
 export function useHermesDetection() {
-  const { hermesConnection, setHermesConnection, updateAgent, addLog } = useOSStore();
+  const { hermesConnection, setHermesConnection, updateAgent, addLog, addHermesLatency, setSSEConnectionStatus, setHermesSkills, setMCPServers } = useOSStore();
 
   const detect = useCallback(async () => {
     try {
@@ -1735,8 +1735,13 @@ export function useHermesDetection() {
         version: data.version,
         apiEndpoint: data.apiEndpoint,
         model: data.model,
+        latency: data.latency,
         lastChecked: Date.now(),
       });
+
+      if (data.latency) {
+        addHermesLatency(data.latency);
+      }
 
       if (data.running) {
         updateAgent('hermes', {
@@ -1750,7 +1755,38 @@ export function useHermesDetection() {
           agent: 'Hermes',
           layer: 2,
           level: 'success',
-          message: `Hermes API detected and connected at ${data.apiEndpoint} — model: ${data.model || 'default'}`,
+          message: `Hermes API detected and connected at ${data.apiEndpoint} — model: ${data.model || 'default'} — latency: ${data.latency}ms`,
+        });
+
+        // Fetch skills and MCP servers in parallel when connected
+        Promise.all([
+          fetch('/api/hermes/skills').then(r => r.json()).catch(() => null),
+          fetch('/api/hermes/mcp').then(r => r.json()).catch(() => null),
+          fetch('/api/hermes/status').then(r => r.json()).catch(() => null),
+        ]).then(([skillsData, mcpData, statusData]) => {
+          if (skillsData?.skills) {
+            setHermesSkills(skillsData.skills.map((s: { name: string; description?: string; category?: string; source?: string }) => ({
+              id: s.name,
+              name: s.name,
+              description: s.description,
+              category: s.category ?? 'General',
+              source: s.source === 'Built-in' ? 'builtin' : (s.source as 'builtin' | 'mcp' | 'plugin') ?? 'builtin',
+            })));
+            setHermesConnection({ skillCount: skillsData.total ?? skillsData.skills.length });
+          }
+          if (mcpData?.servers) {
+            setMCPServers(mcpData.servers.map((s: { name: string; transport: string; connected: boolean }) => ({
+              name: s.name,
+              transport: s.transport as 'stdio' | 'http',
+              connected: s.connected ?? false,
+            })));
+            setHermesConnection({ mcpServerCount: mcpData.connected ?? mcpData.total });
+          }
+          if (statusData) {
+            setHermesConnection({
+              activeSessions: statusData.activeSessions,
+            });
+          }
         });
       } else if (data.installed) {
         updateAgent('hermes', { status: 'degraded', lastActive: 'offline' });
@@ -1768,7 +1804,69 @@ export function useHermesDetection() {
     } catch {
       setHermesConnection({ installed: false, running: false, lastChecked: Date.now() });
     }
-  }, [setHermesConnection, updateAgent, addLog]);
+  }, [setHermesConnection, updateAgent, addLog, addHermesLatency, setHermesSkills, setMCPServers]);
+
+  // Connect to SSE stream when Hermes is running
+  useEffect(() => {
+    if (!hermesConnection.running) return;
+
+    const connectSSE = () => {
+      setSSEConnectionStatus('connecting');
+      try {
+        const eventSource = new EventSource('/api/hermes/stream');
+
+        eventSource.addEventListener('hermes:status', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            setHermesConnection({
+              running: data.online,
+              model: data.model,
+              activeSessions: data.activeSessions,
+              skillCount: data.skillCount,
+              mcpServerCount: data.mcpServers,
+            });
+          } catch { /* ignore parse errors */ }
+        });
+
+        eventSource.addEventListener('hermes:latency', (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.latency !== undefined) {
+              addHermesLatency(data.latency);
+              setHermesConnection({ latency: data.latency });
+            }
+          } catch { /* ignore parse errors */ }
+        });
+
+        eventSource.addEventListener('ping', () => {
+          // Keep-alive — no action needed
+        });
+
+        eventSource.onopen = () => {
+          setSSEConnectionStatus('connected');
+        };
+
+        eventSource.onerror = () => {
+          setSSEConnectionStatus('error');
+          eventSource.close();
+          // Reconnect after 10 seconds
+          setTimeout(connectSSE, 10000);
+        };
+
+        return () => {
+          eventSource.close();
+          setSSEConnectionStatus('disconnected');
+        };
+      } catch {
+        setSSEConnectionStatus('error');
+      }
+    };
+
+    const cleanup = connectSSE();
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [hermesConnection.running, setSSEConnectionStatus, setHermesConnection, addHermesLatency]);
 
   useEffect(() => {
     detect();
@@ -1776,12 +1874,34 @@ export function useHermesDetection() {
     return () => clearInterval(interval);
   }, [detect]);
 
+  // Auto-measure latency every 15 seconds when connected
+  useEffect(() => {
+    if (!hermesConnection.running) return;
+    const measureLatency = async () => {
+      try {
+        const start = Date.now();
+        await fetch('/api/hermes/status');
+        const latency = Date.now() - start;
+        addHermesLatency(latency);
+        setHermesConnection({ latency });
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(measureLatency, 15000);
+    return () => clearInterval(interval);
+  }, [hermesConnection.running, addHermesLatency, setHermesConnection]);
+
   return { hermesConnection, redetect: detect };
 }
 
 /* ───────── HERMES CONNECTION BANNER ───────── */
 export function HermesConnectionBanner() {
   const { hermesConnection, setControlRoomAgent } = useOSStore();
+
+  // Latency color indicator
+  const latencyColor = hermesConnection.latency
+    ? hermesConnection.latency < 100 ? '#00ff88'
+    : hermesConnection.latency < 500 ? '#ffaa00' : '#ff4444'
+    : '#8888aa';
 
   if (!hermesConnection.installed) {
     return (
@@ -1835,11 +1955,19 @@ export function HermesConnectionBanner() {
         <div className="text-white text-sm font-medium flex items-center gap-2">
           Hermes AI Connected
           <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#00ff88]/15 text-[#00ff88] font-bold tracking-wider">LIVE</span>
+          {hermesConnection.latency !== undefined && (
+            <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold" style={{ color: latencyColor, backgroundColor: `${latencyColor}15` }}>
+              {hermesConnection.latency}ms
+            </span>
+          )}
         </div>
-        <div className="text-[#8888aa] text-xs">
-          API: <span className="text-[#00ff88]">{hermesConnection.apiEndpoint}</span>
-          {hermesConnection.model && <> · Model: <span className="text-[#00ff88]">{hermesConnection.model}</span></>}
-          {hermesConnection.version && <> · v<span className="text-[#00ff88]">{hermesConnection.version}</span></>}
+        <div className="text-[#8888aa] text-xs flex items-center gap-1.5 flex-wrap">
+          <span>API: <span className="text-[#00ff88]">{hermesConnection.apiEndpoint}</span></span>
+          {hermesConnection.model && <span>· Model: <span className="text-[#00ff88]">{hermesConnection.model}</span></span>}
+          {hermesConnection.version && <span>· v<span className="text-[#00ff88]">{hermesConnection.version}</span></span>}
+          {hermesConnection.skillCount !== undefined && <span>· Skills: <span className="text-[#FFB627]">{hermesConnection.skillCount}</span></span>}
+          {hermesConnection.activeSessions !== undefined && <span>· Sessions: <span className="text-[#00ff88]">{hermesConnection.activeSessions}</span></span>}
+          {hermesConnection.mcpServerCount !== undefined && <span>· MCP: <span className="text-[#7B2CBF]">{hermesConnection.mcpServerCount}</span></span>}
         </div>
       </div>
       <button onClick={() => setControlRoomAgent('hermes')}
@@ -1847,5 +1975,100 @@ export function HermesConnectionBanner() {
         <MessageSquare size={12} /> Chat
       </button>
     </motion.div>
+  );
+}
+
+/* ───────── HERMES QUICK ACTIONS ───────── */
+export function HermesQuickActions() {
+  const { hermesConnection, hermesSkills, addSkillExecution, addLog, addKanbanTask } = useOSStore();
+
+  if (!hermesConnection.running) return null;
+
+  const executeSkill = async (skillName: string) => {
+    const executionId = `exec-${Date.now()}`;
+    addSkillExecution({
+      id: executionId,
+      skill: skillName,
+      status: 'running',
+      startedAt: Date.now(),
+    });
+    addLog({
+      id: `skill-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+      agent: 'Hermes',
+      layer: 5,
+      level: 'info',
+      message: `Executing skill: ${skillName}`,
+    });
+    try {
+      const res = await fetch('/api/hermes/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill: skillName, stream: false }),
+      });
+      const data = await res.json();
+      addSkillExecution({
+        id: executionId,
+        skill: skillName,
+        status: data.success ? 'completed' : 'failed',
+        result: data.result ?? data.error,
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+      });
+    } catch {
+      addSkillExecution({
+        id: executionId,
+        skill: skillName,
+        status: 'failed',
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+      });
+    }
+  };
+
+  const createKanbanTask = async () => {
+    try {
+      const res = await fetch('/api/hermes/kanban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'New task from Hermes', priority: 'medium', assignedTo: 'hermes' }),
+      });
+      const data = await res.json();
+      if (data.task) {
+        addKanbanTask(data.task);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const runResearch = async () => {
+    await executeSkill('web-search');
+  };
+
+  const topSkills = hermesSkills.slice(0, 5);
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        onClick={runResearch}
+        className="text-[9px] px-2.5 py-1.5 rounded-lg border border-[rgba(255,182,39,0.2)] text-[#FFB627] bg-[rgba(255,182,39,0.05)] hover:bg-[rgba(255,182,39,0.1)] transition-colors flex items-center gap-1"
+      >
+        <Search size={9} /> Run Research
+      </button>
+      <button
+        onClick={createKanbanTask}
+        className="text-[9px] px-2.5 py-1.5 rounded-lg border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.05)] hover:bg-[rgba(123,44,191,0.1)] transition-colors flex items-center gap-1"
+      >
+        <Target size={9} /> Create Task
+      </button>
+      {topSkills.map((skill) => (
+        <button
+          key={skill.id}
+          onClick={() => executeSkill(skill.name)}
+          className="text-[9px] px-2.5 py-1.5 rounded-lg border border-[rgba(0,255,136,0.2)] text-[#00ff88] bg-[rgba(0,255,136,0.05)] hover:bg-[rgba(0,255,136,0.1)] transition-colors flex items-center gap-1"
+        >
+          <Zap size={9} /> {skill.name}
+        </button>
+      ))}
+    </div>
   );
 }

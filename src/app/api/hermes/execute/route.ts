@@ -3,7 +3,6 @@ import {
   getHermesApiEndpointCached,
   isHermesRunning,
   getHermesModelAsync,
-  hermesFetch,
   hermesFetchQueued,
 } from "@/lib/hermes";
 
@@ -11,25 +10,19 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface ChatMessage {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string;
-}
-
-interface ChatRequest {
-  messages: ChatMessage[];
-  model?: string;
+interface ExecuteRequest {
+  skill: string;
+  args?: Record<string, unknown>;
+  sessionId?: string;
   stream?: boolean;
-  temperature?: number;
-  max_tokens?: number;
 }
 
 // ---------------------------------------------------------------------------
-// POST handler
+// POST handler — Execute a skill through Hermes API
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-  let body: ChatRequest;
+  let body: ExecuteRequest;
 
   try {
     body = await request.json();
@@ -40,27 +33,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!body.messages || !Array.isArray(body.messages)) {
+  if (!body.skill || typeof body.skill !== "string") {
     return NextResponse.json(
-      { error: "Missing or invalid 'messages' array" },
+      { error: "Missing or invalid 'skill' string" },
       { status: 400 },
     );
   }
 
-  // Validate message structure
-  for (const msg of body.messages) {
-    if (!msg.role || typeof msg.content !== "string") {
-      return NextResponse.json(
-        { error: "Each message must have 'role' and 'content'" },
-        { status: 400 },
-      );
-    }
-  }
-
   const apiEndpoint = getHermesApiEndpointCached();
-  const isRunning = await isHermesRunning(apiEndpoint);
+  const running = await isHermesRunning(apiEndpoint);
 
-  if (!isRunning) {
+  if (!running) {
     return NextResponse.json(
       {
         error: "Hermes API server is not running",
@@ -70,27 +53,49 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolve the model name
-  const model = body.model ?? (await getHermesModelAsync()) ?? "default";
-  const shouldStream = body.stream !== false; // default to streaming
+  const model = await getHermesModelAsync() ?? "default";
+  const shouldStream = body.stream !== false;
 
-  // Build the OpenAI-compatible request payload
+  // Build the tool execution payload
+  // Use chat completions with tool_calls format for skill execution
   const payload: Record<string, unknown> = {
     model,
-    messages: body.messages,
+    messages: [
+      {
+        role: "system",
+        content: `Execute the skill "${body.skill}" with the provided arguments. Return the results directly.`,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          skill: body.skill,
+          args: body.args ?? {},
+          sessionId: body.sessionId,
+        }),
+      },
+    ],
     stream: shouldStream,
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: body.skill,
+          description: `Execute the ${body.skill} skill`,
+          parameters: {
+            type: "object",
+            properties: body.args
+              ? Object.fromEntries(
+                  Object.entries(body.args).map(([k, v]) => [
+                    k,
+                    { type: typeof v === "number" ? "number" : "string", default: v },
+                  ]),
+                )
+              : {},
+          },
+        },
+      },
+    ],
   };
-
-  if (body.temperature !== undefined) {
-    payload.temperature = body.temperature;
-  }
-  if (body.max_tokens !== undefined) {
-    payload.max_tokens = body.max_tokens;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Streaming response
-  // ---------------------------------------------------------------------------
 
   if (shouldStream) {
     try {
@@ -118,14 +123,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Forward the SSE stream from Hermes directly to the client.
       const transform = new TransformStream({
         async transform(chunk, controller) {
           controller.enqueue(chunk);
         },
       });
 
-      // Pipe the upstream response through our transform
       void upstream.body.pipeTo(transform.writable);
 
       return new Response(transform.readable, {
@@ -138,7 +141,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return NextResponse.json(
         {
-          error: "Failed to connect to Hermes streaming API",
+          error: "Failed to execute skill via Hermes API",
           details: error instanceof Error ? error.message : "Unknown error",
         },
         { status: 502 },
@@ -146,10 +149,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Non-streaming response
-  // ---------------------------------------------------------------------------
-
   try {
     const upstream = await hermesFetchQueued("/v1/chat/completions", {
       method: "POST",
@@ -169,11 +169,24 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await upstream.json();
-    return NextResponse.json(data);
+
+    // Try to extract tool call results
+    const choice = data.choices?.[0];
+    const toolCalls = choice?.message?.tool_calls;
+    const content = choice?.message?.content;
+
+    return NextResponse.json({
+      success: true,
+      skill: body.skill,
+      result: toolCalls?.[0]?.function?.arguments
+        ? JSON.parse(toolCalls[0].function.arguments)
+        : content ?? data,
+      raw: data,
+    });
   } catch (error) {
     return NextResponse.json(
       {
-        error: "Failed to connect to Hermes API",
+        error: "Failed to execute skill via Hermes API",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 502 },

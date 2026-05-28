@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { existsSync } from "fs";
 import {
-  isHermesInstalled,
+  isHermesInstalledAsync,
   isHermesRunning,
-  getHermesApiEndpoint,
-  getHermesVersion,
-  getHermesModel,
+  getHermesApiEndpointCached,
+  getHermesVersionAsync,
+  getHermesModelAsync,
+  measureHermesLatency,
   HERMES_CONFIG_PATH,
 } from "@/lib/hermes";
 
@@ -16,21 +17,29 @@ export interface DetectResponse {
   apiEndpoint?: string;
   configPath?: string;
   model?: string;
+  latency?: number;
 }
 
 export async function GET() {
+  const startTime = Date.now();
+
   try {
-    const installed = isHermesInstalled();
+    const installed = await isHermesInstalledAsync();
     const configExists = existsSync(HERMES_CONFIG_PATH);
-    const apiEndpoint = getHermesApiEndpoint();
+    const apiEndpoint = getHermesApiEndpointCached();
 
     let running = false;
     if (installed || configExists) {
       running = await isHermesRunning(apiEndpoint);
     }
 
-    const version = installed ? getHermesVersion() : undefined;
-    const model = running ? getHermesModel() : undefined;
+    const [version, model, latency] = await Promise.all([
+      installed ? getHermesVersionAsync() : Promise.resolve(undefined),
+      running ? getHermesModelAsync() : Promise.resolve(undefined),
+      running ? measureHermesLatency(apiEndpoint) : Promise.resolve(undefined),
+    ]);
+
+    const detectLatency = Date.now() - startTime;
 
     const result: DetectResponse = {
       installed,
@@ -39,6 +48,8 @@ export async function GET() {
       ...(running && { apiEndpoint }),
       ...(configExists && { configPath: HERMES_CONFIG_PATH }),
       ...(model && { model }),
+      ...(latency !== undefined && { latency }),
+      latency: detectLatency,
     };
 
     return NextResponse.json(result);

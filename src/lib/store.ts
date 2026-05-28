@@ -93,6 +93,9 @@ export interface HermesConnection {
   model?: string;
   latency?: number;
   lastChecked?: number;
+  skillCount?: number;
+  activeSessions?: number;
+  mcpServerCount?: number;
 }
 
 export interface ChatMessage {
@@ -130,6 +133,26 @@ export interface KanbanTask {
   assignedTo: string; // agent id
   createdAt: number;
 }
+
+export interface MCPServer {
+  name: string;
+  transport: 'stdio' | 'http';
+  command?: string;
+  url?: string;
+  connected: boolean;
+  toolCount?: number;
+}
+
+export interface SkillExecution {
+  id: string;
+  skill: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: unknown;
+  startedAt: number;
+  completedAt?: number;
+}
+
+export type SSEConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface OSState {
   activeView: string;
@@ -171,6 +194,19 @@ interface OSState {
   updateKanbanTask: (id: string, updates: Partial<KanbanTask>) => void;
   totalTokensUsed: number;
   incrementTokens: (count: number) => void;
+  // SSE connection state
+  sseConnectionStatus: SSEConnectionStatus;
+  setSSEConnectionStatus: (status: SSEConnectionStatus) => void;
+  // Skill execution state
+  skillExecutions: SkillExecution[];
+  addSkillExecution: (execution: SkillExecution) => void;
+  updateSkillExecution: (id: string, updates: Partial<SkillExecution>) => void;
+  // MCP server state
+  mcpServers: MCPServer[];
+  setMCPServers: (servers: MCPServer[]) => void;
+  // Hermes latency tracking
+  hermesLatencyHistory: number[];
+  addHermesLatency: (latency: number) => void;
 }
 
 function generateActivityByHour(peakHour: number): number[] {
@@ -549,4 +585,27 @@ export const useOSStore = create<OSState>((set) => ({
 
   totalTokensUsed: 0,
   incrementTokens: (count) => set((state) => ({ totalTokensUsed: state.totalTokensUsed + count })),
+
+  // SSE connection state
+  sseConnectionStatus: 'disconnected',
+  setSSEConnectionStatus: (status) => set({ sseConnectionStatus: status }),
+
+  // Skill execution state
+  skillExecutions: [],
+  addSkillExecution: (execution) => set((state) => ({
+    skillExecutions: [execution, ...state.skillExecutions].slice(0, 20),
+  })),
+  updateSkillExecution: (id, updates) => set((state) => ({
+    skillExecutions: state.skillExecutions.map(e => e.id === id ? { ...e, ...updates } : e),
+  })),
+
+  // MCP server state
+  mcpServers: [],
+  setMCPServers: (servers) => set({ mcpServers: servers }),
+
+  // Hermes latency tracking
+  hermesLatencyHistory: [],
+  addHermesLatency: (latency) => set((state) => ({
+    hermesLatencyHistory: [...state.hermesLatencyHistory.slice(-19), latency],
+  })),
 }));
