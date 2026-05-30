@@ -8,6 +8,7 @@ import {
   FileText, TrendingUp, Eye, Headphones, PenLine, Sparkles, Crown,
   Route, FlaskConical, Gem, ArrowRight, MessageSquare, Terminal,
   Globe, Layers, Clock, Users, Wrench, Eye as EyeIcon, Lock, Lightbulb,
+  BarChart3,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -429,6 +430,22 @@ export function Sidebar() {
     color: l.color,
   }));
 
+  const powerNav = [
+    { id: 'swarm-intelligence', label: 'Swarm Intel', icon: Brain },
+    { id: 'message-bus', label: 'Message Bus', icon: Radio },
+    { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap },
+    { id: 'workflows', label: 'Workflows', icon: Activity },
+    { id: 'model-router', label: 'Model Router', icon: Cpu },
+  ];
+
+  const extNav = [
+    { id: 'plugins', label: 'Plugins', icon: Sparkles },
+    { id: 'prompts', label: 'Prompts', icon: Search },
+    { id: 'webhooks', label: 'Webhooks', icon: Globe },
+    { id: 'security', label: 'Security', icon: Shield },
+    { id: 'reports', label: 'Reports', icon: BarChart3 },
+  ];
+
   const selfItems = [
     { id: 'self-goals', label: 'Goals', icon: Target },
     { id: 'self-journal', label: 'Journal', icon: BookOpen },
@@ -527,6 +544,40 @@ export function Sidebar() {
                     <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[12px] truncate">{item.label}</motion.span>
                   )}
                 </AnimatePresence>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="pt-4">
+          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#7B2CBF] uppercase tracking-widest flex items-center gap-1"><Brain size={9} /> Power</div>}
+          {powerNav.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-all rounded-lg mx-1 ${
+                  isActive ? 'bg-[rgba(123,44,191,0.15)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.06)]'
+                }`}
+                style={isActive ? { borderLeft: '2px solid #7B2CBF' } : {}}>
+                <item.icon size={14} style={{ color: isActive ? '#7B2CBF' : '#8888aa' }} />
+                {!sidebarCollapsed && <span>{item.label}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="pt-4">
+          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#1B998B] uppercase tracking-widest flex items-center gap-1"><Globe size={9} /> Extensions</div>}
+          {extNav.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-all rounded-lg mx-1 ${
+                  isActive ? 'bg-[rgba(27,153,139,0.15)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.06)]'
+                }`}
+                style={isActive ? { borderLeft: '2px solid #1B998B' } : {}}>
+                <item.icon size={14} style={{ color: isActive ? '#1B998B' : '#8888aa' }} />
+                {!sidebarCollapsed && <span>{item.label}</span>}
               </button>
             );
           })}

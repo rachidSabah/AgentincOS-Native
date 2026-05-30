@@ -154,6 +154,159 @@ export interface SkillExecution {
 
 export type SSEConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+// ─── Message Bus Types ───
+export interface AgentMessage {
+  id: string;
+  from: string;
+  to: string;
+  type: 'task' | 'result' | 'query' | 'broadcast' | 'error';
+  subject: string;
+  payload: Record<string, unknown>;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  timestamp: number;
+  status: 'pending' | 'delivered' | 'read' | 'failed';
+  retries: number;
+}
+
+// ─── Swarm Intelligence Types ───
+export interface SwarmProposal {
+  id: string;
+  agentId: string;
+  content: string;
+  confidence: number;
+  votes: Array<{ agentId: string; vote: 'approve' | 'reject' | 'abstain'; reasoning: string }>;
+  timestamp: number;
+}
+
+export interface SwarmSession {
+  id: string;
+  task: string;
+  agents: string[];
+  strategy: 'consensus' | 'majority' | 'delegation' | 'race';
+  maxRounds: number;
+  currentRound: number;
+  proposals: SwarmProposal[];
+  status: 'forming' | 'proposing' | 'voting' | 'executing' | 'completed' | 'dissolved';
+  winningProposal: SwarmProposal | null;
+  consensusPercentage: number;
+  createdAt: number;
+  completedAt?: number;
+}
+
+// ─── Cost Tracker Types ───
+export interface CostTransaction {
+  id: string;
+  agentId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  taskName?: string;
+  timestamp: number;
+}
+
+export interface BudgetConfig {
+  dailyLimit: number;
+  monthlyLimit: number;
+  alertThreshold: number;
+  hardStop: boolean;
+}
+
+// ─── Workflow Types ───
+export interface WorkflowNode {
+  id: string;
+  type: 'agent-call' | 'condition' | 'loop' | 'transform' | 'webhook' | 'delay' | 'human-approval' | 'output';
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  condition?: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  status: 'draft' | 'running' | 'completed' | 'failed';
+  lastRun?: number;
+  createdAt: number;
+}
+
+// ─── Plugin Types ───
+export interface Plugin {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  status: 'active' | 'inactive' | 'error';
+  permissions: string[];
+  config: Record<string, unknown>;
+  installedAt: number;
+}
+
+// ─── Prompt Types ───
+export interface PromptEntry {
+  id: string;
+  name: string;
+  category: 'system' | 'task' | 'skill' | 'seo' | 'workflow' | 'custom';
+  content: string;
+  variables: string[];
+  version: number;
+  performanceScore: number;
+  usageCount: number;
+  lastModified: number;
+}
+
+// ─── Webhook Types ───
+export interface WebhookEntry {
+  id: string;
+  name: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  createdAt: number;
+  deliveryCount: number;
+  failureCount: number;
+}
+
+// ─── Security Types ───
+export interface SecurityAlert {
+  id: string;
+  type: 'injection' | 'pii' | 'access' | 'rate';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  source: string;
+  timestamp: number;
+  action: 'blocked' | 'warned' | 'logged';
+}
+
+// ─── Model Router Types ───
+export interface ModelEntry {
+  id: string;
+  name: string;
+  provider: string;
+  costPer1kInput: number;
+  costPer1kOutput: number;
+  contextWindow: number;
+  strengths: string[];
+}
+
+// ─── Report Types ───
+export interface Report {
+  id: string;
+  type: 'daily-digest' | 'weekly-analytics' | 'monthly-roi' | 'custom';
+  generatedAt: number;
+  summary: string;
+  metrics: Record<string, unknown>;
+}
+
 interface OSState {
   activeView: string;
   setActiveView: (view: string) => void;
@@ -207,6 +360,47 @@ interface OSState {
   // Hermes latency tracking
   hermesLatencyHistory: number[];
   addHermesLatency: (latency: number) => void;
+  // ─── Message Bus State ───
+  agentMessages: AgentMessage[];
+  addAgentMessage: (msg: AgentMessage) => void;
+  clearAgentMessages: (agentId?: string) => void;
+  // ─── Swarm Intelligence State ───
+  activeSwarms: SwarmSession[];
+  addSwarm: (swarm: SwarmSession) => void;
+  updateSwarm: (id: string, updates: Partial<SwarmSession>) => void;
+  swarmHistory: SwarmSession[];
+  // ─── Cost Tracker State ───
+  costTransactions: CostTransaction[];
+  addCostTransaction: (tx: CostTransaction) => void;
+  budgetConfig: BudgetConfig;
+  setBudgetConfig: (config: Partial<BudgetConfig>) => void;
+  totalCost: number;
+  // ─── Workflow State ───
+  workflows: Workflow[];
+  addWorkflow: (wf: Workflow) => void;
+  updateWorkflow: (id: string, updates: Partial<Workflow>) => void;
+  removeWorkflow: (id: string) => void;
+  // ─── Plugin State ───
+  plugins: Plugin[];
+  setPlugins: (plugins: Plugin[]) => void;
+  updatePlugin: (id: string, updates: Partial<Plugin>) => void;
+  // ─── Prompt Library State ───
+  prompts: PromptEntry[];
+  setPrompts: (prompts: PromptEntry[]) => void;
+  // ─── Webhook State ───
+  webhooks: WebhookEntry[];
+  setWebhooks: (webhooks: WebhookEntry[]) => void;
+  // ─── Security State ───
+  securityAlerts: SecurityAlert[];
+  addSecurityAlert: (alert: SecurityAlert) => void;
+  securityRiskScore: number;
+  setSecurityRiskScore: (score: number) => void;
+  // ─── Model Router State ───
+  availableModels: ModelEntry[];
+  setAvailableModels: (models: ModelEntry[]) => void;
+  // ─── Reports State ───
+  reports: Report[];
+  addReport: (report: Report) => void;
 }
 
 function generateActivityByHour(peakHour: number): number[] {
@@ -607,5 +801,83 @@ export const useOSStore = create<OSState>((set) => ({
   hermesLatencyHistory: [],
   addHermesLatency: (latency) => set((state) => ({
     hermesLatencyHistory: [...state.hermesLatencyHistory.slice(-19), latency],
+  })),
+
+  // ─── Message Bus State ───
+  agentMessages: [],
+  addAgentMessage: (msg) => set((state) => ({
+    agentMessages: [msg, ...state.agentMessages].slice(0, 100),
+  })),
+  clearAgentMessages: (agentId) => set((state) => ({
+    agentMessages: agentId
+      ? state.agentMessages.filter(m => m.from !== agentId && m.to !== agentId)
+      : [],
+  })),
+
+  // ─── Swarm Intelligence State ───
+  activeSwarms: [],
+  addSwarm: (swarm) => set((state) => ({
+    activeSwarms: [...state.activeSwarms, swarm],
+  })),
+  updateSwarm: (id, updates) => set((state) => ({
+    activeSwarms: state.activeSwarms.map(s => s.id === id ? { ...s, ...updates } : s),
+  })),
+  swarmHistory: [],
+
+  // ─── Cost Tracker State ───
+  costTransactions: [],
+  addCostTransaction: (tx) => set((state) => ({
+    costTransactions: [tx, ...state.costTransactions].slice(0, 500),
+    totalCost: state.totalCost + tx.cost,
+  })),
+  budgetConfig: { dailyLimit: 50, monthlyLimit: 500, alertThreshold: 0.8, hardStop: false },
+  setBudgetConfig: (config) => set((state) => ({
+    budgetConfig: { ...state.budgetConfig, ...config },
+  })),
+  totalCost: 0,
+
+  // ─── Workflow State ───
+  workflows: [],
+  addWorkflow: (wf) => set((state) => ({
+    workflows: [...state.workflows, wf],
+  })),
+  updateWorkflow: (id, updates) => set((state) => ({
+    workflows: state.workflows.map(w => w.id === id ? { ...w, ...updates } : w),
+  })),
+  removeWorkflow: (id) => set((state) => ({
+    workflows: state.workflows.filter(w => w.id !== id),
+  })),
+
+  // ─── Plugin State ───
+  plugins: [],
+  setPlugins: (plugins) => set({ plugins }),
+  updatePlugin: (id, updates) => set((state) => ({
+    plugins: state.plugins.map(p => p.id === id ? { ...p, ...updates } : p),
+  })),
+
+  // ─── Prompt Library State ───
+  prompts: [],
+  setPrompts: (prompts) => set({ prompts }),
+
+  // ─── Webhook State ───
+  webhooks: [],
+  setWebhooks: (webhooks) => set({ webhooks }),
+
+  // ─── Security State ───
+  securityAlerts: [],
+  addSecurityAlert: (alert) => set((state) => ({
+    securityAlerts: [alert, ...state.securityAlerts].slice(0, 100),
+  })),
+  securityRiskScore: 15,
+  setSecurityRiskScore: (score) => set({ securityRiskScore: score }),
+
+  // ─── Model Router State ───
+  availableModels: [],
+  setAvailableModels: (models) => set({ availableModels: models }),
+
+  // ─── Reports State ───
+  reports: [],
+  addReport: (report) => set((state) => ({
+    reports: [report, ...state.reports].slice(0, 50),
   })),
 }));

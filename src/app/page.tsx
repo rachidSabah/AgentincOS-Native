@@ -13,6 +13,10 @@ import {
 } from '@/components/dashboard';
 import { AgentRail, LiveWorkspace, BrainPanel } from '@/components/mission-control';
 import { HermesSEOSilo } from '@/components/hermes-seo-silo';
+import { SwarmIntelligence } from '@/components/swarm-intelligence';
+import { CostTracker, AgentMessageBus } from '@/components/cost-tracker';
+import { WorkflowBuilder, PluginManager, PromptLibrary } from '@/components/workflow-plugin-prompt';
+import { SecurityScanner, WebhookManager, ReportGenerator, ModelRouter } from '@/components/security-webhook-reports';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -256,6 +260,126 @@ export default function HomePage() {
           </motion.div>
         );
       }
+
+      case 'swarm-intelligence':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#7B2CBF]">Swarm Intelligence</span>
+            </div>
+            <SwarmIntelligence />
+          </motion.div>
+        );
+
+      case 'message-bus':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#1B998B]">Message Bus</span>
+            </div>
+            <AgentMessageBus />
+          </motion.div>
+        );
+
+      case 'cost-tracker':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#00ff88]">Cost Tracker</span>
+            </div>
+            <CostTracker />
+          </motion.div>
+        );
+
+      case 'workflows':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#E8751A]">Workflows</span>
+            </div>
+            <WorkflowBuilder />
+          </motion.div>
+        );
+
+      case 'plugins':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#2E86AB]">Plugins</span>
+            </div>
+            <PluginManager />
+          </motion.div>
+        );
+
+      case 'prompts':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#FFB627]">Prompt Library</span>
+            </div>
+            <PromptLibrary />
+          </motion.div>
+        );
+
+      case 'security':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#ff4444]">Security</span>
+            </div>
+            <SecurityScanner />
+          </motion.div>
+        );
+
+      case 'webhooks':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#7B2CBF]">Webhooks</span>
+            </div>
+            <WebhookManager />
+          </motion.div>
+        );
+
+      case 'reports':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#1B998B]">Reports</span>
+            </div>
+            <ReportGenerator />
+          </motion.div>
+        );
+
+      case 'model-router':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#E63946]">Model Router</span>
+            </div>
+            <ModelRouter />
+          </motion.div>
+        );
 
       case 'self-goals':
         return (
