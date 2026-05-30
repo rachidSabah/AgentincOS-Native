@@ -7,11 +7,12 @@ import {
   CommandPalette, GoalsView, JournalView, MemoryView,
   HermesFeatureGrid, CompoundVisualizer, SelfLayerExplanation,
   OmiObsidianStatus, NetworkTopology, QuickStats,
-  LayerCard, StackOverview, AgentHeroCards, SEOSilo,
+  LayerCard, StackOverview, AgentHeroCards,
   HermesConnectionBanner, HermesQuickActions, useHermesDetection,
   Stack3DVisualization, LayerFlowDiagram, LayerFlowView,
 } from '@/components/dashboard';
 import { AgentRail, LiveWorkspace, BrainPanel } from '@/components/mission-control';
+import { HermesSEOSilo } from '@/components/hermes-seo-silo';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -78,10 +79,23 @@ export default function HomePage() {
               <span className="text-[#FFB627]">7-Layer Stack</span>
             </div>
             <StackOverview />
+            <HermesSEOSilo />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
               <LatencyGraph />
             </div>
+          </motion.div>
+        );
+
+      case 'seo-silo':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
+              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
+              <span>/</span>
+              <span className="text-[#FFB627]">Hermes SEO Silo</span>
+            </div>
+            <HermesSEOSilo />
           </motion.div>
         );
 

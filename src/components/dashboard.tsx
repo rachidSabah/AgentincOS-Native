@@ -417,6 +417,7 @@ export function Sidebar() {
   const mainNav = [
     { id: 'mission-control', label: 'Mission Control', icon: Radio },
     { id: 'stack-overview', label: 'Mission Stack', icon: Sparkles },
+    { id: 'seo-silo', label: 'SEO Silo', icon: Search },
     { id: 'layer-flow', label: 'Layer Flow', icon: Activity },
   ];
 
