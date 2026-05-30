@@ -52,3 +52,19 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Agentic OS specific
+.env
+.env.local
+*.db
+*.db-journal
+dev.log
+server.log
+upload/
+agent-ctx/
+.zscripts/
+mini-services/
+hermes_*.json
+hermes_full_docs.md
+image_analysis.json
+examples/
+skills/

@@ -590,3 +590,322 @@ function parseYamlScalar(val: string): unknown {
 
   return val;
 }
+
+// ---------------------------------------------------------------------------
+// Circuit Breaker
+// ---------------------------------------------------------------------------
+
+export type CircuitState = 'closed' | 'open' | 'half-open';
+
+interface CircuitBreakerConfig {
+  failureThreshold: number;       // failures before opening (default: 5)
+  resetTimeout: number;           // ms before trying half-open (default: 30000)
+  halfOpenMaxAttempts: number;    // requests in half-open state (default: 3)
+}
+
+class HermesCircuitBreaker {
+  private state: CircuitState = 'closed';
+  private failureCount = 0;
+  private successCount = 0;
+  private lastFailureTime = 0;
+  private halfOpenAttempts = 0;
+  private config: CircuitBreakerConfig;
+
+  constructor(config?: Partial<CircuitBreakerConfig>) {
+    this.config = {
+      failureThreshold: config?.failureThreshold ?? 5,
+      resetTimeout: config?.resetTimeout ?? 30000,
+      halfOpenMaxAttempts: config?.halfOpenMaxAttempts ?? 3,
+    };
+  }
+
+  getState(): CircuitState {
+    // Automatically transition from open → half-open if resetTimeout has elapsed
+    if (this.state === 'open') {
+      const elapsed = Date.now() - this.lastFailureTime;
+      if (elapsed >= this.config.resetTimeout) {
+        this.state = 'half-open';
+        this.halfOpenAttempts = 0;
+      }
+    }
+    return this.state;
+  }
+
+  getFailureCount(): number {
+    return this.failureCount;
+  }
+
+  getSuccessCount(): number {
+    return this.successCount;
+  }
+
+  getConfig(): CircuitBreakerConfig {
+    return { ...this.config };
+  }
+
+  reset(): void {
+    this.state = 'closed';
+    this.failureCount = 0;
+    this.successCount = 0;
+    this.halfOpenAttempts = 0;
+    this.lastFailureTime = 0;
+  }
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    const currentState = this.getState();
+
+    // --- OPEN: fail fast ---
+    if (currentState === 'open') {
+      throw new Error(
+        `[HermesCircuitBreaker] Circuit is OPEN — failing fast. ` +
+        `Retry after ${this.config.resetTimeout - (Date.now() - this.lastFailureTime)}ms`,
+      );
+    }
+
+    // --- HALF-OPEN: allow limited probe requests ---
+    if (currentState === 'half-open') {
+      if (this.halfOpenAttempts >= this.config.halfOpenMaxAttempts) {
+        // Too many half-open attempts already in flight — reject
+        throw new Error(
+          `[HermesCircuitBreaker] Circuit is HALF-OPEN — max probe attempts reached. ` +
+          `Wait for in-flight requests to resolve.`,
+        );
+      }
+      this.halfOpenAttempts++;
+    }
+
+    // --- CLOSED or HALF-OPEN (within limit): execute ---
+    try {
+      const result = await fn();
+
+      // Success path
+      this.successCount++;
+      this.failureCount = 0;
+
+      if (currentState === 'half-open') {
+        // Sufficient probes succeeded → close the circuit
+        this.state = 'closed';
+        this.halfOpenAttempts = 0;
+      }
+
+      return result;
+    } catch (err) {
+      // Failure path
+      this.failureCount++;
+      this.lastFailureTime = Date.now();
+
+      if (currentState === 'closed' && this.failureCount >= this.config.failureThreshold) {
+        this.state = 'open';
+      }
+
+      if (currentState === 'half-open') {
+        // Probe failed → back to open
+        this.state = 'open';
+        this.halfOpenAttempts = 0;
+      }
+
+      throw err;
+    }
+  }
+}
+
+export const hermesCircuitBreaker = new HermesCircuitBreaker();
+
+// ---------------------------------------------------------------------------
+// Performance Telemetry
+// ---------------------------------------------------------------------------
+
+export interface TelemetryMetrics {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  avgLatencyMs: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  tokensUsed: number;
+  toolCallsCount: number;
+  skillExecutions: number;
+  activeConnections: number;
+  circuitBreakerState: CircuitState;
+  uptime: number;               // ms since first request
+  lastRequestTime: number | null;
+  requestsPerMinute: number;    // rolling 1-minute window
+}
+
+class HermesTelemetry {
+  private latencies: number[] = [];          // last 1000 latencies
+  private maxLatencies = 1000;
+  private requestTimestamps: number[] = [];   // rolling 1-min window for RPM
+  private startTime = Date.now();
+
+  private metrics: TelemetryMetrics = {
+    totalRequests: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    avgLatencyMs: 0,
+    p50LatencyMs: 0,
+    p95LatencyMs: 0,
+    p99LatencyMs: 0,
+    tokensUsed: 0,
+    toolCallsCount: 0,
+    skillExecutions: 0,
+    activeConnections: 0,
+    circuitBreakerState: 'closed',
+    uptime: 0,
+    lastRequestTime: null,
+    requestsPerMinute: 0,
+  };
+
+  recordRequest(
+    latencyMs: number,
+    success: boolean,
+    tokens?: number,
+    toolCalls?: number,
+  ): void {
+    this.metrics.totalRequests++;
+    if (success) {
+      this.metrics.successfulRequests++;
+    } else {
+      this.metrics.failedRequests++;
+    }
+
+    // Track latency for percentile calculations
+    this.latencies.push(latencyMs);
+    if (this.latencies.length > this.maxLatencies) {
+      this.latencies.shift();
+    }
+
+    // Track timestamp for RPM calculation
+    const now = Date.now();
+    this.requestTimestamps.push(now);
+    this.pruneTimestamps(now);
+
+    // Optional counters
+    if (tokens !== undefined) {
+      this.metrics.tokensUsed += tokens;
+    }
+    if (toolCalls !== undefined) {
+      this.metrics.toolCallsCount += toolCalls;
+    }
+
+    this.metrics.lastRequestTime = now;
+    this.recompute();
+  }
+
+  recordSkillExecution(): void {
+    this.metrics.skillExecutions++;
+  }
+
+  incrementActiveConnections(): void {
+    this.metrics.activeConnections++;
+  }
+
+  decrementActiveConnections(): void {
+    this.metrics.activeConnections = Math.max(0, this.metrics.activeConnections - 1);
+  }
+
+  getMetrics(): TelemetryMetrics {
+    // Refresh dynamic fields
+    this.recompute();
+    return { ...this.metrics };
+  }
+
+  reset(): void {
+    this.latencies = [];
+    this.requestTimestamps = [];
+    this.startTime = Date.now();
+    this.metrics = {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      avgLatencyMs: 0,
+      p50LatencyMs: 0,
+      p95LatencyMs: 0,
+      p99LatencyMs: 0,
+      tokensUsed: 0,
+      toolCallsCount: 0,
+      skillExecutions: 0,
+      activeConnections: 0,
+      circuitBreakerState: 'closed',
+      uptime: 0,
+      lastRequestTime: null,
+      requestsPerMinute: 0,
+    };
+  }
+
+  // ---- Private helpers ----
+
+  private recompute(): void {
+    const now = Date.now();
+    this.metrics.uptime = now - this.startTime;
+    this.metrics.circuitBreakerState = hermesCircuitBreaker.getState();
+
+    // Average latency
+    if (this.latencies.length > 0) {
+      const sum = this.latencies.reduce((a, b) => a + b, 0);
+      this.metrics.avgLatencyMs = Math.round(sum / this.latencies.length);
+
+      // Percentiles (sorted copy)
+      const sorted = [...this.latencies].sort((a, b) => a - b);
+      this.metrics.p50LatencyMs = this.computePercentile(sorted, 50);
+      this.metrics.p95LatencyMs = this.computePercentile(sorted, 95);
+      this.metrics.p99LatencyMs = this.computePercentile(sorted, 99);
+    } else {
+      this.metrics.avgLatencyMs = 0;
+      this.metrics.p50LatencyMs = 0;
+      this.metrics.p95LatencyMs = 0;
+      this.metrics.p99LatencyMs = 0;
+    }
+
+    // Requests per minute (rolling window)
+    this.metrics.requestsPerMinute = this.computeRPM(now);
+  }
+
+  private computePercentile(sortedArr: number[], p: number): number {
+    if (sortedArr.length === 0) return 0;
+    const idx = (p / 100) * (sortedArr.length - 1);
+    const lower = Math.floor(idx);
+    const upper = Math.ceil(idx);
+    if (lower === upper) return sortedArr[lower]!;
+    const frac = idx - lower;
+    return Math.round(sortedArr[lower]! * (1 - frac) + sortedArr[upper]! * frac);
+  }
+
+  private pruneTimestamps(now: number): void {
+    const cutoff = now - 60000; // 1 minute ago
+    while (this.requestTimestamps.length > 0 && this.requestTimestamps[0]! < cutoff) {
+      this.requestTimestamps.shift();
+    }
+  }
+
+  private computeRPM(now: number): number {
+    this.pruneTimestamps(now);
+    return this.requestTimestamps.length;
+  }
+}
+
+export const hermesTelemetry = new HermesTelemetry();
+
+// ---------------------------------------------------------------------------
+// Protected Fetch (Circuit Breaker + Telemetry wrapper)
+// ---------------------------------------------------------------------------
+
+export async function hermesFetchProtected(
+  path: string,
+  options?: RequestInit,
+): Promise<Response> {
+  return hermesCircuitBreaker.execute(async () => {
+    const start = Date.now();
+    try {
+      const res = await hermesFetchQueued(path, options);
+      const latency = Date.now() - start;
+      hermesTelemetry.recordRequest(latency, res.ok);
+      return res;
+    } catch (err) {
+      const latency = Date.now() - start;
+      hermesTelemetry.recordRequest(latency, false);
+      throw err;
+    }
+  });
+}
