@@ -8,7 +8,8 @@ import {
   FileText, TrendingUp, Eye, Headphones, PenLine, Sparkles, Crown,
   Route, FlaskConical, Gem, ArrowRight, MessageSquare, Terminal,
   Globe, Layers, Clock, Users, Wrench, Eye as EyeIcon, Lock, Lightbulb,
-  BarChart3,
+  BarChart3, Moon, Scale, ArrowRightLeft, AlertTriangle, Server,
+  Link2, Flame,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -448,9 +449,29 @@ export function Sidebar() {
     { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap },
     { id: 'workflows', label: 'Workflows', icon: Activity },
     { id: 'model-router', label: 'Model Router', icon: Cpu },
+    { id: 'knowledge-gap', label: 'Knowledge Gap', icon: Search },
+    { id: 'memory-decay', label: 'Memory Decay', icon: Clock },
+    { id: 'agent-leaderboard', label: 'Leaderboard', icon: Crown },
+    { id: 'voice-interface', label: 'Voice', icon: Mic },
+    { id: 'dream-mode', label: 'Dream Mode', icon: Moon },
+    { id: 'agent-consensus', label: 'Consensus', icon: Scale },
+    { id: 'agent-handoff', label: 'Handoff', icon: ArrowRightLeft },
+    { id: 'memory-conflict', label: 'Conflicts', icon: AlertTriangle },
+    { id: 'audit-trail', label: 'Audit Trail', icon: FileText },
+    { id: 'permission-scopes', label: 'Permissions', icon: Shield },
+    { id: 'mcp-registry', label: 'MCP Registry', icon: Server },
+    { id: 'sandbox-execution', label: 'Sandbox', icon: Terminal },
+  ];
+
+  const cyberNav = [
+    { id: 'focus-mode', label: 'Focus Mode', icon: Eye },
+    { id: 'cross-session-memory', label: 'X-Session Memory', icon: Link2 },
+    { id: 'rag-engine', label: 'RAG Engine', icon: Zap },
+    { id: 'productivity-heatmap', label: 'Heatmap', icon: BarChart3 },
   ];
 
   const extNav = [
+    { id: 'updates', label: 'Updates', icon: Activity },
     { id: 'plugins', label: 'Plugins', icon: Sparkles },
     { id: 'prompts', label: 'Prompts', icon: Search },
     { id: 'webhooks', label: 'Webhooks', icon: Globe },
@@ -604,6 +625,23 @@ export function Sidebar() {
         </div>
 
         <div className="pt-4">
+          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#00ffff] uppercase tracking-widest flex items-center gap-1"><Flame size={9} /> Cyberpunk</div>}
+          {cyberNav.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-all rounded-lg mx-1 ${
+                  isActive ? 'bg-[rgba(0,255,255,0.1)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(0,255,255,0.05)]'
+                }`}
+                style={isActive ? { borderLeft: '2px solid #00ffff' } : {}}>
+                <item.icon size={14} style={{ color: isActive ? '#00ffff' : '#8888aa' }} />
+                {!sidebarCollapsed && <span>{item.label}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="pt-4">
           {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#1B998B] uppercase tracking-widest flex items-center gap-1"><Globe size={9} /> Extensions</div>}
           {extNav.map((item) => {
             const isActive = activeView === item.id;
@@ -651,9 +689,14 @@ export function TopBar() {
     'layer-execution': 'Layer 5 — Execution & Integration',
     'layer-memory': 'Layer 6 — Memory, Learning & Context',
     'layer-governance': 'Layer 7 — Deployment, Governance & Infrastructure',
+    'updates': 'System Updates — Auto-Pull from GitHub',
     'self-goals': 'Self — Goals',
     'self-journal': 'Self — Journal',
     'self-memory': 'Self — Memory',
+    'focus-mode': 'Focus Mode — Deep Work',
+    'cross-session-memory': 'Cross-Session Memory — Sync',
+    'rag-engine': 'RAG Engine — Pipeline',
+    'productivity-heatmap': 'Productivity Heatmap — Analytics',
   };
 
   return (

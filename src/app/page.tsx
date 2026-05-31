@@ -24,6 +24,23 @@ import {
 } from '@/components/memory-engine';
 import { HomeDashboard } from '@/components/home-dashboard';
 import { AgentObservability } from '@/components/agent-observability';
+import { UpdatesTab } from '@/components/updates-tab';
+import { KnowledgeGap } from '@/components/knowledge-gap';
+import { MemoryDecay } from '@/components/memory-decay';
+import { AgentLeaderboard } from '@/components/agent-leaderboard';
+import { VoiceInterface } from '@/components/voice-interface';
+import { DreamMode } from '@/components/dream-mode';
+import { AgentConsensus } from '@/components/agent-consensus';
+import { AgentHandoff } from '@/components/agent-handoff';
+import { MemoryConflict } from '@/components/memory-conflict';
+import { AuditTrail } from '@/components/audit-trail';
+import { PermissionScopes } from '@/components/permission-scopes';
+import { MCPRegistry } from '@/components/mcp-registry';
+import { SandboxExecution } from '@/components/sandbox-execution';
+import { FocusMode } from '@/components/focus-mode';
+import { CrossSessionMemory } from '@/components/cross-session-memory';
+import { RAGEngine } from '@/components/rag-engine';
+import { ProductivityHeatmap } from '@/components/productivity-heatmap';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -310,6 +327,122 @@ export default function HomePage() {
           </motion.div>
         );
 
+      // ─── Premium Components ───
+      case 'knowledge-gap':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <KnowledgeGap />
+          </motion.div>
+        );
+
+      case 'memory-decay':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryDecay />
+          </motion.div>
+        );
+
+      case 'agent-leaderboard':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentLeaderboard />
+          </motion.div>
+        );
+
+      case 'voice-interface':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <VoiceInterface />
+          </motion.div>
+        );
+
+      // ─── Premium OS Components ───
+      case 'dream-mode':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <DreamMode />
+          </motion.div>
+        );
+
+      case 'agent-consensus':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentConsensus />
+          </motion.div>
+        );
+
+      case 'agent-handoff':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentHandoff />
+          </motion.div>
+        );
+
+      case 'memory-conflict':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryConflict />
+          </motion.div>
+        );
+
+      // ─── Cyberpunk Premium Components ───
+      case 'audit-trail':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AuditTrail />
+          </motion.div>
+        );
+
+      case 'permission-scopes':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <PermissionScopes />
+          </motion.div>
+        );
+
+      case 'mcp-registry':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MCPRegistry />
+          </motion.div>
+        );
+
+      case 'sandbox-execution':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <SandboxExecution />
+          </motion.div>
+        );
+
+      // ─── Cyberpunk Premium Components v2 ───
+      case 'focus-mode':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <FocusMode />
+          </motion.div>
+        );
+
+      case 'cross-session-memory':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <CrossSessionMemory />
+          </motion.div>
+        );
+
+      case 'rag-engine':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <RAGEngine />
+          </motion.div>
+        );
+
+      case 'productivity-heatmap':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <ProductivityHeatmap />
+          </motion.div>
+        );
+
       // ─── Extensions ───
       case 'plugins':
         return (
@@ -346,6 +479,14 @@ export default function HomePage() {
           </motion.div>
         );
 
+      // ─── Updates ───
+      case 'updates':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <UpdatesTab />
+          </motion.div>
+        );
+
       // ─── Self ───
       case 'self-goals':
         return (
@@ -374,7 +515,7 @@ export default function HomePage() {
   };
 
   const isMissionControl3Col = activeView === 'mission-control';
-  const isHomeView = activeView === 'home' || activeView === 'observability';
+  const isHomeView = activeView === 'home' || activeView === 'observability' || activeView === 'updates';
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a1a] grid-bg noise-overlay">
