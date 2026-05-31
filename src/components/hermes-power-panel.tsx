@@ -46,7 +46,12 @@ export function HermesPowerPanel() {
     } catch { /* silent */ }
   }, [hermesConnection.running]);
 
-  useEffect(() => { fetchPowerData(); const i = setInterval(fetchPowerData, 10000); return () => clearInterval(i); }, [fetchPowerData]);
+  useEffect(() => { 
+    const i = setInterval(() => { fetchPowerData().catch(() => {}); }, 10000); 
+    // Initial fetch scheduled after mount to avoid cascading render
+    const timeout = setTimeout(() => fetchPowerData().catch(() => {}), 100);
+    return () => { clearInterval(i); clearTimeout(timeout); };
+  }, [fetchPowerData]);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },

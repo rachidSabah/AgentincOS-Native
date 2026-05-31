@@ -17,6 +17,13 @@ import { SwarmIntelligence } from '@/components/swarm-intelligence';
 import { CostTracker, AgentMessageBus } from '@/components/cost-tracker';
 import { WorkflowBuilder, PluginManager, PromptLibrary } from '@/components/workflow-plugin-prompt';
 import { SecurityScanner, WebhookManager, ReportGenerator, ModelRouter } from '@/components/security-webhook-reports';
+import {
+  MemoryEngineDashboard, MemoryGraph, MemoryTimeline,
+  MemorySearch, MemoryExtractor, AgentMemorySharing,
+  RelationshipEngine, MemoryDetail,
+} from '@/components/memory-engine';
+import { HomeDashboard } from '@/components/home-dashboard';
+import { AgentObservability } from '@/components/agent-observability';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect } from 'react';
 
@@ -63,6 +70,15 @@ export default function HomePage() {
 
   const renderView = () => {
     switch (activeView) {
+      // ─── Home Dashboard ───
+      case 'home':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <HomeDashboard />
+          </motion.div>
+        );
+
+      // ─── Mission Control ───
       case 'mission-control':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
@@ -74,14 +90,10 @@ export default function HomePage() {
           </motion.div>
         );
 
+      // ─── Stack Overview ───
       case 'stack-overview':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#FFB627]">7-Layer Stack</span>
-            </div>
             <StackOverview />
             <HermesSEOSilo />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -91,42 +103,85 @@ export default function HomePage() {
           </motion.div>
         );
 
+      // ─── SEO Silo ───
       case 'seo-silo':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#FFB627]">Hermes SEO Silo</span>
-            </div>
             <HermesSEOSilo />
           </motion.div>
         );
 
+      // ─── Layer Flow ───
       case 'layer-flow':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#FFB627]">Layer Flow</span>
-            </div>
             <LayerFlowView />
           </motion.div>
         );
 
-      // 7 Layer detail views
+      // ─── Memory Engine Views ───
+      case 'memory-engine':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryEngineDashboard />
+          </motion.div>
+        );
+
+      case 'memory-graph':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryGraph />
+          </motion.div>
+        );
+
+      case 'memory-timeline':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryTimeline />
+          </motion.div>
+        );
+
+      case 'memory-search':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemorySearch />
+          </motion.div>
+        );
+
+      case 'memory-extractor':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryExtractor />
+          </motion.div>
+        );
+
+      case 'agent-sharing':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentMemorySharing />
+          </motion.div>
+        );
+
+      case 'relationship-engine':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <RelationshipEngine />
+          </motion.div>
+        );
+
+      // ─── Agent Observability ───
+      case 'observability':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <AgentObservability />
+          </motion.div>
+        );
+
+      // ─── 7 Layer detail views ───
       case 'layer-interaction': {
         const layer = stackLayers.find(l => l.id === 'interaction')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Interaction & Perception</span>
-            </div>
             <LayerCard layer={layer} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
@@ -140,13 +195,6 @@ export default function HomePage() {
         const layer = stackLayers.find(l => l.id === 'knowledge')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Knowledge Acquisition</span>
-            </div>
             <LayerCard layer={layer} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
@@ -160,13 +208,6 @@ export default function HomePage() {
         const layer = stackLayers.find(l => l.id === 'orchestration')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Agent Orchestration</span>
-            </div>
             <LayerCard layer={layer} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
@@ -180,13 +221,6 @@ export default function HomePage() {
         const layer = stackLayers.find(l => l.id === 'cognition')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Cognitive Reasoning</span>
-            </div>
             <LayerCard layer={layer} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
@@ -200,13 +234,6 @@ export default function HomePage() {
         const layer = stackLayers.find(l => l.id === 'execution')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Execution & Integration</span>
-            </div>
             <LayerCard layer={layer} />
             <div>
               <div className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-3">Hermes Feature Registry</div>
@@ -224,13 +251,6 @@ export default function HomePage() {
         const layer = stackLayers.find(l => l.id === 'memory')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Memory, Learning & Context</span>
-            </div>
             <LayerCard layer={layer} />
             <SelfLayerExplanation />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -245,13 +265,6 @@ export default function HomePage() {
         const layer = stackLayers.find(l => l.id === 'governance')!;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('stack-overview')} className="hover:text-white transition-colors">Stack</button>
-              <span>/</span>
-              <span style={{ color: layer.color }}>Deployment, Governance & Infrastructure</span>
-            </div>
             <LayerCard layer={layer} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
@@ -261,14 +274,10 @@ export default function HomePage() {
         );
       }
 
+      // ─── Power Features ───
       case 'swarm-intelligence':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#7B2CBF]">Swarm Intelligence</span>
-            </div>
             <SwarmIntelligence />
           </motion.div>
         );
@@ -276,11 +285,6 @@ export default function HomePage() {
       case 'message-bus':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#1B998B]">Message Bus</span>
-            </div>
             <AgentMessageBus />
           </motion.div>
         );
@@ -288,11 +292,6 @@ export default function HomePage() {
       case 'cost-tracker':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#00ff88]">Cost Tracker</span>
-            </div>
             <CostTracker />
           </motion.div>
         );
@@ -300,23 +299,21 @@ export default function HomePage() {
       case 'workflows':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#E8751A]">Workflows</span>
-            </div>
             <WorkflowBuilder />
           </motion.div>
         );
 
+      case 'model-router':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <ModelRouter />
+          </motion.div>
+        );
+
+      // ─── Extensions ───
       case 'plugins':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#2E86AB]">Plugins</span>
-            </div>
             <PluginManager />
           </motion.div>
         );
@@ -324,73 +321,35 @@ export default function HomePage() {
       case 'prompts':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#FFB627]">Prompt Library</span>
-            </div>
             <PromptLibrary />
-          </motion.div>
-        );
-
-      case 'security':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#ff4444]">Security</span>
-            </div>
-            <SecurityScanner />
           </motion.div>
         );
 
       case 'webhooks':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#7B2CBF]">Webhooks</span>
-            </div>
             <WebhookManager />
+          </motion.div>
+        );
+
+      case 'security':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <SecurityScanner />
           </motion.div>
         );
 
       case 'reports':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#1B998B]">Reports</span>
-            </div>
             <ReportGenerator />
           </motion.div>
         );
 
-      case 'model-router':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <span className="text-[#E63946]">Model Router</span>
-            </div>
-            <ModelRouter />
-          </motion.div>
-        );
-
+      // ─── Self ───
       case 'self-goals':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa] mb-4">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('layer-memory')} className="hover:text-white transition-colors">Memory</button>
-              <span>/</span>
-              <span className="text-[#2E86AB]">Goals</span>
-            </div>
             <GoalsView />
           </motion.div>
         );
@@ -398,13 +357,6 @@ export default function HomePage() {
       case 'self-journal':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa] mb-4">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('layer-memory')} className="hover:text-white transition-colors">Memory</button>
-              <span>/</span>
-              <span className="text-[#7B2CBF]">Journal</span>
-            </div>
             <JournalView />
           </motion.div>
         );
@@ -412,13 +364,6 @@ export default function HomePage() {
       case 'self-memory':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="flex items-center gap-2 text-[10px] text-[#8888aa] mb-4">
-              <button onClick={() => useOSStore.getState().setActiveView('mission-control')} className="hover:text-white transition-colors">Mission Control</button>
-              <span>/</span>
-              <button onClick={() => useOSStore.getState().setActiveView('layer-memory')} className="hover:text-white transition-colors">Memory</button>
-              <span>/</span>
-              <span className="text-[#2E86AB]">Memory</span>
-            </div>
             <MemoryView />
           </motion.div>
         );
@@ -429,17 +374,18 @@ export default function HomePage() {
   };
 
   const isMissionControl3Col = activeView === 'mission-control';
+  const isHomeView = activeView === 'home' || activeView === 'observability';
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a1a] grid-bg noise-overlay">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        {!isMissionControl3Col && <TopBar />}
-        <main className={`flex-1 overflow-hidden ${isMissionControl3Col ? '' : 'overflow-y-auto p-6'}`} role="main" aria-label="Dashboard Content">
+        {!isMissionControl3Col && !isHomeView && <TopBar />}
+        <main className={`flex-1 overflow-hidden ${isMissionControl3Col || isHomeView ? '' : 'overflow-y-auto p-6'}`} role="main" aria-label="Dashboard Content">
           <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
         </main>
 
-        {!isMissionControl3Col && (
+        {!isMissionControl3Col && !isHomeView && (
           <div className="h-12 flex items-center justify-center gap-2 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.8)] backdrop-blur-md" role="toolbar" aria-label="Agent Quick Access">
             {agents.map((agent) => (
               <motion.button key={agent.id} onClick={() => setControlRoomAgent(agent.id)}

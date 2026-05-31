@@ -414,7 +414,7 @@ function generateActivityByHour(peakHour: number): number[] {
 }
 
 export const useOSStore = create<OSState>((set) => ({
-  activeView: 'mission-control',
+  activeView: 'home',
   setActiveView: (view) => set({ activeView: view }),
 
   stackLayers: [

@@ -416,10 +416,21 @@ export function Sidebar() {
   const liveCount = agents.filter((a) => a.status === 'live').length;
 
   const mainNav = [
+    { id: 'home', label: 'Home', icon: Sparkles },
     { id: 'mission-control', label: 'Mission Control', icon: Radio },
-    { id: 'stack-overview', label: 'Mission Stack', icon: Sparkles },
+    { id: 'stack-overview', label: 'Mission Stack', icon: Layers },
     { id: 'seo-silo', label: 'SEO Silo', icon: Search },
     { id: 'layer-flow', label: 'Layer Flow', icon: Activity },
+  ];
+
+  const memoryNav = [
+    { id: 'memory-engine', label: 'Memory Engine', icon: Database },
+    { id: 'memory-graph', label: 'Knowledge Graph', icon: Network },
+    { id: 'memory-timeline', label: 'Timeline', icon: Clock },
+    { id: 'memory-search', label: 'Search', icon: Search },
+    { id: 'memory-extractor', label: 'Extractor', icon: Sparkles },
+    { id: 'agent-sharing', label: 'Agent Sharing', icon: Users },
+    { id: 'relationship-engine', label: 'Relationships', icon: Lightbulb },
   ];
 
   const layerNav = stackLayers.map(l => ({
@@ -431,6 +442,7 @@ export function Sidebar() {
   }));
 
   const powerNav = [
+    { id: 'observability', label: 'Observability', icon: Eye },
     { id: 'swarm-intelligence', label: 'Swarm Intel', icon: Brain },
     { id: 'message-bus', label: 'Message Bus', icon: Radio },
     { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap },
@@ -499,6 +511,31 @@ export function Sidebar() {
             </button>
           );
         })}
+
+        <div className="pt-3">
+          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#00ffff] uppercase tracking-widest flex items-center gap-1"><Database size={9} /> Memory Engine</div>}
+          {memoryNav.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group relative ${
+                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(0,255,255,0.06)]'
+                }`}
+                style={isActive ? { background: 'rgba(0,255,255,0.08)' } : {}}
+              >
+                {isActive && <motion.div layoutId="sidebar-memory-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: '#00ffff' }} />}
+                <item.icon size={14} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: '#00ffff' } : {}} />
+                <AnimatePresence>
+                  {!sidebarCollapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            );
+          })}
+        </div>
 
         <div className="pt-3">
           {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#8888aa] uppercase tracking-widest">7 Layers</div>}

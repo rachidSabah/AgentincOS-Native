@@ -1,8 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// ============================================================
+// Universal Memory Engine — Prisma Schema
+// ============================================================
+// Supports: 9 Memory Types, Memory Graph, Auto Extraction,
+// Timeline, Agent Sharing, Hybrid Search, AI Relationship
+// Engine, Enterprise RBAC, RAG, Versioning, Backup, Import/Export
+// ============================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +15,1044 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================================
+// 1. ORGANIZATION & USER MANAGEMENT (Enterprise)
+// ============================================================
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  logoUrl     String?
+  settings    String?  // JSON — org-level settings (feature flags, limits, etc.)
+  plan        String   @default("free") // free, pro, enterprise
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     OrganizationMember[]
+  teams       Team[]
+  ssoConnections SsoConnection[]
+  apiKeys     ApiKey[]
+  projects    Project[]
+  backups     Backup[]
+  importExports ImportExportJob[]
+
+  @@index([slug])
 }
 
-model Post {
+model Team {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String
+  description    String?
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        TeamMember[]
+  memories       Memory[]
+  memoryShares   AgentMemoryShare[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  status        String    @default("active") // active, suspended, deactivated
+  preferences   String?   // JSON — user preferences (theme, notifications, etc.)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organizationMemberships OrganizationMember[]
+  teamMemberships         TeamMember[]
+  memories                Memory[]
+  agents                  Agent[]
+  auditLogs               AuditLog[]
+  apiKeys                 ApiKey[]
+  userRoles               UserRole[]
+
+  @@index([email])
+  @@index([status])
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("member") // owner, admin, member, viewer
+  joinedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model TeamMember {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  teamId    String
+  userId    String
+  role      String   @default("member") // lead, member, viewer
+  joinedAt  DateTime @default(now())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+// ============================================================
+// 2. RBAC — Role-Based Access Control
+// ============================================================
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) // system roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "memory:create", "agent:manage"
+  resource    String   // e.g. "memory", "agent", "organization"
+  action      String   // create, read, update, delete, share, admin
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@index([resource])
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  scope     String?  // e.g. "organization:abc123", "team:def456", "project:ghi789"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, scope])
+  @@index([userId])
+  @@index([roleId])
+}
+
+// ============================================================
+// 3. MEMORY CORE — 9 Memory Types
+// ============================================================
+// Types: LONG_TERM, SHORT_TERM, EPISODIC, SEMANTIC, CONTEXT,
+//        PROJECT, USER, TEAM, CONVERSATION
+
+model Memory {
+  id          String    @id @default(cuid())
+  type        String    // 9 types (see above)
+  title       String
+  content     String    // main memory body
+  summary     String?   // AI-generated summary
+  key         String?   // optional unique lookup key
+  importance  Float     @default(0.5) // 0.0 – 1.0
+  confidence  Float     @default(1.0) // 0.0 – 1.0
+  metadata    String?   // JSON — extensible metadata
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime? // TTL for SHORT_TERM / CONTEXT memories
+
+  // Ownership & scoping
+  userId         String?
+  teamId         String?
+  projectId      String?
+  conversationId String?
+
+  // Source tracking
+  sourceType     String?  // CHAT, FILE, MEETING, EMAIL, WEBSITE, PDF, MANUAL, API
+  sourceId       String?  // reference to origin record
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user            User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  team            Team?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  project         Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversation    Conversation?      @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  versions        MemoryVersion[]
+  tags            MemoryTag[]
+  nodes           MemoryNode[]
+  references      MemoryReference[]  @relation("SourceMemory")
+  referencedBy    MemoryReference[]  @relation("TargetMemory")
+  timelineEvents  TimelineEvent[]
+  searchIndexes   SearchIndex[]
+  embeddings      VectorEmbedding[]
+  memoryShares    AgentMemoryShare[]
+  memoryPeople    MemoryPerson[]
+  memoryCompanies MemoryCompany[]
+  memoryDocuments MemoryDocument[]
+  memoryTasks     MemoryTask[]
+  memoryDecisions MemoryDecision[]
+  memoryConcepts  MemoryConcept[]
+  extractionResults ExtractionResult[]
+
+  @@index([type])
+  @@index([userId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([isActive])
+  @@index([importance])
+  @@index([sourceType])
+  @@index([key])
+  @@index([createdAt])
+}
+
+model MemoryVersion {
+  id                 String   @id @default(cuid())
+  memoryId           String
+  version            Int
+  content            String
+  summary            String?
+  metadata           String?  // JSON snapshot of memory metadata
+  changeDescription  String?  // human / AI description of what changed
+  createdById        String?  // user or agent who made the change
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, version])
+  @@index([memoryId])
+}
+
+// ============================================================
+// 4. CONVERSATION
+// ============================================================
+
+model Conversation {
+  id        String   @id @default(cuid())
+  title     String?
+  type      String   @default("chat") // chat, meeting, email_thread
+  status    String   @default("active") // active, archived, deleted
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memories     Memory[]
+  participants ConversationParticipant[]
+  messages     ConversationMessage[]
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String?
+  agentId        String?
+  role           String   @default("participant") // owner, participant, observer
+  joinedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId, agentId])
+  @@index([conversationId])
+  @@index([userId])
+  @@index([agentId])
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // user, assistant, system
+  content        String
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// 5. MEMORY GRAPH — Nodes, Relationships, Tags, Concepts
+// ============================================================
+
+model MemoryNode {
+  id         String   @id @default(cuid())
+  memoryId   String
+  nodeType   String   // ENTITY, CONCEPT, EVENT, TOPIC, FACT, CLAIM
+  label      String
+  properties String?  // JSON
+  weight     Float    @default(1.0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memory          Memory              @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  sourceRelations MemoryRelationship[] @relation("NodeAsSource")
+  targetRelations MemoryRelationship[] @relation("NodeAsTarget")
+
+  @@index([memoryId])
+  @@index([nodeType])
+  @@index([label])
+}
+
+model MemoryRelationship {
+  id           String   @id @default(cuid())
+  sourceNodeId String
+  targetNodeId String
+  relationType String   // RELATED_TO, DEPENDS_ON, CAUSES, PART_OF, INSTANCE_OF, LOCATED_IN
+  properties   String?  // JSON
+  weight       Float    @default(1.0)
+  confidence   Float    @default(1.0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sourceNode MemoryNode @relation("NodeAsSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode MemoryNode @relation("NodeAsTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceNodeId, targetNodeId, relationType])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+  @@index([relationType])
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  category    String?  // topic, domain, priority, custom
+  color       String?  // hex color
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memories MemoryTag[]
+
+  @@unique([name, category])
+  @@index([name])
+  @@index([category])
+}
+
+model MemoryTag {
+  id        String   @id @default(cuid())
+  memoryId  String
+  tagId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, tagId])
+  @@index([memoryId])
+  @@index([tagId])
+}
+
+model Concept {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  category    String?  // technology, domain, skill, theme
+  properties  String?  // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parentLinks  ConceptHierarchy[] @relation("ChildConcepts")
+  childLinks   ConceptHierarchy[] @relation("ParentConcepts")
+  memoryLinks  MemoryConcept[]
+
+  @@index([name])
+  @@index([category])
+}
+
+model ConceptHierarchy {
+  id           String   @id @default(cuid())
+  parentId     String
+  childId      String
+  relationType String   @default("is_a") // is_a, part_of, related_to
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  parent Concept @relation("ParentConcepts", fields: [parentId], references: [id], onDelete: Cascade)
+  child  Concept @relation("ChildConcepts", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+}
+
+model MemoryConcept {
+  id        String   @id @default(cuid())
+  memoryId  String
+  conceptId String
+  relevance Float    @default(1.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memory  Memory  @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, conceptId])
+  @@index([memoryId])
+  @@index([conceptId])
+}
+
+model MemoryReference {
+  id              String   @id @default(cuid())
+  sourceMemoryId  String
+  targetMemoryId  String
+  referenceType   String   // MENTIONS, SUPPORTS, CONTRADICTS, DERIVED_FROM, RELATED_TO
+  context         String?  // why this reference exists
+  confidence      Float    @default(1.0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sourceMemory Memory @relation("SourceMemory", fields: [sourceMemoryId], references: [id], onDelete: Cascade)
+  targetMemory Memory @relation("TargetMemory", fields: [targetMemoryId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceMemoryId, targetMemoryId, referenceType])
+  @@index([sourceMemoryId])
+  @@index([targetMemoryId])
+  @@index([referenceType])
+}
+
+// ============================================================
+// 6. ENTITIES — People, Companies, Projects, Documents, Tasks, Decisions
+// ============================================================
+
+model Person {
+  id            String   @id @default(cuid())
+  name          String
+  email         String?
+  title         String?  // job title
+  bio           String?
+  avatarUrl     String?
+  linkedInUrl   String?
+  twitterUrl    String?
+  properties    String?  // JSON — extensible
+  organizationId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  companies   PersonCompany[]
+  memoryLinks MemoryPerson[]
+
+  @@index([name])
+  @@index([email])
+  @@index([organizationId])
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  domain        String?
+  industry      String?
+  size          String?  // startup, small, medium, large, enterprise
+  website       String?
+  description   String?
+  logoUrl       String?
+  properties    String?  // JSON
+  organizationId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  people      PersonCompany[]
+  memoryLinks MemoryCompany[]
+
+  @@index([name])
+  @@index([domain])
+  @@index([organizationId])
+}
+
+model PersonCompany {
+  id         String    @id @default(cuid())
+  personId   String
+  companyId  String
+  role       String?   // CEO, CTO, Engineer, etc.
+  department String?
+  startDate  DateTime?
+  endDate    DateTime?
+  isCurrent  Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, companyId, role])
+  @@index([personId])
+  @@index([companyId])
+}
+
+model Project {
+  id             String    @id @default(cuid())
+  name           String
+  description    String?
+  status         String    @default("active") // active, on_hold, completed, archived
+  priority       String    @default("medium") // low, medium, high, critical
+  startDate      DateTime?
+  endDate        DateTime?
+  organizationId String
+  properties     String?   // JSON
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memories     Memory[]
+  tasks        Task[]
+  documents    Document[]
+  decisions    Decision[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([name])
+}
+
+model Document {
+  id             String   @id @default(cuid())
+  title          String
+  content        String?  // full text content
+  summary        String?  // AI-generated summary
+  url            String?  // source URL
+  fileType       String?  // pdf, docx, txt, md, html
+  fileSize       Int?
+  mimeType       String?
+  projectId      String?
+  organizationId String?
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  memoryLinks MemoryDocument[]
+  chunks      RagChunk[]
+
+  @@index([projectId])
+  @@index([organizationId])
+  @@index([fileType])
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("todo") // todo, in_progress, in_review, done, cancelled
+  priority    String    @default("medium") // low, medium, high, critical
+  assigneeId  String?   // userId
+  projectId   String?
+  dueDate     DateTime?
+  metadata    String?   // JSON
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  memoryLinks MemoryTask[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([assigneeId])
+}
+
+model Decision {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  rationale    String?
+  status       String   @default("proposed") // proposed, accepted, rejected, superseded
+  decidedBy    String?  // person or agent id
+  projectId    String?
+  alternatives String?  // JSON — array of alternatives considered
+  impact       String?  // low, medium, high, critical
+  metadata     String?  // JSON
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  memoryLinks MemoryDecision[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+// Join tables: Memory ↔ Entity
+
+model MemoryPerson {
+  id        String   @id @default(cuid())
+  memoryId  String
+  personId  String
+  role      String?  // mentioned, author, participant, about
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, personId, role])
+  @@index([memoryId])
+  @@index([personId])
+}
+
+model MemoryCompany {
+  id        String   @id @default(cuid())
+  memoryId  String
+  companyId String
+  role      String?  // mentioned, client, partner, vendor
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memory  Memory  @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, companyId, role])
+  @@index([memoryId])
+  @@index([companyId])
+}
+
+model MemoryDocument {
+  id         String   @id @default(cuid())
+  memoryId   String
+  documentId String
+  relevance  String?  // source, reference, related
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memory   Memory    @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  document Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, documentId])
+  @@index([memoryId])
+  @@index([documentId])
+}
+
+model MemoryTask {
+  id        String   @id @default(cuid())
+  memoryId  String
+  taskId    String
+  relevance String?  // created_from, related_to, blocks
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, taskId])
+  @@index([memoryId])
+  @@index([taskId])
+}
+
+model MemoryDecision {
+  id         String   @id @default(cuid())
+  memoryId   String
+  decisionId String
+  relevance  String?  // led_to, influenced, related
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memory    Memory    @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  decision  Decision  @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, decisionId])
+  @@index([memoryId])
+  @@index([decisionId])
+}
+
+// ============================================================
+// 7. AUTO MEMORY EXTRACTION
+// ============================================================
+
+model ExtractionJob {
+  id           String    @id @default(cuid())
+  sourceType   String    // CHAT, FILE, MEETING, EMAIL, WEBSITE, PDF
+  sourceId     String?   // reference to origin (e.g. conversationId, documentId)
+  sourceUrl    String?   // URL if applicable
+  status       String    @default("pending") // pending, processing, completed, failed
+  error        String?   // error message if failed
+  extractedCount Int     @default(0)
+  metadata     String?   // JSON — job config & stats
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  results ExtractionResult[]
+
+  @@index([sourceType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ExtractionResult {
+  id             String   @id @default(cuid())
+  jobId          String
+  memoryId       String?  // linked memory once confirmed/stored
+  resultType     String   // FACT, TASK, PREFERENCE, GOAL, CONTACT, COMPANY, PROJECT_REQUIREMENT, DECISION
+  content        String   // the extracted text
+  confidence     Float    @default(0.8)
+  rawText        String?  // original text snippet this was extracted from
+  metadata       String?  // JSON — type-specific fields
+  status         String   @default("pending") // pending, confirmed, rejected, merged
+  reviewedBy     String?  // userId or agentId
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  job    ExtractionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  memory Memory?       @relation(fields: [memoryId], references: [id], onDelete: SetNull)
+
+  @@index([jobId])
+  @@index([resultType])
+  @@index([status])
+  @@index([memoryId])
+}
+
+// ============================================================
+// 8. MEMORY TIMELINE
+// ============================================================
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  memoryId    String?
+  eventType   String   // MEMORY_CREATED, MEMORY_UPDATED, MEMORY_REFERENCED,
+                       // MEMORY_ARCHIVED, MEMORY_RESTORED, AGENT_ACTION,
+                       // EXTRACTION_COMPLETED, RELATIONSHIP_CREATED
+  description String?
+  actorType   String?  // user, agent, system
+  actorId     String?  // userId or agentId
+  metadata    String?  // JSON — event-specific details
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memory Memory? @relation(fields: [memoryId], references: [id], onDelete: SetNull)
+
+  @@index([memoryId])
+  @@index([eventType])
+  @@index([actorType, actorId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// 9. AGENT SYSTEM — Multi-Agent Memory Sharing
+// ============================================================
+
+model Agent {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  agentType    String   @default("general") // general, extractor, analyzer, assistant, custom
+  capabilities String?  // JSON — list of capabilities
+  config       String?  // JSON — agent configuration
+  status       String   @default("active") // active, paused, deactivated
+  userId       String?  // owning user
+  lastActiveAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actions      AgentAction[]
+  memoryShares AgentMemoryShare[]
+
+  @@index([agentType])
+  @@index([status])
+  @@index([userId])
+}
+
+model AgentAction {
+  id          String   @id @default(cuid())
+  agentId     String
+  memoryId    String?
+  action      String   // CREATE, READ, UPDATE, DELETE, REFERENCE, SHARE
+  details     String?  // JSON — action-specific details
+  result      String?  // JSON — action result / response
+  status      String   @default("completed") // started, completed, failed
+  durationMs  Int?     // execution time in ms
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([action])
+  @@index([memoryId])
+  @@index([createdAt])
+}
+
+model AgentMemoryShare {
+  id          String   @id @default(cuid())
+  agentId     String
+  memoryId    String
+  teamId      String?
+  accessLevel String   @default("read") // read, write, admin
+  grantedBy   String?  // userId or agentId
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([agentId, memoryId])
+  @@index([agentId])
+  @@index([memoryId])
+  @@index([teamId])
+}
+
+// ============================================================
+// 10. HYBRID SEARCH — Vector, Graph, Semantic, Keyword
+// ============================================================
+
+model SearchIndex {
+  id         String   @id @default(cuid())
+  memoryId   String
+  indexType  String   // VECTOR, GRAPH, SEMANTIC, KEYWORD
+  indexName  String?  // specific index/collection name
+  content    String   // indexed content (tokenized, chunked, etc.)
+  metadata   String?  // JSON — index-specific metadata
+  status     String   @default("indexed") // pending, indexed, stale, error
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, indexType, indexName])
+  @@index([memoryId])
+  @@index([indexType])
+  @@index([status])
+}
+
+model VectorEmbedding {
+  id            String   @id @default(cuid())
+  memoryId      String
+  model         String   // embedding model name (e.g. "text-embedding-3-small")
+  dimension     Int      // vector dimensionality
+  vector        String   // JSON array of floats (SQLite compatibility)
+  chunkIndex    Int      @default(0) // for chunked embeddings
+  chunkText     String?  // the text that was embedded
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, model, chunkIndex])
+  @@index([memoryId])
+  @@index([model])
+  @@index([dimension])
+}
+
+// ============================================================
+// 11. AI RELATIONSHIP ENGINE
+// ============================================================
+
+model EntityRelationship {
+  id             String   @id @default(cuid())
+  subjectType    String   // Person, Company, Project, Task, Document, Decision, Conversation
+  subjectId      String
+  objectType     String
+  objectId       String
+  relationType   String   // WORKS_FOR, MANAGES, BELONGS_TO, DEPENDS_ON, MENTIONS,
+                          // REFERENCES, COLLABORATES_WITH, BLOCKS, RELATED_TO
+  properties     String?  // JSON — relationship-specific data
+  confidence     Float    @default(1.0)
+  source         String   @default("auto") // auto, manual, ai_inferred
+  isActive       Boolean  @default(true)
+  organizationId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([subjectType, subjectId, objectType, objectId, relationType])
+  @@index([subjectType, subjectId])
+  @@index([objectType, objectId])
+  @@index([relationType])
+  @@index([isActive])
+  @@index([organizationId])
+}
+
+// ============================================================
+// 12. ENTERPRISE — SSO, API Keys, Audit
+// ============================================================
+
+model SsoConnection {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String   // okta, azure_ad, google, saml, oidc
+  name           String
+  clientId       String?
+  clientSecret   String?  // encrypted
+  metadataUrl    String?  // SAML metadata URL / OIDC discovery URL
+  config         String?  // JSON — provider-specific configuration
+  isActive       Boolean  @default(true)
+  lastSyncAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([provider])
+  @@index([isActive])
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  name           String
+  keyHash        String    @unique // hashed API key
+  keyPrefix      String    // first 8 chars for identification
+  userId         String?
+  organizationId String?
+  permissions    String?   // JSON — list of permission strings
+  rateLimit      Int?      // requests per minute
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([keyHash])
+  @@index([keyPrefix])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String   // memory.create, memory.update, agent.execute, org.settings.change, etc.
+  resource    String   // memory, agent, organization, team, user, api_key
+  resourceId  String?  // id of the affected resource
+  details     String?  // JSON — action-specific details
+  ipAddress   String?
+  userAgent   String?  // browser/client info
+  status      String   @default("success") // success, failure, error
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// 13. RAG ENGINE
+// ============================================================
+
+model RagChunk {
+  id           String   @id @default(cuid())
+  documentId   String
+  content      String   // chunk text
+  chunkIndex   Int      // order within document
+  startOffset  Int?     // character offset in original document
+  endOffset    Int?
+  tokenCount   Int?
+  embedding    String?  // JSON array of floats — chunk-level embedding
+  embeddingModel String?
+  metadata     String?  // JSON — chunk-level metadata
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@index([embeddingModel])
+}
+
+// ============================================================
+// 14. BACKUP & IMPORT/EXPORT
+// ============================================================
+
+model Backup {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  storageType    String    @default("local") // local, s3, gcs, azure
+  storagePath    String?   // file path or bucket/key
+  fileSize       Int?      // bytes
+  checksum       String?   // SHA-256
+  status         String    @default("pending") // pending, in_progress, completed, failed, restoring
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  metadata       String?   // JSON — backup stats & config
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ImportExportJob {
+  id             String    @id @default(cuid())
+  organizationId String
+  type           String    // import, export
+  format         String    // json, csv, jsonl
+  status         String    @default("pending") // pending, processing, completed, failed, cancelled
+  sourceType     String?   // memory, graph, all
+  storagePath    String?   // file path for the import/export data
+  fileSize       Int?
+  recordCount    Int       @default(0)
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  metadata       String?   // JSON — job config & progress
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
 }
