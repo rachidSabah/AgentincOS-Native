@@ -54,7 +54,10 @@ function formatTokens(n: number): string {
 }
 
 function timeAgo(ts: string | number): string {
-  const diff = Date.now() - new Date(ts).getTime();
+  // Use fixed base time to avoid hydration mismatch with SSR
+  const baseTs = 1700000000000;
+  const diff = baseTs - new Date(ts).getTime();
+  if (diff < 0) return 'just now';
   if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;

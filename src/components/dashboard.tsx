@@ -791,7 +791,7 @@ export function NetworkTopology() {
         ))}
         {positions.filter(p => p.id !== 'openclaw').map(p => (
           <circle key={`particle-${p.id}`} r="2" fill={p.color} opacity="0.8">
-            <animateMotion dur={`${2 + Math.random() * 2}s`} repeatCount="indefinite"
+            <animateMotion dur={`${2 + ((p.id.charCodeAt(0) * 37) % 100) / 50}s`} repeatCount="indefinite"
               path={`M${cx},${cy} L${p.x},${p.y}`} />
           </circle>
         ))}

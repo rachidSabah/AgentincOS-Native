@@ -75,18 +75,18 @@ const MOCK_SESSIONS: ConsensusSession[] = [
     strategy: 'majority',
     status: 'voting',
     votes: [
-      { agentId: 'claude', vote: 'approve', reasoning: 'v3.2 passed all integration tests with zero regressions. Weekend traffic is low, making rollback safe.', timestamp: Date.now() - 300000, confidence: 0.92 },
-      { agentId: 'hermes', vote: 'approve', reasoning: 'I\'ve run the full E2E suite 3 times. Performance improved 15% on skill execution. Ready to ship.', timestamp: Date.now() - 280000, confidence: 0.95 },
-      { agentId: 'openclaw', vote: 'reject', reasoning: 'Friday deploy violates our governance policy. At least 2 agents should monitor for 24h post-deploy.', timestamp: Date.now() - 250000, confidence: 0.88 },
+      { agentId: 'claude', vote: 'approve', reasoning: 'v3.2 passed all integration tests with zero regressions. Weekend traffic is low, making rollback safe.', timestamp: 1700000000000 - 300000, confidence: 0.92 },
+      { agentId: 'hermes', vote: 'approve', reasoning: 'I\'ve run the full E2E suite 3 times. Performance improved 15% on skill execution. Ready to ship.', timestamp: 1700000000000 - 280000, confidence: 0.95 },
+      { agentId: 'openclaw', vote: 'reject', reasoning: 'Friday deploy violates our governance policy. At least 2 agents should monitor for 24h post-deploy.', timestamp: 1700000000000 - 250000, confidence: 0.88 },
     ],
     debate: [
-      { agentId: 'claude', argument: 'The test coverage is comprehensive. 15% perf improvement is significant.', timestamp: Date.now() - 320000, type: 'support' },
-      { agentId: 'openclaw', argument: 'Policy requires at least 48h monitoring window before weekend. We can\'t guarantee response times on Saturday.', timestamp: Date.now() - 310000, type: 'oppose' },
-      { agentId: 'hermes', argument: 'I can set up automated monitoring alerts. If anything breaks, OpenClaw can trigger rollback automatically.', timestamp: Date.now() - 290000, type: 'neutral' },
+      { agentId: 'claude', argument: 'The test coverage is comprehensive. 15% perf improvement is significant.', timestamp: 1700000000000 - 320000, type: 'support' },
+      { agentId: 'openclaw', argument: 'Policy requires at least 48h monitoring window before weekend. We can\'t guarantee response times on Saturday.', timestamp: 1700000000000 - 310000, type: 'oppose' },
+      { agentId: 'hermes', argument: 'I can set up automated monitoring alerts. If anything breaks, OpenClaw can trigger rollback automatically.', timestamp: 1700000000000 - 290000, type: 'neutral' },
     ],
     result: null,
     confidence: 0,
-    createdAt: Date.now() - 3600000,
+    createdAt: 1700000000000 - 3600000,
     completedAt: null,
   },
   {
@@ -96,16 +96,16 @@ const MOCK_SESSIONS: ConsensusSession[] = [
     strategy: 'delegation',
     status: 'completed',
     votes: [
-      { agentId: 'claude', vote: 'approve', reasoning: 'Hermes has the most experience with research tasks. Delegating to their expertise.', timestamp: Date.now() - 7200000, confidence: 0.85 },
-      { agentId: 'hermes', vote: 'approve', reasoning: 'GPT-4 for deep research, Claude for reasoning-heavy analysis. Multi-model approach wins.', timestamp: Date.now() - 7100000, confidence: 0.93 },
+      { agentId: 'claude', vote: 'approve', reasoning: 'Hermes has the most experience with research tasks. Delegating to their expertise.', timestamp: 1700000000000 - 7200000, confidence: 0.85 },
+      { agentId: 'hermes', vote: 'approve', reasoning: 'GPT-4 for deep research, Claude for reasoning-heavy analysis. Multi-model approach wins.', timestamp: 1700000000000 - 7100000, confidence: 0.93 },
     ],
     debate: [
-      { agentId: 'hermes', argument: 'Multi-model routing gives best results. Use model strengths for task types.', timestamp: Date.now() - 7300000, type: 'support' },
+      { agentId: 'hermes', argument: 'Multi-model routing gives best results. Use model strengths for task types.', timestamp: 1700000000000 - 7300000, type: 'support' },
     ],
     result: 'Multi-model approach: GPT-4 for deep research, Claude for reasoning-heavy tasks',
     confidence: 0.89,
-    createdAt: Date.now() - 8000000,
-    completedAt: Date.now() - 7000000,
+    createdAt: 1700000000000 - 8000000,
+    completedAt: 1700000000000 - 7000000,
     delegator: 'hermes',
   },
   {
@@ -115,19 +115,19 @@ const MOCK_SESSIONS: ConsensusSession[] = [
     strategy: 'unanimous',
     status: 'failed',
     votes: [
-      { agentId: 'claude', vote: 'approve', reasoning: 'Shared memory creates compound knowledge effect. Critical for personalized AI.', timestamp: Date.now() - 14400000, confidence: 0.90 },
-      { agentId: 'hermes', vote: 'approve', reasoning: 'Access to vault data would improve research relevance by ~40%.', timestamp: Date.now() - 14300000, confidence: 0.87 },
-      { agentId: 'openclaw', vote: 'approve', reasoning: 'Routing decisions improve when agents share context.', timestamp: Date.now() - 14200000, confidence: 0.82 },
-      { agentId: 'vault', vote: 'reject', reasoning: 'Privacy risk. Not all memories should be shared. Need access control first.', timestamp: Date.now() - 14100000, confidence: 0.94 },
+      { agentId: 'claude', vote: 'approve', reasoning: 'Shared memory creates compound knowledge effect. Critical for personalized AI.', timestamp: 1700000000000 - 14400000, confidence: 0.90 },
+      { agentId: 'hermes', vote: 'approve', reasoning: 'Access to vault data would improve research relevance by ~40%.', timestamp: 1700000000000 - 14300000, confidence: 0.87 },
+      { agentId: 'openclaw', vote: 'approve', reasoning: 'Routing decisions improve when agents share context.', timestamp: 1700000000000 - 14200000, confidence: 0.82 },
+      { agentId: 'vault', vote: 'reject', reasoning: 'Privacy risk. Not all memories should be shared. Need access control first.', timestamp: 1700000000000 - 14100000, confidence: 0.94 },
     ],
     debate: [
-      { agentId: 'vault', argument: 'User preferences contain sensitive data. We need granular access control before any sharing.', timestamp: Date.now() - 14500000, type: 'oppose' },
-      { agentId: 'claude', argument: 'Access control is already 30% implemented. We can enable sharing for non-sensitive categories.', timestamp: Date.now() - 14450000, type: 'neutral' },
+      { agentId: 'vault', argument: 'User preferences contain sensitive data. We need granular access control before any sharing.', timestamp: 1700000000000 - 14500000, type: 'oppose' },
+      { agentId: 'claude', argument: 'Access control is already 30% implemented. We can enable sharing for non-sensitive categories.', timestamp: 1700000000000 - 14450000, type: 'neutral' },
     ],
     result: null,
     confidence: 0,
-    createdAt: Date.now() - 15000000,
-    completedAt: Date.now() - 14000000,
+    createdAt: 1700000000000 - 15000000,
+    completedAt: 1700000000000 - 14000000,
   },
 ];
 
@@ -158,7 +158,10 @@ function getVoteIcon(vote: VoteType) {
 }
 
 function timeAgo(ts: number): string {
-  const diff = Date.now() - ts;
+  // Use a fixed base time to avoid hydration mismatch with SSR
+  const baseTs = 1700000000000;
+  const diff = baseTs - ts;
+  if (diff < 0) return 'just now';
   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;

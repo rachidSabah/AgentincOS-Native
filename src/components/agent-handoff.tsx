@@ -89,7 +89,7 @@ const MOCK_HANDOFFS: Handoff[] = [
     ],
     status: 'in-transit',
     progress: 72,
-    createdAt: Date.now() - 120000,
+    createdAt: 1700000000000 - 120000,
     completedAt: null,
     duration: null,
   },
@@ -106,7 +106,7 @@ const MOCK_HANDOFFS: Handoff[] = [
     ],
     status: 'pending',
     progress: 0,
-    createdAt: Date.now() - 60000,
+    createdAt: 1700000000000 - 60000,
     completedAt: null,
     duration: null,
   },
@@ -122,8 +122,8 @@ const MOCK_HANDOFFS: Handoff[] = [
     ],
     status: 'completed',
     progress: 100,
-    createdAt: Date.now() - 600000,
-    completedAt: Date.now() - 580000,
+    createdAt: 1700000000000 - 600000,
+    completedAt: 1700000000000 - 580000,
     duration: 20000,
   },
   {
@@ -137,8 +137,8 @@ const MOCK_HANDOFFS: Handoff[] = [
     ],
     status: 'failed',
     progress: 15,
-    createdAt: Date.now() - 1800000,
-    completedAt: Date.now() - 1790000,
+    createdAt: 1700000000000 - 1800000,
+    completedAt: 1700000000000 - 1790000,
     duration: 10000,
     errorMessage: 'Browser pool at capacity — 5/5 sessions in use. Retry during off-peak.',
   },
@@ -155,8 +155,8 @@ const MOCK_HANDOFFS: Handoff[] = [
     ],
     status: 'completed',
     progress: 100,
-    createdAt: Date.now() - 3600000,
-    completedAt: Date.now() - 3595000,
+    createdAt: 1700000000000 - 3600000,
+    completedAt: 1700000000000 - 3595000,
     duration: 5000,
   },
 ];
@@ -201,7 +201,10 @@ const MOCK_CHAINS: HandoffChain[] = [
 
 /* ─── Helpers ─── */
 function timeAgo(ts: number): string {
-  const diff = Date.now() - ts;
+  // Use a fixed base time to avoid hydration mismatch with SSR
+  const baseTs = 1700000000000;
+  const diff = baseTs - ts;
+  if (diff < 0) return 'just now';
   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;

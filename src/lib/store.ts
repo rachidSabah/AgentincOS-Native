@@ -404,10 +404,14 @@ interface OSState {
 }
 
 function generateActivityByHour(peakHour: number): number[] {
+  // Use deterministic pseudo-random to avoid hydration mismatch
+  const seed = peakHour * 1237 + 7;
+  let s = seed;
+  const nextRand = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   const hours: number[] = [];
   for (let i = 0; i < 24; i++) {
     const dist = Math.abs(i - peakHour);
-    const base = Math.max(5, 100 - dist * 12 + Math.random() * 20);
+    const base = Math.max(5, 100 - dist * 12 + nextRand() * 20);
     hours.push(Math.round(base));
   }
   return hours;
@@ -721,7 +725,7 @@ export const useOSStore = create<OSState>((set) => ({
       activityByHour: generateActivityByHour(10),
       peakHour: 10,
       avgResponseTime: 1200,
-      lastSessionStart: Date.now() - 120000,
+      lastSessionStart: 1700000000000 - 120000,
     },
     openclaw: {
       totalSessions: 523,
@@ -731,7 +735,7 @@ export const useOSStore = create<OSState>((set) => ({
       activityByHour: generateActivityByHour(14),
       peakHour: 14,
       avgResponseTime: 800,
-      lastSessionStart: Date.now() - 300000,
+      lastSessionStart: 1700000000000 - 300000,
     },
     hermes: {
       totalSessions: 1203,
@@ -741,7 +745,7 @@ export const useOSStore = create<OSState>((set) => ({
       activityByHour: generateActivityByHour(11),
       peakHour: 11,
       avgResponseTime: 2100,
-      lastSessionStart: Date.now() - 60000,
+      lastSessionStart: 1700000000000 - 60000,
     },
     vault: {
       totalSessions: 892,
@@ -751,7 +755,7 @@ export const useOSStore = create<OSState>((set) => ({
       activityByHour: generateActivityByHour(9),
       peakHour: 9,
       avgResponseTime: 300,
-      lastSessionStart: Date.now() - 5000,
+      lastSessionStart: 1700000000000 - 5000,
     },
   },
   setAgentAnalytics: (agentId, analytics) => set((state) => ({
@@ -765,12 +769,12 @@ export const useOSStore = create<OSState>((set) => ({
   setHermesSkills: (skills) => set({ hermesSkills: skills }),
 
   kanbanTasks: [
-    { id: 'kt1', title: 'Deploy Hermes v3.2 to production', status: 'in_progress', priority: 'high', assignedTo: 'hermes', createdAt: Date.now() - 86400000 },
-    { id: 'kt2', title: 'Implement cross-agent memory sharing', status: 'todo', priority: 'high', assignedTo: 'openclaw', createdAt: Date.now() - 172800000 },
-    { id: 'kt3', title: 'Optimize vault query latency', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: Date.now() - 259200000 },
-    { id: 'kt4', title: 'Research competitor AI stacks', status: 'in_progress', priority: 'medium', assignedTo: 'hermes', createdAt: Date.now() - 43200000 },
-    { id: 'kt5', title: 'Review Claude MCP integration docs', status: 'todo', priority: 'low', assignedTo: 'claude', createdAt: Date.now() - 345600000 },
-    { id: 'kt6', title: 'Set up OMI continuous recording', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: Date.now() - 432000000 },
+    { id: 'kt1', title: 'Deploy Hermes v3.2 to production', status: 'in_progress', priority: 'high', assignedTo: 'hermes', createdAt: 1700000000000 - 86400000 },
+    { id: 'kt2', title: 'Implement cross-agent memory sharing', status: 'todo', priority: 'high', assignedTo: 'openclaw', createdAt: 1700000000000 - 172800000 },
+    { id: 'kt3', title: 'Optimize vault query latency', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: 1700000000000 - 259200000 },
+    { id: 'kt4', title: 'Research competitor AI stacks', status: 'in_progress', priority: 'medium', assignedTo: 'hermes', createdAt: 1700000000000 - 43200000 },
+    { id: 'kt5', title: 'Review Claude MCP integration docs', status: 'todo', priority: 'low', assignedTo: 'claude', createdAt: 1700000000000 - 345600000 },
+    { id: 'kt6', title: 'Set up OMI continuous recording', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: 1700000000000 - 432000000 },
   ],
   addKanbanTask: (task) => set((state) => ({ kanbanTasks: [...state.kanbanTasks, task] })),
   updateKanbanTask: (id, updates) => set((state) => ({

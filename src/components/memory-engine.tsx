@@ -147,8 +147,10 @@ function GlassCard({
 // ─── Helper: Format relative time ───
 
 function formatRelativeTime(timestamp: number): string {
-  const now = Date.now();
+  // Use fixed base time to avoid hydration mismatch with SSR
+  const now = 1700000000000;
   const diff = now - timestamp;
+  if (diff < 0) return 'just now';
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
@@ -485,7 +487,7 @@ function MemoryGraph() {
       const cy = 300;
       return graphNodes.map((node, i) => {
         const angle = (2 * Math.PI * i) / graphNodes.length;
-        const radius = 180 + Math.random() * 60;
+        const radius = 180 + ((i * 37 + 13) % 60); // deterministic to avoid hydration mismatch
         return {
           ...node,
           x: cx + Math.cos(angle) * radius,

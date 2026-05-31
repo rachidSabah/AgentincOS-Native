@@ -111,10 +111,10 @@ function BrainPulse({ active, phase }: { active: boolean; phase: DreamPhase }) {
         <Brain size={32} style={{ color: meta.color }} />
       </motion.div>
 
-      {/* Neural particles */}
+      {/* Neural particles — deterministic positions to avoid hydration mismatch */}
       {active && Array.from({ length: 12 }).map((_, i) => {
         const angle = (i / 12) * Math.PI * 2;
-        const radius = 50 + Math.random() * 30;
+        const radius = 50 + ((i * 7 + 13) % 30); // deterministic pseudo-random
         return (
           <motion.div
             key={i}
@@ -127,7 +127,7 @@ function BrainPulse({ active, phase }: { active: boolean; phase: DreamPhase }) {
               scale: [0.5, 1.2, 0.5],
             }}
             transition={{
-              duration: 2 + Math.random(),
+              duration: 2 + (i * 0.3 + 0.5), // deterministic duration
               repeat: Infinity,
               ease: 'easeInOut',
               delay: i * 0.15,

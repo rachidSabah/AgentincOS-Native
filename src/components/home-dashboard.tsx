@@ -84,19 +84,21 @@ function StatusDot({ status, color }: { status: string; color: string }) {
 // ─── Welcome Banner ───
 
 function WelcomeBanner() {
-  const [time, setTime] = useState(new Date());
-  const [particles] = useState(() =>
-    Array.from({ length: 40 }, (_, i) => ({
+  const [time, setTime] = useState<Date | null>(null);
+  const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; size: number; duration: number; delay: number; color: string}>>([]);
+
+  useEffect(() => {
+    // Generate particles only on client to avoid hydration mismatch
+    setParticles(Array.from({ length: 40 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
       size: Math.random() * 2 + 1,
       duration: Math.random() * 8 + 6,
       delay: Math.random() * 4,
-    }))
-  );
-
-  useEffect(() => {
+      color: Math.random() > 0.5 ? '#00ffff' : '#9d4edd',
+    })));
+    setTime(new Date());
     const interval = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
@@ -117,7 +119,7 @@ function WelcomeBanner() {
           style={{
             left: `${p.x}%`, top: `${p.y}%`,
             width: p.size, height: p.size,
-            backgroundColor: Math.random() > 0.5 ? '#00ffff' : '#9d4edd',
+            backgroundColor: p.color,
           }}
           animate={{
             opacity: [0.2, 0.6, 0.2],
@@ -147,10 +149,10 @@ function WelcomeBanner() {
               <span className="text-[10px] text-[#00ff88] font-medium">All 7 Layers Operational</span>
             </div>
             <span className="text-[10px] text-[#8888aa]">
-              {time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              {time ? time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
             </span>
             <span className="text-[10px] font-mono text-[#ccccdd]">
-              {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              {time ? time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''}
             </span>
           </div>
         </motion.div>

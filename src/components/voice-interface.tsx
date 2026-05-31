@@ -63,12 +63,12 @@ const LANGUAGES = [
 ];
 
 const MOCK_HISTORY: TranscriptionEntry[] = [
-  { id: 'vh-001', text: 'Hey Claude, what\'s the current status of the Agent OS deployment?', timestamp: Date.now() - 300000, agentRouted: 'claude', commandDetected: 'Hey Claude', duration: 4.2 },
-  { id: 'vh-002', text: 'Hermes research the latest developments in multi-agent orchestration frameworks', timestamp: Date.now() - 900000, agentRouted: 'hermes', commandDetected: 'Hermes research', duration: 6.8 },
-  { id: 'vh-003', text: 'OpenClaw route this task to the best available agent for code review', timestamp: Date.now() - 1800000, agentRouted: 'openclaw', commandDetected: 'OpenClaw route', duration: 5.1 },
-  { id: 'vh-004', text: 'Vault recall my preferences for async communication and deep work blocks', timestamp: Date.now() - 3600000, agentRouted: 'vault', commandDetected: 'Vault recall', duration: 4.7 },
-  { id: 'vh-005', text: 'What were the key takeaways from the MCP integration session yesterday?', timestamp: Date.now() - 7200000, duration: 5.5 },
-  { id: 'vh-006', text: 'Summarize the competitor analysis that Hermes completed last week', timestamp: Date.now() - 14400000, duration: 3.9 },
+  { id: 'vh-001', text: 'Hey Claude, what\'s the current status of the Agent OS deployment?', timestamp: 1700000000000 - 300000, agentRouted: 'claude', commandDetected: 'Hey Claude', duration: 4.2 },
+  { id: 'vh-002', text: 'Hermes research the latest developments in multi-agent orchestration frameworks', timestamp: 1700000000000 - 900000, agentRouted: 'hermes', commandDetected: 'Hermes research', duration: 6.8 },
+  { id: 'vh-003', text: 'OpenClaw route this task to the best available agent for code review', timestamp: 1700000000000 - 1800000, agentRouted: 'openclaw', commandDetected: 'OpenClaw route', duration: 5.1 },
+  { id: 'vh-004', text: 'Vault recall my preferences for async communication and deep work blocks', timestamp: 1700000000000 - 3600000, agentRouted: 'vault', commandDetected: 'Vault recall', duration: 4.7 },
+  { id: 'vh-005', text: 'What were the key takeaways from the MCP integration session yesterday?', timestamp: 1700000000000 - 7200000, duration: 5.5 },
+  { id: 'vh-006', text: 'Summarize the competitor analysis that Hermes completed last week', timestamp: 1700000000000 - 14400000, duration: 3.9 },
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -261,7 +261,10 @@ export function VoiceInterface() {
   };
 
   const timeAgo = (ts: number) => {
-    const diff = Date.now() - ts;
+    // Use fixed base time to avoid hydration mismatch
+    const baseTs = 1700000000000;
+    const diff = baseTs - ts;
+    if (diff < 0) return 'just now';
     if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;

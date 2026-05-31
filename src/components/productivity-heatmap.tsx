@@ -38,33 +38,43 @@ const AGENT_COLORS: Record<string, string> = {
   vault: '#2E86AB',
 };
 
-/* ─── Generate heatmap data ─── */
+/* ─── Seeded PRNG to avoid hydration mismatch ─── */
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+/* ─── Generate heatmap data (deterministic via seeded PRNG) ─── */
 function generateHeatmapData(): HeatmapCell[][] {
+  const rand = seededRandom(42);
   const data: HeatmapCell[][] = [];
   for (let day = 0; day < 7; day++) {
     const row: HeatmapCell[] = [];
     for (let hour = 0; hour < 24; hour++) {
       // Simulate realistic productivity patterns
       let base = 0;
-      if (hour >= 9 && hour <= 12) base = 0.7 + Math.random() * 0.3; // Morning peak
-      else if (hour >= 14 && hour <= 17) base = 0.5 + Math.random() * 0.4; // Afternoon
-      else if (hour >= 19 && hour <= 22) base = 0.2 + Math.random() * 0.3; // Evening
-      else if (hour >= 6 && hour <= 8) base = 0.15 + Math.random() * 0.2; // Early morning
-      else base = Math.random() * 0.1; // Night
+      if (hour >= 9 && hour <= 12) base = 0.7 + rand() * 0.3; // Morning peak
+      else if (hour >= 14 && hour <= 17) base = 0.5 + rand() * 0.4; // Afternoon
+      else if (hour >= 19 && hour <= 22) base = 0.2 + rand() * 0.3; // Evening
+      else if (hour >= 6 && hour <= 8) base = 0.15 + rand() * 0.2; // Early morning
+      else base = rand() * 0.1; // Night
 
       // Weekend reduction
       if (day >= 5) base *= 0.4;
 
       const intensity = Math.min(1, Math.max(0, base));
       const agentContributions: Record<string, number> = {
-        claude: Math.random() * 0.4,
-        hermes: Math.random() * 0.35,
-        openclaw: Math.random() * 0.25,
-        vault: Math.random() * 0.2,
+        claude: rand() * 0.4,
+        hermes: rand() * 0.35,
+        openclaw: rand() * 0.25,
+        vault: rand() * 0.2,
       };
 
       const tasksTotal = Math.round(intensity * 12);
-      const tasksCompleted = Math.round(tasksTotal * (0.6 + Math.random() * 0.4));
+      const tasksCompleted = Math.round(tasksTotal * (0.6 + rand() * 0.4));
 
       row.push({ hour, day, intensity, agentContributions, tasksCompleted, tasksTotal });
     }
@@ -630,6 +640,12 @@ function FocusTimeCalculator() {
    PRODUCTIVITY HEATMAP — Main Export
    ═══════════════════════════════════════════════════════════ */
 export function ProductivityHeatmap() {
+  const [currentDate, setCurrentDate] = useState<string>('');
+
+  useEffect(() => {
+    setCurrentDate(new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* ─── Header ─── */}
@@ -640,7 +656,7 @@ export function ProductivityHeatmap() {
         </h2>
         <div className="flex items-center gap-2">
           <span className="text-[9px] text-[#8888aa] font-mono">
-            Week of {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            Week of {currentDate}
           </span>
         </div>
       </div>

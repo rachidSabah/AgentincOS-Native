@@ -524,6 +524,25 @@ export function UpdatesTab() {
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'info' | 'warning' }>>([]);
   const [isConnected, setIsConnected] = useState(true);
 
+  // Particles state — generated only on client to avoid hydration mismatch
+  const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; size: number; duration: number; delay: number}>>([]);
+  // Current time for formatLastChecked — client-only to avoid hydration mismatch
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setParticles(Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 2 + 1,
+      duration: Math.random() * 8 + 6,
+      delay: Math.random() * 4,
+    })));
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Auto-check for updates
   useEffect(() => {
     if (!updateSettings.autoCheck) return;
@@ -587,7 +606,8 @@ export function UpdatesTab() {
 
   const formatLastChecked = (timestamp: number) => {
     if (!timestamp) return 'Never';
-    const diff = Date.now() - timestamp;
+    if (!now) return '';
+    const diff = now - timestamp;
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
@@ -614,17 +634,17 @@ export function UpdatesTab() {
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[rgba(0,255,255,0.08)] via-[rgba(157,78,221,0.06)] to-[rgba(10,10,26,0.8)] border border-[rgba(0,255,255,0.15)] p-6"
       >
-        {/* Animated particles */}
-        {Array.from({ length: 20 }, (_, i) => (
+        {/* Animated particles — client-only */}
+        {particles.map(p => (
           <motion.div
-            key={i}
+            key={p.id}
             className="absolute rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: Math.random() * 2 + 1,
-              height: Math.random() * 2 + 1,
-              backgroundColor: i % 2 === 0 ? '#00ffff' : '#9d4edd',
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              width: p.size,
+              height: p.size,
+              backgroundColor: p.id % 2 === 0 ? '#00ffff' : '#9d4edd',
             }}
             animate={{
               opacity: [0.2, 0.6, 0.2],
@@ -632,8 +652,8 @@ export function UpdatesTab() {
               y: [0, -20, 0],
             }}
             transition={{
-              duration: Math.random() * 8 + 6,
-              delay: Math.random() * 4,
+              duration: p.duration,
+              delay: p.delay,
               repeat: Infinity,
               ease: 'easeInOut',
             }}
