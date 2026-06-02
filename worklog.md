@@ -74,3 +74,36 @@ Added to `/src/lib/store.ts`:
 - TypeScript compilation: ✅ No errors in any new files or store.ts
 - All existing store properties preserved (non-destructive)
 - All imports resolved correctly
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix all runtime errors, add Agent Builder, expand marketplace, remove demo data, push to GitHub
+
+Work Log:
+- Fixed "Objects are not valid as React child" error (root cause: /api/hermes/system returns cpu/memory as objects)
+  - Added extractNum() defensive helper in system-management.tsx, dashboard.tsx SystemMonitor, agent-observability.tsx
+- Fixed Agent Builder tab empty when clicked - created full agent-builder.tsx with 5 tabs
+- Fixed mission-control.tsx stackLayers undefined crash - added null safety (layers = stackLayers ?? [])
+- Fixed swarm-intelligence.tsx activeSwarms undefined crash - added null safety (swarms = activeSwarms ?? [])
+- Fixed system-management.tsx OrchestrationPanel activeSwarms null safety
+- Made all 15 marketplace agents FREE (was: prices $29-$149)
+- Added 15 NEW marketplace agents (30 total) with categories: devops, data, writing, productivity
+- Added BrainProfile type and brainProfile field to store.ts MarketplaceAgent
+- Expanded MarketplaceAgent category union type with new categories
+- Added 6 prebuilt swarm configurations in Agent Builder
+- Added 6 prebuilt workflow configurations in Agent Builder
+- Removed all demo/seed data: system metrics now 0, knowledge=[], memories=[], goals=[], journal=[]
+- Fixed BrainPanel compounding progress (was hardcoded 72%, now dynamic from goals)
+- Added BarChart3 import to agent-marketplace.tsx
+- Created install.sh and uninstall.sh one-command scripts
+- Pushed to GitHub (commit cff9525)
+- Amended GitHub repo description
+
+Stage Summary:
+- All runtime rendering errors fixed
+- Agent Builder fully functional with 5 tabs
+- Marketplace expanded to 30 free agents across 16 categories
+- Prebuilt swarm and workflow configurations added
+- Demo data removed - clean start
+- Install/uninstall scripts created
+- Pushed to GitHub with updated description
