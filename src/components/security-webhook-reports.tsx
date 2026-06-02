@@ -938,7 +938,7 @@ export function ReportGenerator() {
                     style={{ color: neonGold, background: `${neonGold}10`, border: `1px solid ${neonGold}25` }}>
                     {r.type}
                   </span>
-                  <span className="text-[8px] text-[#555577] font-mono">{new Date(r.generatedAt).toLocaleString()}</span>
+                  <span className="text-[8px] text-[#555577] font-mono">{r.generatedAt ? new Date(r.generatedAt).toLocaleString('en-US') : '—'}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div>

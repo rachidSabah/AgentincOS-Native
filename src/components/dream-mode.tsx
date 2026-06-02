@@ -431,9 +431,9 @@ export function DreamMode() {
       {/* ─── Stats Grid ─── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: 'Consolidated', value: stats.memoriesConsolidated.toLocaleString(), color: '#00ffff', icon: Database },
+          { label: 'Consolidated', value: (stats.memoriesConsolidated ?? 0).toLocaleString('en-US'), color: '#00ffff', icon: Database },
           { label: 'Space Saved', value: `${stats.spaceSaved} MB`, color: '#00ff88', icon: HardDrive },
-          { label: 'Connections', value: stats.connectionsStrengthened.toLocaleString(), color: '#FFB627', icon: Activity },
+          { label: 'Connections', value: (stats.connectionsStrengthened ?? 0).toLocaleString('en-US'), color: '#FFB627', icon: Activity },
           { label: 'Cycles Done', value: String(stats.cyclesCompleted), color: '#7B2CBF', icon: RefreshCw },
           { label: 'Avg Cycle', value: `${stats.avgCycleTime}s`, color: '#E8751A', icon: Timer },
         ].map((s, i) => (

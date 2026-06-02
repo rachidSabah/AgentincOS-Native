@@ -137,6 +137,7 @@ export async function hermesFetch(
     agent: hermesHttpAgent,
     headers: {
       Connection: "keep-alive",
+      Authorization: `Bearer ${process.env.HERMES_API_KEY || ""}`,
       ...options?.headers,
     },
   });
@@ -460,13 +461,21 @@ export async function isHermesRunning(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
 
+    const headers: Record<string, string> = {};
+    const apiKey = process.env.HERMES_API_KEY;
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
     const res = await fetch(`${endpoint}/v1/models`, {
       method: "GET",
       signal: controller.signal,
+      headers,
     });
 
     clearTimeout(timer);
-    return res.ok;
+    // 200 or 401 both mean the server is alive (401 = auth required, not dead)
+    return res.ok || res.status === 401;
   } catch {
     return false;
   }

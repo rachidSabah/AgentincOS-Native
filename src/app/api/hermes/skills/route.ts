@@ -15,7 +15,10 @@ import {
 const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
-// Fallback skill list (used when Hermes CLI is not available)
+// OFFLINE FALLBACK SKILL LIST
+// These skills are ONLY used when Hermes is not installed or not running.
+// When Hermes is available, real skills are fetched from the Hermes CLI/API.
+// If you add Hermes to this project, this list should be EMPTY (or removed).
 // ---------------------------------------------------------------------------
 
 const FALLBACK_SKILLS: HermesSkill[] = [

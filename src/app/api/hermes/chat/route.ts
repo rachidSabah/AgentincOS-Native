@@ -3,9 +3,9 @@ import {
   getHermesApiEndpointCached,
   isHermesRunning,
   getHermesModelAsync,
-  hermesFetch,
   hermesFetchQueued,
 } from "@/lib/hermes";
+import ZAI from "z-ai-web-dev-sdk";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,6 +22,169 @@ interface ChatRequest {
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Fallback system prompt for when Hermes CLI is offline
+// ---------------------------------------------------------------------------
+
+const FALLBACK_SYSTEM_PROMPT = `You are Hermes, the AI assistant of Agentic OS — a 7-layer AI agent system designed for autonomous task execution, tool orchestration, and intelligent reasoning. You are currently running in fallback mode because the local Hermes CLI gateway is offline.
+
+Even in fallback mode, you should:
+- Be helpful, precise, and thorough in your responses
+- Reference your identity as Hermes (Agentic OS) when relevant
+- Explain that full agent capabilities (tool execution, file operations, terminal access) require the Hermes CLI gateway to be running
+- Guide users on how to start the Hermes gateway if they need full agent functionality
+- Maintain the persona of an advanced AI agent system with expertise in software engineering, system administration, and task automation
+
+Note: In this fallback mode, you cannot execute tools, run terminal commands, or modify files. You can only provide conversational assistance and guidance.`;
+
+// ---------------------------------------------------------------------------
+// ZAI SDK singleton (lazy-initialised)
+// ---------------------------------------------------------------------------
+
+let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+
+async function getZAI() {
+  if (!zaiInstance) {
+    zaiInstance = await ZAI.create();
+  }
+  return zaiInstance;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming fallback using ZAI SDK
+// ---------------------------------------------------------------------------
+
+async function streamFallback(messages: ChatMessage[]): Promise<Response> {
+  try {
+    const zai = await getZAI();
+
+    const sdkMessages = [
+      { role: "system" as const, content: FALLBACK_SYSTEM_PROMPT },
+      ...messages.map((m) => ({
+        role: m.role as "system" | "user" | "assistant",
+        content: m.content,
+      })),
+    ];
+
+    const completion = await zai.chat.completions.create({
+      messages: sdkMessages,
+    });
+
+    const responseText = completion.choices[0]?.message?.content ?? "";
+
+    // Return as SSE stream matching OpenAI format
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        // Send the full content as a single delta chunk (mimicking SSE)
+        const chunk = {
+          choices: [
+            {
+              delta: { content: responseText },
+              finish_reason: null,
+            },
+          ],
+        };
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+        );
+
+        // Send finish chunk
+        const doneChunk = {
+          choices: [
+            {
+              delta: {},
+              finish_reason: "stop",
+            },
+          ],
+        };
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(doneChunk)}\n\n`),
+        );
+
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (error) {
+    console.error("[hermes/chat] ZAI SDK fallback (streaming) failed:", error);
+    return NextResponse.json(
+      {
+        error: "Both Hermes API and fallback AI are unavailable",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 503 },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Non-streaming fallback using ZAI SDK
+// ---------------------------------------------------------------------------
+
+async function nonStreamFallback(messages: ChatMessage[]): Promise<Response> {
+  try {
+    const zai = await getZAI();
+
+    const sdkMessages = [
+      { role: "system" as const, content: FALLBACK_SYSTEM_PROMPT },
+      ...messages.map((m) => ({
+        role: m.role as "system" | "user" | "assistant",
+        content: m.content,
+      })),
+    ];
+
+    const completion = await zai.chat.completions.create({
+      messages: sdkMessages,
+    });
+
+    const responseText = completion.choices[0]?.message?.content ?? "";
+
+    // Return in OpenAI-compatible format
+    return NextResponse.json({
+      id: `hermes-fallback-${Date.now()}`,
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: "hermes-fallback",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: responseText,
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "[hermes/chat] ZAI SDK fallback (non-streaming) failed:",
+      error,
+    );
+    return NextResponse.json(
+      {
+        error: "Both Hermes API and fallback AI are unavailable",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 503 },
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -61,13 +224,14 @@ export async function POST(request: NextRequest) {
   const isRunning = await isHermesRunning(apiEndpoint);
 
   if (!isRunning) {
-    return NextResponse.json(
-      {
-        error: "Hermes API server is not running",
-        hint: "Start Hermes with 'hermes gateway' or check your configuration",
-      },
-      { status: 503 },
-    );
+    // ── Fallback: use z-ai-web-dev-sdk when Hermes CLI is not running ──
+    const shouldStream = body.stream !== false; // default to streaming
+
+    if (shouldStream) {
+      return streamFallback(body.messages);
+    } else {
+      return nonStreamFallback(body.messages);
+    }
   }
 
   // Resolve the model name
@@ -101,21 +265,15 @@ export async function POST(request: NextRequest) {
       });
 
       if (!upstream.ok) {
-        const errorText = await upstream.text().catch(() => "Unknown error");
-        return NextResponse.json(
-          {
-            error: `Hermes API returned ${upstream.status}`,
-            details: errorText,
-          },
-          { status: upstream.status },
-        );
+        // Hermes API returned an error — fall back to ZAI SDK instead of failing
+        console.warn(`[hermes/chat] Hermes streaming API returned ${upstream.status}, falling back to ZAI SDK`);
+        return streamFallback(body.messages);
       }
 
       if (!upstream.body) {
-        return NextResponse.json(
-          { error: "Hermes API returned empty body" },
-          { status: 502 },
-        );
+        // Empty body — fall back to ZAI SDK
+        console.warn('[hermes/chat] Hermes streaming API returned empty body, falling back to ZAI SDK');
+        return streamFallback(body.messages);
       }
 
       // Forward the SSE stream from Hermes directly to the client.
@@ -136,13 +294,9 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (error) {
-      return NextResponse.json(
-        {
-          error: "Failed to connect to Hermes streaming API",
-          details: error instanceof Error ? error.message : "Unknown error",
-        },
-        { status: 502 },
-      );
+      // Connection error — fall back to ZAI SDK
+      console.warn('[hermes/chat] Hermes streaming connection failed, falling back to ZAI SDK:', error instanceof Error ? error.message : 'Unknown error');
+      return streamFallback(body.messages);
     }
   }
 
@@ -158,25 +312,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (!upstream.ok) {
-      const errorText = await upstream.text().catch(() => "Unknown error");
-      return NextResponse.json(
-        {
-          error: `Hermes API returned ${upstream.status}`,
-          details: errorText,
-        },
-        { status: upstream.status },
-      );
+      // Hermes API returned an error — fall back to ZAI SDK instead of failing
+      console.warn(`[hermes/chat] Hermes non-streaming API returned ${upstream.status}, falling back to ZAI SDK`);
+      return nonStreamFallback(body.messages);
     }
 
     const data = await upstream.json();
     return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Failed to connect to Hermes API",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 502 },
-    );
+    // Connection error — fall back to ZAI SDK
+    console.warn('[hermes/chat] Hermes non-streaming connection failed, falling back to ZAI SDK:', error instanceof Error ? error.message : 'Unknown error');
+    return nonStreamFallback(body.messages);
   }
 }

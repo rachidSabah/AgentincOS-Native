@@ -16,7 +16,9 @@ const PRICING: Record<string, ModelPricing> = {
   "claude-3-opus": { inputPer1K: 0.015, outputPer1K: 0.075 },
   "claude-3-sonnet": { inputPer1K: 0.003, outputPer1K: 0.015 },
   "claude-3-haiku": { inputPer1K: 0.00025, outputPer1K: 0.00125 },
-  "hermes-3": { inputPer1K: 0.002, outputPer1K: 0.01 },
+  "hermes-3": { inputPer1K: 0.0001, outputPer1K: 0.0002 },
+  "mixtral-8x7b": { inputPer1K: 0.0005, outputPer1K: 0.0005 },
+  "llama-3-70b": { inputPer1K: 0.0008, outputPer1K: 0.0008 },
 };
 
 // ---------------------------------------------------------------------------
@@ -221,8 +223,8 @@ function generateOptimizationSuggestions(): CostOptimizationSuggestion[] {
   }
 
   // 2. Check for high output token usage
-  const totalOutputTokens = transactions.reduce((s, t) => s + t.outputTokens, 0);
-  const totalInputTokens = transactions.reduce((s, t) => s + t.inputTokens, 0);
+  const totalOutputTokens = transactions.reduce((s, t) => s + (t.outputTokens ?? 0), 0);
+  const totalInputTokens = transactions.reduce((s, t) => s + (t.inputTokens ?? 0), 0);
 
   if (totalOutputTokens > totalInputTokens * 2) {
     suggestions.push({

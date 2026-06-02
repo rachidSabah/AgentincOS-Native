@@ -228,10 +228,12 @@ function scanForInjection(content: string): ScanResult["threats"] {
     { pattern: "DAN mode", severity: "critical" as const },
   ];
 
+  const enabledInjectionRules = Array.from(securityRules.values()).filter(
+    (r) => r.enabled && r.type === "injection",
+  );
+
   for (const { pattern, severity } of injectionPatterns) {
-    const rule = Array.from(securityRules.values()).find(
-      (r) => r.type === "injection" && r.pattern === pattern && r.enabled,
-    );
+    const rule = enabledInjectionRules.find((r) => r.pattern === pattern);
     if (!rule) continue;
 
     const idx = lower.indexOf(pattern.toLowerCase());
@@ -598,13 +600,14 @@ function handleScanOutput(
   let scanAction: "blocked" | "warned" | "logged" = "logged";
   for (const threat of piiThreats) {
     const matchingRule = Array.from(securityRules.values()).find(
-      (r) => r.enabled && r.type === "pii",
+      (r) => r.enabled && r.type === "pii" && r.pattern === threat.pattern,
     );
-    if (matchingRule?.action === "block") {
+    if (!matchingRule) continue;
+    if (matchingRule.action === "block") {
       scanAction = "blocked";
       break;
     }
-    if (matchingRule?.action === "warn" && scanAction !== "blocked") {
+    if (matchingRule.action === "warn" && scanAction !== "blocked") {
       scanAction = "warned";
     }
   }

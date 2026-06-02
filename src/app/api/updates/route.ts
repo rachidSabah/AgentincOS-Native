@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+
+// Force dynamic rendering — prevent Next.js from caching this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const GITHUB_REPO = 'rachidSabah/Agentic-os';
 const GITHUB_API = 'https://api.github.com';
@@ -59,31 +65,66 @@ function semverCompare(a: string, b: string): number {
   return 0;
 }
 
-async function fetchGitHub<T>(endpoint: string): Promise<T | null> {
+// Read the actual version from package.json at build/start time
+async function getAppVersion(): Promise<string> {
   try {
-    const res = await fetch(`${GITHUB_API}${endpoint}`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Agentic-OS-Update-Checker',
-      },
-    });
-    if (!res.ok) return null;
-    return await res.json() as T;
+    const pkgPath = join(process.cwd(), 'package.json');
+    const pkgContent = await readFile(pkgPath, 'utf-8');
+    const pkg = JSON.parse(pkgContent);
+    return pkg.version || '0.2.0';
   } catch {
+    return '0.2.0';
+  }
+}
+
+async function fetchGitHub<T>(endpoint: string, clientToken?: string): Promise<T | null> {
+  try {
+    const headers: Record<string, string> = {
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Agentic-OS-Update-Checker',
+    };
+
+    // Use GitHub token: client-provided (from UI) > env variable
+    // But the API works WITHOUT a token for public repos (rate-limited to 60 req/hr)
+    // This is perfectly fine for an update checker that runs every 30 minutes
+    const githubToken = clientToken || process.env.GITHUB_TOKEN;
+    if (githubToken) {
+      headers['Authorization'] = `token ${githubToken}`;
+    }
+
+    // No-cache fetch — always get fresh data from GitHub
+    const res = await fetch(`${GITHUB_API}${endpoint}`, {
+      headers,
+      cache: 'no-store',
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) {
+      // Rate limit without token is expected — don't spam logs
+      if (res.status === 403 && !githubToken) {
+        console.warn(`[Updates] GitHub API rate limit reached (public mode). Consider adding a token for higher limits.`);
+      } else if (res.status !== 404) {
+        console.error(`[Updates] GitHub API ${endpoint} returned ${res.status} ${res.statusText}`);
+      }
+      return null;
+    }
+    return await res.json() as T;
+  } catch (err) {
+    console.error(`[Updates] GitHub API ${endpoint} fetch error:`, err);
     return null;
   }
 }
 
-async function checkForUpdates(currentVersion: string, channel: string): Promise<{
+async function checkForUpdates(currentVersion: string, channel: string, clientToken?: string): Promise<{
   hasUpdates: boolean;
   updates: UpdateEntry[];
   latestVersion: string;
   currentVersion: string;
 }> {
   // Fetch tags and recent commits in parallel
+  // This works WITHOUT a GitHub token for public repos
   const [tags, commits] = await Promise.all([
-    fetchGitHub<GitHubTag[]>(`/repos/${GITHUB_REPO}/tags?per_page=10`),
-    fetchGitHub<GitHubCommit[]>(`/repos/${GITHUB_REPO}/commits?per_page=20`),
+    fetchGitHub<GitHubTag[]>(`/repos/${GITHUB_REPO}/tags?per_page=10`, clientToken),
+    fetchGitHub<GitHubCommit[]>(`/repos/${GITHUB_REPO}/commits?per_page=20`, clientToken),
   ]);
 
   const updates: UpdateEntry[] = [];
@@ -115,8 +156,8 @@ async function checkForUpdates(currentVersion: string, channel: string): Promise
     }
   }
 
-  // Process recent commits as incremental updates (only for nightly/beta channels)
-  if (commits && commits.length > 0 && channel !== 'stable') {
+  // Process recent commits as incremental updates for ALL channels
+  if (commits && commits.length > 0) {
     const commitUpdates: UpdateEntry[] = [];
     for (const commit of commits) {
       const message = commit.commit.message.split('\n')[0];
@@ -124,104 +165,43 @@ async function checkForUpdates(currentVersion: string, channel: string): Promise
       const shortSha = commit.sha.substring(0, 7);
       const commitDate = new Date(commit.commit.author.date).getTime();
 
-      commitUpdates.push({
-        id: `commit-${shortSha}`,
-        version: `${currentVersion}-dev.${shortSha}`,
-        title: message.length > 60 ? message.substring(0, 57) + '...' : message,
-        description: message,
-        type,
-        status: 'available',
-        size: Math.floor(Math.random() * 200000) + 50000,
-        changelog: commit.commit.message,
-        timestamp: commitDate,
-        commitHash: shortSha,
-      });
+      // For stable channel, show commits from the last 7 days
+      // For beta/nightly, show all recent commits
+      const isRecent = channel !== 'stable' || (Date.now() - commitDate) < 604800000; // 7 days
+
+      if (isRecent) {
+        commitUpdates.push({
+          id: `commit-${shortSha}`,
+          version: channel === 'stable'
+            ? `${currentVersion}-patch.${shortSha}`
+            : `${currentVersion}-dev.${shortSha}`,
+          title: message.length > 60 ? message.substring(0, 57) + '...' : message,
+          description: message,
+          type,
+          status: 'available',
+          size: Math.floor(Math.random() * 200000) + 50000,
+          changelog: commit.commit.message,
+          timestamp: commitDate,
+          commitHash: shortSha,
+        });
+      }
     }
 
     const seenVersions = new Set(updates.map(u => u.version));
     for (const cu of commitUpdates) {
       if (!seenVersions.has(cu.version) && updates.length < 10) {
+        hasRealUpdates = true;
         updates.push(cu);
         seenVersions.add(cu.version);
       }
     }
   }
 
-  // If no real updates from GitHub, generate demo updates for showcase
-  if (!hasRealUpdates) {
-    const demoUpdates: UpdateEntry[] = [
-      {
-        id: 'demo-021',
-        version: '0.2.1',
-        title: 'Swarm Intelligence Protocol v2',
-        description: 'Enhanced multi-agent swarm coordination with consensus voting, delegation strategies, and real-time proposal tracking.',
-        type: 'feature',
-        status: 'available',
-        size: 327680,
-        changelog: '- Added consensus voting strategy\n- Delegation mode for hierarchical tasks\n- Race mode for fastest-agent-wins scenarios\n- Real-time proposal tracking and visualization',
-        timestamp: Date.now() - 3600000,
-        commitHash: 'f1a2b3c',
-      },
-      {
-        id: 'demo-020',
-        version: '0.2.0',
-        title: 'Memory Engine Dashboard',
-        description: 'Full memory management system with graph visualization, timeline tracking, semantic search, and cross-agent memory sharing.',
-        type: 'feature',
-        status: 'available',
-        size: 512000,
-        changelog: '- Knowledge graph visualization\n- Memory timeline with event tracking\n- Semantic and keyword search\n- Agent memory sharing protocol\n- Memory extraction engine',
-        timestamp: Date.now() - 7200000,
-        commitHash: 'd4e5f6g',
-      },
-      {
-        id: 'demo-019',
-        version: '0.1.10',
-        title: 'Cross-Agent Latency Optimization',
-        description: 'Reduced p99 latency across all 7 layers by 34% through improved routing and connection pooling.',
-        type: 'performance',
-        status: 'available',
-        size: 163840,
-        changelog: '- Optimized OpenClaw routing table\n- Connection pooling for agent communications\n- Reduced message bus overhead by 45%\n- Faster vault query responses',
-        timestamp: Date.now() - 14400000,
-        commitHash: 'h7i8j9k',
-      },
-      {
-        id: 'demo-018',
-        version: '0.1.9.1',
-        title: 'Vault Access Control Hotfix',
-        description: 'Critical fix for vault access control bypass that could allow unauthorized memory access between agents.',
-        type: 'security',
-        status: 'available',
-        size: 45056,
-        changelog: '- Fixed access control bypass in vault sharing\n- Added PII detection for memory entries\n- Encrypted memory transport between agents\n- Added audit logging for vault access',
-        timestamp: Date.now() - 28800000,
-        commitHash: 'l0m1n2o',
-      },
-      {
-        id: 'demo-017',
-        version: '0.1.9',
-        title: 'Hermes Browser Pool Fix',
-        description: 'Fixed browser pool capacity overflow causing timeouts during concurrent research tasks.',
-        type: 'fix',
-        status: 'available',
-        size: 98304,
-        changelog: '- Implemented priority queue for browser sessions\n- Fixed timeout errors during peak usage\n- Added rate limiting per agent\n- Improved error recovery',
-        timestamp: Date.now() - 43200000,
-        commitHash: 'p3q4r5s',
-      },
-    ];
-
-    updates.push(...demoUpdates);
-    if (demoUpdates.length > 0) {
-      latestVersion = demoUpdates[0].version;
-    }
-  }
-
+  // If no real updates from GitHub, return empty
   return {
     hasUpdates: updates.length > 0,
     updates,
-    latestVersion,
+    latestVersion: updates.length > 0 ? (updates[0]?.version || latestVersion) : currentVersion,
     currentVersion,
   };
 }
@@ -229,21 +209,58 @@ async function checkForUpdates(currentVersion: string, channel: string): Promise
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action') || 'check';
-  const currentVersion = searchParams.get('version') || '0.2.0';
+  // Use the version passed by the client, fall back to reading from package.json
+  const clientVersion = searchParams.get('version');
   const channel = searchParams.get('channel') || 'stable';
+  // Client-provided GitHub token (from UI settings, stored in localStorage)
+  // Takes priority over GITHUB_TOKEN env variable
+  // BUT the API works WITHOUT any token for public repos
+  const clientToken = request.headers.get('X-GitHub-Token') || undefined;
 
   switch (action) {
     case 'check': {
-      const result = await checkForUpdates(currentVersion, channel);
+      // Resolve current version: client-provided > package.json > hardcoded
+      const pkgVersion = await getAppVersion();
+      const currentVersion = clientVersion || pkgVersion;
+      const result = await checkForUpdates(currentVersion, channel, clientToken);
       return NextResponse.json(result);
     }
 
     case 'status': {
+      const pkgVersion = await getAppVersion();
+      const currentVersion = clientVersion || pkgVersion;
+      // Check GitHub API reachability — works without token for public repos
+      let githubReachable = false;
+      try {
+        // Use a lightweight endpoint to check connectivity — no token needed for public repos
+        const effectiveToken = clientToken || process.env.GITHUB_TOKEN;
+        const testHeaders: Record<string, string> = {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Agentic-OS-Update-Checker',
+        };
+        if (effectiveToken) {
+          testHeaders['Authorization'] = `token ${effectiveToken}`;
+        }
+        const testRes = await fetch(`${GITHUB_API}/repos/${GITHUB_REPO}`, {
+          headers: testHeaders,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(5000),
+        });
+        // Even 403 (rate limited) means GitHub is reachable
+        githubReachable = testRes.status === 200 || testRes.status === 301 || testRes.status === 403;
+      } catch {
+        githubReachable = false;
+      }
       return NextResponse.json({
         currentVersion,
         lastChecked: Date.now(),
         channel,
         status: 'up-to-date',
+        githubReachable,
+        repo: GITHUB_REPO,
+        tokenOptional: true,
+        hasToken: !!effectiveToken,
+        message: 'Updates work without a token. A token increases rate limits for private repos.',
       });
     }
 

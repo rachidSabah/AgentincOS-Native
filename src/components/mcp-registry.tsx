@@ -67,6 +67,9 @@ const CATEGORY_ICONS: Record<ServerCategory, React.ReactNode> = {
   custom: <Plus size={12} />,
 };
 
+// ─── Deterministic Base Timestamp (avoids hydration mismatch) ───
+const BASE_TS = 1700000000000;
+
 // ─── Mock Data ───
 
 const MOCK_SERVERS: MCPServer[] = [
@@ -235,6 +238,9 @@ export function MCPRegistry() {
   const [showAddServer, setShowAddServer] = useState(false);
   const [newServerUrl, setNewServerUrl] = useState('');
   const [newServerName, setNewServerName] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [lastSynced, setLastSynced] = useState<number | null>(null);
 
   const categories: ServerCategory[] = ['database', 'search', 'automation', 'communication', 'development', 'ai', 'custom'];
   const statuses: ServerStatus[] = ['connected', 'disconnected', 'installing', 'error'];
@@ -285,6 +291,46 @@ export function MCPRegistry() {
     setSelectedServer(null);
   }, []);
 
+  const handleSync = useCallback((serverId: string) => {
+    setServers(prev => prev.map(s => s.id === serverId ? { ...s, lastSync: Date.now() } : s));
+  }, []);
+
+  const handleSyncAll = useCallback(async () => {
+    setIsSyncing(true);
+    setSyncStatus('idle');
+    try {
+      const res = await fetch('/api/hermes/mcp');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.servers && Array.isArray(data.servers)) {
+          setServers(prev => prev.map(existing => {
+            const updated = data.servers.find((s: any) => s.name === existing.name || s.id === existing.id);
+            if (updated) {
+              return { ...existing, ...updated, lastSync: Date.now() };
+            }
+            return { ...existing, lastSync: existing.status === 'connected' ? Date.now() : existing.lastSync };
+          }));
+        } else {
+          // API returned data but no servers array — just update sync time for connected servers
+          setServers(prev => prev.map(s => s.status === 'connected' ? { ...s, lastSync: Date.now() } : s));
+        }
+        setSyncStatus('success');
+      } else {
+        // API error — just update sync time locally
+        setServers(prev => prev.map(s => s.status === 'connected' ? { ...s, lastSync: Date.now() } : s));
+        setSyncStatus('error');
+      }
+    } catch {
+      // Fallback: just update sync time locally
+      setServers(prev => prev.map(s => s.status === 'connected' ? { ...s, lastSync: Date.now() } : s));
+      setSyncStatus('error');
+    }
+    setLastSynced(Date.now());
+    setIsSyncing(false);
+    // Auto-clear status after 3s
+    setTimeout(() => setSyncStatus('idle'), 3000);
+  }, []);
+
   // Add custom server
   const handleAddServer = useCallback(() => {
     if (!newServerUrl.trim() || !newServerName.trim()) return;
@@ -312,6 +358,7 @@ export function MCPRegistry() {
   const formatTime = (ts?: number) => {
     if (!ts) return 'Never';
     const diff = Date.now() - ts;
+    if (diff < 0 || !isFinite(diff)) return 'Just now';
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     return `${Math.floor(diff / 3600000)}h ago`;
@@ -333,7 +380,7 @@ export function MCPRegistry() {
           <div>
             <h2 className="text-xl font-bold text-white">MCP Server Registry</h2>
             <p className="text-sm" style={{ color: '#8888aa' }}>
-              <span className="font-mono" style={{ color: '#00ff88' }}>{stats.connected}</span>/{stats.total} connected · <span className="font-mono" style={{ color: '#00ffff' }}>{stats.toolsAvailable}</span> tools available
+              <span className="font-mono" style={{ color: '#00ff88' }}>{stats.connected}</span>/{stats.total} connected · <span className="font-mono" style={{ color: '#00ffff' }}>{stats.toolsAvailable}</span> tools available{lastSynced ? <> · <span className="flex items-center gap-1 inline-flex"><Clock size={9} /> Synced {formatTime(lastSynced)}</span></> : ''}
             </p>
           </div>
         </div>
@@ -366,6 +413,20 @@ export function MCPRegistry() {
           {/* Add server */}
           <button onClick={() => setShowAddServer(!showAddServer)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[rgba(0,255,136,0.2)] bg-[rgba(0,255,136,0.05)] text-xs hover:bg-[rgba(0,255,136,0.1)] transition-colors" style={{ color: '#00ff88' }}>
             <Plus size={12} /> Add Server
+          </button>
+          <button onClick={() => handleSyncAll()} disabled={isSyncing} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[rgba(0,255,136,0.2)] bg-[rgba(0,255,136,0.05)] text-xs hover:bg-[rgba(0,255,136,0.1)] transition-colors disabled:opacity-70" style={{ color: syncStatus === 'error' ? '#E63946' : '#00ff88', borderColor: syncStatus === 'error' ? 'rgba(230,57,70,0.2)' : syncStatus === 'success' ? 'rgba(0,255,136,0.4)' : 'rgba(0,255,136,0.2)' }}>
+            {isSyncing ? (
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                <RefreshCw size={12} />
+              </motion.div>
+            ) : syncStatus === 'success' ? (
+              <CheckCircle2 size={12} />
+            ) : syncStatus === 'error' ? (
+              <XCircle size={12} />
+            ) : (
+              <RefreshCw size={12} />
+            )}
+            {isSyncing ? 'Syncing...' : syncStatus === 'success' ? 'Synced!' : syncStatus === 'error' ? 'Sync Failed' : 'Sync All'}
           </button>
         </div>
       </div>
@@ -571,7 +632,7 @@ export function MCPRegistry() {
                       <button onClick={() => handleUninstall(selectedServerData.id)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-[rgba(230,57,70,0.2)] bg-[rgba(230,57,70,0.05)] text-[10px] hover:bg-[rgba(230,57,70,0.1)] transition-colors" style={{ color: '#E63946' }}>
                         <Trash2 size={10} /> Disconnect
                       </button>
-                      <button className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-[rgba(0,255,136,0.2)] bg-[rgba(0,255,136,0.05)] text-[10px] hover:bg-[rgba(0,255,136,0.1)] transition-colors" style={{ color: '#00ff88' }}>
+                      <button onClick={() => handleSync(selectedServerData.id)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-[rgba(0,255,136,0.2)] bg-[rgba(0,255,136,0.05)] text-[10px] hover:bg-[rgba(0,255,136,0.1)] transition-colors" style={{ color: '#00ff88' }}>
                         <RefreshCw size={10} /> Sync
                       </button>
                     </>

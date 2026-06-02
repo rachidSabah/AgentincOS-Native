@@ -93,11 +93,12 @@ function generateAuditActions(): AuditAction[] {
     { agentId: 'hermes', actionType: 'tool_call', severity: 'success', description: 'Completed SEO content generation', request: 'Generate: 3 blog posts for keyword cluster "AI agent platform"', response: '3 posts generated, avg 1,847 words, SEO score 92/100', tokensUsed: 8400, latencyMs: 12000, metadata: { posts: '3', avgWords: '1847', seoScore: '92' } },
   ];
 
-  const now = Date.now();
+  // Deterministic timestamp base to avoid hydration mismatch
+  const now = 1700000000000;
   return actions.map((a, i) => ({
     ...a,
     id: `audit-${i + 1}`,
-    timestamp: now - (actions.length - i) * 180000 + Math.random() * 60000,
+    timestamp: now - (actions.length - i) * 180000 + ((i * 37 + 13) % 60) * 1000,
   }));
 }
 
@@ -448,7 +449,7 @@ export function AuditTrail() {
                             </div>
                             <div className="text-xs text-white truncate">{action.description}</div>
                             <div className="flex items-center gap-3 mt-1.5">
-                              <span className="text-[9px] font-mono" style={{ color: '#8888aa' }}>{action.tokensUsed.toLocaleString()} tokens</span>
+                              <span className="text-[9px] font-mono" style={{ color: '#8888aa' }}>{(action.tokensUsed ?? 0).toLocaleString('en-US')} tokens</span>
                               <span className="text-[9px] font-mono" style={{ color: action.latencyMs > 5000 ? '#E63946' : action.latencyMs > 2000 ? '#FFB627' : '#00ff88' }}>{action.latencyMs}ms</span>
                             </div>
                           </div>
@@ -510,7 +511,7 @@ export function AuditTrail() {
                     { label: 'Type', value: selectedActionData.actionType.replace('_', ' '), color: ACTION_COLORS[selectedActionData.actionType] },
                     { label: 'Severity', value: selectedActionData.severity, color: SEVERITY_COLORS[selectedActionData.severity] },
                     { label: 'Time', value: formatTime(selectedActionData.timestamp), color: '#ccccdd' },
-                    { label: 'Tokens', value: selectedActionData.tokensUsed.toLocaleString(), color: '#00ffff' },
+                    { label: 'Tokens', value: (selectedActionData.tokensUsed ?? 0).toLocaleString('en-US'), color: '#00ffff' },
                     { label: 'Latency', value: `${selectedActionData.latencyMs}ms`, color: selectedActionData.latencyMs > 5000 ? '#E63946' : selectedActionData.latencyMs > 2000 ? '#FFB627' : '#00ff88' },
                   ].map(item => (
                     <div key={item.label} className="flex justify-between items-center text-xs">

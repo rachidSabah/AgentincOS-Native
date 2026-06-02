@@ -73,6 +73,32 @@ function validateEvents(events: string[]): string[] {
   return events.filter((e) => valid.has(e));
 }
 
+const BLOCKED_HOSTS = [
+  "127.0.0.1",
+  "localhost",
+  "0.0.0.0",
+  "169.254.169.254",
+  "metadata.google.internal",
+] as const;
+
+function isValidWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    for (const blocked of BLOCKED_HOSTS) {
+      if (hostname === blocked || hostname.endsWith(`.${blocked}`)) {
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function isRateLimited(webhookId: string): boolean {
   const now = Date.now();
   const entry = rateLimits.get(webhookId);
@@ -190,6 +216,13 @@ function handleRegister(
     );
   }
 
+  if (!isValidWebhookUrl(url)) {
+    return NextResponse.json(
+      { error: "Invalid or internal URL — must be a valid external URL" },
+      { status: 400 },
+    );
+  }
+
   if (!Array.isArray(events) || events.length === 0) {
     return NextResponse.json(
       { error: "Missing or empty 'events' array" },
@@ -265,6 +298,12 @@ function handleUpdate(
   }
 
   if (url !== undefined && typeof url === "string") {
+    if (!isValidWebhookUrl(url)) {
+      return NextResponse.json(
+        { error: "Invalid or internal URL — must be a valid external URL" },
+        { status: 400 },
+      );
+    }
     webhook.url = url;
   }
 

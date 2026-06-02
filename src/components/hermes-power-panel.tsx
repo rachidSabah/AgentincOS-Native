@@ -6,20 +6,21 @@ import {
   Zap, Globe, Mic, Monitor, Database, Clock, Radio, Activity,
   Shield, Server, Brain, Search, Play, Square, RotateCcw,
   Wifi, WifiOff, TrendingUp, BarChart3, Cpu, HardDrive,
+  MessageSquare, Send, Sparkles,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 
 /* ───────── HERMES POWER PANEL ───────── */
 export function HermesPowerPanel() {
-  const { hermesConnection, hermesSkills, mcpServers, hermesLatencyHistory } = useOSStore();
-  const [telemetry, setTelemetry] = useState<Record<string, unknown> | null>(null);
-  const [gatewayStatus, setGatewayStatus] = useState<Record<string, unknown> | null>(null);
-  const [processInfo, setProcessInfo] = useState<Record<string, unknown> | null>(null);
-  const [browserStatus, setBrowserStatus] = useState<Record<string, unknown> | null>(null);
-  const [memoryProviders, setMemoryProviders] = useState<Record<string, unknown> | null>(null);
-  const [cronJobs, setCronJobs] = useState<Record<string, unknown> | null>(null);
-  const [webConfig, setWebConfig] = useState<Record<string, unknown> | null>(null);
-  const [voiceConfig, setVoiceConfig] = useState<Record<string, unknown> | null>(null);
+  const { hermesConnection, hermesSkills, mcpServers, hermesLatencyHistory, chatHistories, addChatMessage } = useOSStore();
+  const [telemetry, setTelemetry] = useState<{[key: string]: unknown} | null>(null);
+  const [gatewayStatus, setGatewayStatus] = useState<{[key: string]: unknown} | null>(null);
+  const [processInfo, setProcessInfo] = useState<{[key: string]: unknown} | null>(null);
+  const [browserStatus, setBrowserStatus] = useState<{[key: string]: unknown} | null>(null);
+  const [memoryProviders, setMemoryProviders] = useState<{[key: string]: unknown} | null>(null);
+  const [cronJobs, setCronJobs] = useState<{[key: string]: unknown} | null>(null);
+  const [webConfig, setWebConfig] = useState<{[key: string]: unknown} | null>(null);
+  const [voiceConfig, setVoiceConfig] = useState<{[key: string]: unknown} | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   const fetchPowerData = useCallback(async () => {
@@ -35,14 +36,14 @@ export function HermesPowerPanel() {
         fetch('/api/hermes/web').then(r => r.json()),
         fetch('/api/hermes/voice').then(r => r.json()),
       ]);
-      if (tel.status === 'fulfilled') setTelemetry(tel.value as Record<string, unknown>);
-      if (gw.status === 'fulfilled') setGatewayStatus(gw.value as Record<string, unknown>);
-      if (proc.status === 'fulfilled') setProcessInfo(proc.value as Record<string, unknown>);
-      if (br.status === 'fulfilled') setBrowserStatus(br.value as Record<string, unknown>);
-      if (mem.status === 'fulfilled') setMemoryProviders(mem.value as Record<string, unknown>);
-      if (cron.status === 'fulfilled') setCronJobs(cron.value as Record<string, unknown>);
-      if (web.status === 'fulfilled') setWebConfig(web.value as Record<string, unknown>);
-      if (voice.status === 'fulfilled') setVoiceConfig(voice.value as Record<string, unknown>);
+      if (tel.status === 'fulfilled') setTelemetry(tel.value as {[key: string]: unknown});
+      if (gw.status === 'fulfilled') setGatewayStatus(gw.value as {[key: string]: unknown});
+      if (proc.status === 'fulfilled') setProcessInfo(proc.value as {[key: string]: unknown});
+      if (br.status === 'fulfilled') setBrowserStatus(br.value as {[key: string]: unknown});
+      if (mem.status === 'fulfilled') setMemoryProviders(mem.value as {[key: string]: unknown});
+      if (cron.status === 'fulfilled') setCronJobs(cron.value as {[key: string]: unknown});
+      if (web.status === 'fulfilled') setWebConfig(web.value as {[key: string]: unknown});
+      if (voice.status === 'fulfilled') setVoiceConfig(voice.value as {[key: string]: unknown});
     } catch { /* silent */ }
   }, [hermesConnection.running]);
 
@@ -55,6 +56,7 @@ export function HermesPowerPanel() {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'process', label: 'Process', icon: Server },
     { id: 'gateway', label: 'Gateway', icon: Radio },
     { id: 'browser', label: 'Browser', icon: Monitor },
@@ -110,6 +112,7 @@ export function HermesPowerPanel() {
         style={{ borderColor: `${accentColor}20` }}
       >
         {activeTab === 'overview' && <OverviewTab telemetry={telemetry} skills={hermesSkills} mcpServers={mcpServers} latencyHistory={hermesLatencyHistory} />}
+        {activeTab === 'chat' && <HermesChatTab />}
         {activeTab === 'process' && <ProcessTab processInfo={processInfo} />}
         {activeTab === 'gateway' && <GatewayTab gatewayStatus={gatewayStatus} />}
         {activeTab === 'browser' && <BrowserTab browserStatus={browserStatus} />}
@@ -124,7 +127,7 @@ export function HermesPowerPanel() {
 
 /* ─── Overview Tab ─── */
 function OverviewTab({ telemetry, skills, mcpServers, latencyHistory }: {
-  telemetry: Record<string, unknown> | null;
+  telemetry: {[key: string]: unknown} | null;
   skills: unknown[];
   mcpServers: unknown[];
   latencyHistory: number[];
@@ -212,7 +215,7 @@ function OverviewTab({ telemetry, skills, mcpServers, latencyHistory }: {
 }
 
 /* ─── Process Tab ─── */
-function ProcessTab({ processInfo }: { processInfo: Record<string, unknown> | null }) {
+function ProcessTab({ processInfo }: { processInfo: {[key: string]: unknown} | null }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleAction = async (action: string) => {
@@ -267,7 +270,7 @@ function ProcessTab({ processInfo }: { processInfo: Record<string, unknown> | nu
 }
 
 /* ─── Gateway Tab ─── */
-function GatewayTab({ gatewayStatus }: { gatewayStatus: Record<string, unknown> | null }) {
+function GatewayTab({ gatewayStatus }: { gatewayStatus: {[key: string]: unknown} | null }) {
   const platforms = (gatewayStatus?.platforms as Array<{ name: string; connected: boolean }>) ?? [];
   const running = gatewayStatus?.running as boolean;
 
@@ -301,7 +304,7 @@ function GatewayTab({ gatewayStatus }: { gatewayStatus: Record<string, unknown> 
 }
 
 /* ─── Browser Tab ─── */
-function BrowserTab({ browserStatus }: { browserStatus: Record<string, unknown> | null }) {
+function BrowserTab({ browserStatus }: { browserStatus: {[key: string]: unknown} | null }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -325,7 +328,7 @@ function BrowserTab({ browserStatus }: { browserStatus: Record<string, unknown> 
 }
 
 /* ─── Memory Tab ─── */
-function MemoryTab({ memoryProviders }: { memoryProviders: Record<string, unknown> | null }) {
+function MemoryTab({ memoryProviders }: { memoryProviders: {[key: string]: unknown} | null }) {
   const providers = (memoryProviders?.providers as Array<{ name: string; configured: boolean }>) ?? [];
   const active = memoryProviders?.activeProvider as string;
 
@@ -365,7 +368,7 @@ function MemoryTab({ memoryProviders }: { memoryProviders: Record<string, unknow
 }
 
 /* ─── Cron Tab ─── */
-function CronTab({ cronJobs }: { cronJobs: Record<string, unknown> | null }) {
+function CronTab({ cronJobs }: { cronJobs: {[key: string]: unknown} | null }) {
   const jobs = (cronJobs?.jobs as Array<{ id: string; schedule: string; command: string; enabled: boolean; lastRun?: string; nextRun?: string }>) ?? [];
 
   return (
@@ -404,7 +407,7 @@ function CronTab({ cronJobs }: { cronJobs: Record<string, unknown> | null }) {
 }
 
 /* ─── Web Search Tab ─── */
-function WebTab({ webConfig }: { webConfig: Record<string, unknown> | null }) {
+function WebTab({ webConfig }: { webConfig: {[key: string]: unknown} | null }) {
   const available = (webConfig?.available as string[]) ?? [];
   const backend = webConfig?.backend as string;
 
@@ -444,7 +447,7 @@ function WebTab({ webConfig }: { webConfig: Record<string, unknown> | null }) {
 }
 
 /* ─── Voice Tab ─── */
-function VoiceTab({ voiceConfig }: { voiceConfig: Record<string, unknown> | null }) {
+function VoiceTab({ voiceConfig }: { voiceConfig: {[key: string]: unknown} | null }) {
   const tts = voiceConfig?.tts as { provider: string | null; available: string[] } | undefined;
   const stt = voiceConfig?.stt as { provider: string | null; available: string[] } | undefined;
 
@@ -472,6 +475,174 @@ function VoiceTab({ voiceConfig }: { voiceConfig: Record<string, unknown> | null
       <div className="text-[10px] text-[#8888aa]">
         Voice I/O works across all 19+ gateway platforms. Free local providers (Edge TTS, faster-whisper) require no API keys.
         Premium providers (ElevenLabs, OpenAI TTS) need API keys configured in <code className="text-[#FFB627]">~/.hermes/.env</code>.
+      </div>
+    </div>
+  );
+}
+
+/* ─── Chat Tab ─── */
+function HermesChatTab() {
+  const { addChatMessage, chatHistories } = useOSStore();
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const messages = chatHistories['hermes'] || [];
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMsg = {
+      id: `hermes-user-${Date.now()}`,
+      role: 'user' as const,
+      content: input,
+      timestamp: Date.now(),
+      agentId: 'hermes',
+    };
+    addChatMessage('hermes', userMsg);
+    const userInput = input;
+    setInput('');
+    setIsLoading(true);
+    setStreamingText('');
+
+    try {
+      const apiMessages = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }));
+      apiMessages.push({ role: 'user' as const, content: userInput });
+
+      const res = await fetch('/api/hermes/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, stream: true }),
+      });
+
+      if (!res.ok) {
+        addChatMessage('hermes', {
+          id: `hermes-err-${Date.now()}`,
+          role: 'system' as const,
+          content: `Hermes API error: ${res.status}`,
+          timestamp: Date.now(),
+          agentId: 'hermes',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split('\n')) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content || '';
+                if (delta) { fullText += delta; setStreamingText(fullText); }
+              } catch {
+                if (data && data !== '[DONE]') { fullText += data; setStreamingText(fullText); }
+              }
+            }
+          }
+        }
+      }
+
+      addChatMessage('hermes', {
+        id: `hermes-agent-${Date.now()}`,
+        role: 'agent' as const,
+        content: fullText || 'No response received.',
+        timestamp: Date.now(),
+        agentId: 'hermes',
+      });
+    } catch {
+      addChatMessage('hermes', {
+        id: `hermes-err-${Date.now()}`,
+        role: 'system' as const,
+        content: 'Failed to reach Hermes. The ZAI SDK fallback should handle this — please try again.',
+        timestamp: Date.now(),
+        agentId: 'hermes',
+      });
+    } finally {
+      setIsLoading(false);
+      setStreamingText('');
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Chat messages */}
+      <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+        {messages.length === 0 && !streamingText && (
+          <div className="text-center py-8">
+            <Sparkles size={24} style={{ color: '#FFB627' }} className="mx-auto mb-2 opacity-50" />
+            <div className="text-[11px] text-[#8888aa]">Chat with Hermes — AI-powered agent assistant</div>
+            <div className="text-[9px] text-[#8888aa] mt-1">Uses ZAI SDK fallback when Hermes CLI is offline</div>
+          </div>
+        )}
+        {messages.map(msg => (
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] rounded-lg p-2.5 text-[11px] leading-relaxed ${
+              msg.role === 'user'
+                ? 'bg-[rgba(255,182,39,0.15)] border border-[rgba(255,182,39,0.2)] text-[#ccccdd]'
+                : msg.role === 'system'
+                  ? 'bg-[rgba(230,57,70,0.1)] border border-[rgba(230,57,70,0.2)] text-[#ff8888]'
+                  : 'bg-[rgba(18,18,42,0.6)] border border-[rgba(255,182,39,0.15)] text-[#ccccdd]'
+            }`}>
+              {msg.role === 'agent' && (
+                <div className="flex items-center gap-1 mb-1">
+                  <Sparkles size={9} style={{ color: '#FFB627' }} />
+                  <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: '#FFB627' }}>Hermes</span>
+                </div>
+              )}
+              <div className="whitespace-pre-wrap">{msg.content}</div>
+            </div>
+          </div>
+        ))}
+        {streamingText && (
+          <div className="flex justify-start">
+            <div className="bg-[rgba(18,18,42,0.6)] border border-[rgba(255,182,39,0.15)] rounded-lg p-2.5 max-w-[85%]">
+              <div className="flex items-center gap-1 mb-1">
+                <Sparkles size={9} style={{ color: '#FFB627' }} />
+                <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: '#FFB627' }}>Hermes</span>
+              </div>
+              <div className="text-[11px] text-[#ccccdd] whitespace-pre-wrap">{streamingText}</div>
+            </div>
+          </div>
+        )}
+        {isLoading && !streamingText && (
+          <div className="flex justify-start">
+            <div className="bg-[rgba(18,18,42,0.6)] border border-[rgba(255,182,39,0.15)] rounded-lg p-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#FFB627' }} />
+                <span className="text-[10px] text-[#8888aa]">Processing...</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="Message Hermes..."
+          disabled={isLoading}
+          className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(255,182,39,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] outline-none focus:border-[rgba(255,182,39,0.4)] transition-colors disabled:opacity-50"
+        />
+        <button onClick={handleSend} disabled={isLoading || !input.trim()}
+          className="flex items-center justify-center w-9 h-9 rounded-lg border transition-colors disabled:opacity-30"
+          style={{ borderColor: '#FFB62735', color: '#FFB627', background: '#FFB62708' }}>
+          <Send size={14} />
+        </button>
       </div>
     </div>
   );

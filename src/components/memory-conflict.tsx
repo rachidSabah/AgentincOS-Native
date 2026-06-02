@@ -74,6 +74,9 @@ interface ResolutionHistoryEntry {
   resolvedAt: number;
 }
 
+/* ─── Deterministic Base Timestamp (avoids hydration mismatch) ─── */
+const BASE_TS = 1700000000000;
+
 /* ─── Mock Data ─── */
 const MOCK_CONFLICTS: ConflictEntry[] = [
   {
@@ -83,7 +86,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'hermes',
       content: 'Browser pool supports 8 concurrent sessions for web research tasks. This was verified during stress testing last week.',
       confidence: 0.87,
-      timestamp: Date.now() - 86400000,
+      timestamp: BASE_TS - 86400000,
       source: 'chat',
     },
     memoryB: {
@@ -91,7 +94,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'hermes',
       content: 'Browser pool limit is 5 concurrent sessions. Browserbase enterprise plan caps at 5 sessions per account.',
       confidence: 0.95,
-      timestamp: Date.now() - 259200000,
+      timestamp: BASE_TS - 259200000,
       source: 'file',
     },
     topic: 'Browser session limit',
@@ -106,7 +109,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'claude',
       content: 'MCMC sampling improves reasoning quality by 35% on multi-step problems. Use for all complex reasoning tasks.',
       confidence: 0.91,
-      timestamp: Date.now() - 172800000,
+      timestamp: BASE_TS - 172800000,
       source: 'file',
     },
     memoryB: {
@@ -114,7 +117,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'openclaw',
       content: 'MCMC mode should only be used for complex reasoning — simple queries waste tokens at 3x cost with minimal benefit.',
       confidence: 0.88,
-      timestamp: Date.now() - 43200000,
+      timestamp: BASE_TS - 43200000,
       source: 'chat',
     },
     topic: 'MCMC usage policy',
@@ -129,7 +132,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'openclaw',
       content: 'All agent routing must go through OpenClaw. No direct agent-to-agent communication is permitted under any circumstances.',
       confidence: 0.97,
-      timestamp: Date.now() - 864000000,
+      timestamp: BASE_TS - 864000000,
       source: 'document',
     },
     memoryB: {
@@ -137,7 +140,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'hermes',
       content: 'Hermes can communicate directly with Vault for memory retrieval operations without routing through OpenClaw.',
       confidence: 0.78,
-      timestamp: Date.now() - 3600000,
+      timestamp: BASE_TS - 3600000,
       source: 'chat',
     },
     topic: 'Agent communication protocol',
@@ -152,7 +155,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'vault',
       content: 'Auto-pruning runs weekly for entries older than 90 days with accessCount < 2. This keeps the vault performant.',
       confidence: 0.96,
-      timestamp: Date.now() - 1209600000,
+      timestamp: BASE_TS - 1209600000,
       source: 'file',
     },
     memoryB: {
@@ -160,7 +163,7 @@ const MOCK_CONFLICTS: ConflictEntry[] = [
       agentId: 'claude',
       content: 'Important memories should never be auto-pruned regardless of access count. The 90-day threshold is too aggressive for insights.',
       confidence: 0.82,
-      timestamp: Date.now() - 7200000,
+      timestamp: BASE_TS - 7200000,
       source: 'chat',
     },
     topic: 'Memory pruning policy',
@@ -178,7 +181,7 @@ const MOCK_HISTORY: ResolutionHistoryEntry[] = [
     agentB: 'hermes',
     resolution: 'merge',
     resolvedBy: 'Claude',
-    resolvedAt: Date.now() - 7200000,
+    resolvedAt: BASE_TS - 7200000,
   },
   {
     id: 'rh2',
@@ -187,7 +190,7 @@ const MOCK_HISTORY: ResolutionHistoryEntry[] = [
     agentB: 'hermes',
     resolution: 'prefer-b',
     resolvedBy: 'User',
-    resolvedAt: Date.now() - 86400000,
+    resolvedAt: BASE_TS - 86400000,
   },
   {
     id: 'rh3',
@@ -196,7 +199,7 @@ const MOCK_HISTORY: ResolutionHistoryEntry[] = [
     agentB: 'openclaw',
     resolution: 'keep-both',
     resolvedBy: 'OpenClaw',
-    resolvedAt: Date.now() - 172800000,
+    resolvedAt: BASE_TS - 172800000,
   },
   {
     id: 'rh4',
@@ -205,13 +208,14 @@ const MOCK_HISTORY: ResolutionHistoryEntry[] = [
     agentB: 'openclaw',
     resolution: 'unresolvable',
     resolvedBy: 'User',
-    resolvedAt: Date.now() - 259200000,
+    resolvedAt: BASE_TS - 259200000,
   },
 ];
 
 /* ─── Helpers ─── */
 function timeAgo(ts: number): string {
-  const diff = Date.now() - ts;
+  // Use deterministic offset from BASE_TS to avoid hydration mismatch
+  const diff = BASE_TS - ts;
   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;

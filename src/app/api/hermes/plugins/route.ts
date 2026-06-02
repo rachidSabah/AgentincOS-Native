@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFile, writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+import { existsSync } from "fs";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -28,9 +31,38 @@ interface AvailablePlugin {
   rating: number;
 }
 
-// ─── In-Memory Storage ───────────────────────────────────────────────────────
+// ─── File-based Persistence ────────────────────────────────────────────────
 
-const plugins = new Map<string, Plugin>();
+const DATA_DIR = join(process.cwd(), ".data");
+const PLUGINS_FILE = join(DATA_DIR, "plugins.json");
+
+async function ensureDataDir(): Promise<void> {
+  if (!existsSync(DATA_DIR)) {
+    await mkdir(DATA_DIR, { recursive: true });
+  }
+}
+
+async function loadPlugins(): Promise<Map<string, Plugin>> {
+  const map = new Map<string, Plugin>();
+  try {
+    if (existsSync(PLUGINS_FILE)) {
+      const raw = await readFile(PLUGINS_FILE, "utf-8");
+      const arr = JSON.parse(raw) as Plugin[];
+      for (const p of arr) {
+        map.set(p.id, p);
+      }
+    }
+  } catch {
+    // Corrupted file — start fresh
+  }
+  return map;
+}
+
+async function savePlugins(map: Map<string, Plugin>): Promise<void> {
+  await ensureDataDir();
+  const arr = Array.from(map.values());
+  await writeFile(PLUGINS_FILE, JSON.stringify(arr, null, 2), "utf-8");
+}
 
 // ─── Available Plugin Registry ───────────────────────────────────────────────
 
@@ -134,6 +166,7 @@ function findAvailablePlugin(name: string): AvailablePlugin | undefined {
 // ─── GET Handler ─────────────────────────────────────────────────────────────
 
 export async function GET() {
+  const plugins = await loadPlugins();
   const list = Array.from(plugins.values());
   return NextResponse.json({ plugins: list, total: list.length });
 }
@@ -141,6 +174,8 @@ export async function GET() {
 // ─── POST Handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const plugins = await loadPlugins();
+
   try {
     const body = await request.json();
     const { action } = body as { action: string };
@@ -166,10 +201,20 @@ export async function POST(request: NextRequest) {
           (p) => p.name.toLowerCase() === name.toLowerCase()
         );
         if (existing) {
-          return NextResponse.json(
-            { error: `Plugin "${name}" is already installed` },
-            { status: 409 }
-          );
+          // If existing plugin is inactive, reactivate it
+          if (existing.status !== "active") {
+            existing.status = "active";
+            await savePlugins(plugins);
+          }
+          return NextResponse.json({
+            success: true,
+            plugin: {
+              id: existing.id,
+              name: existing.name,
+              version: existing.version,
+              status: existing.status,
+            },
+          });
         }
 
         // Look up in registry or create custom entry
@@ -184,13 +229,14 @@ export async function POST(request: NextRequest) {
           description:
             available?.description ?? `Custom plugin from ${source}`,
           author: available?.author ?? "Custom",
-          status: "inactive", // Start inactive, must be activated explicitly
+          status: "active", // Auto-activate on install
           permissions: available?.permissions ?? ["custom:execute"],
           config: config ?? {},
           installedAt: now,
         };
 
         plugins.set(id, plugin);
+        await savePlugins(plugins);
 
         return NextResponse.json({
           success: true,
@@ -227,6 +273,7 @@ export async function POST(request: NextRequest) {
 
         const [pluginId, plugin] = entry;
         plugins.delete(pluginId);
+        await savePlugins(plugins);
 
         return NextResponse.json({
           success: true,
@@ -256,14 +303,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        if (plugin.status === "active") {
-          return NextResponse.json(
-            { error: `Plugin "${name}" is already active` },
-            { status: 409 }
-          );
-        }
-
         plugin.status = "active";
+        await savePlugins(plugins);
 
         return NextResponse.json({
           success: true,
@@ -297,14 +338,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        if (plugin.status === "inactive") {
-          return NextResponse.json(
-            { error: `Plugin "${name}" is already inactive` },
-            { status: 409 }
-          );
-        }
-
         plugin.status = "inactive";
+        await savePlugins(plugins);
 
         return NextResponse.json({
           success: true,
@@ -342,6 +377,7 @@ export async function POST(request: NextRequest) {
         }
 
         plugin.config = { ...plugin.config, ...config };
+        await savePlugins(plugins);
 
         return NextResponse.json({
           success: true,

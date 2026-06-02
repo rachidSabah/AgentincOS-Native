@@ -1,6 +1,6 @@
 'use client';
 
-import { useOSStore } from '@/lib/store';
+import { useOSStore, useHydration } from '@/lib/store';
 import {
   Sidebar, TopBar,
   SystemMonitor, LogStream, LatencyGraph, ControlRoom,
@@ -23,6 +23,7 @@ import {
   RelationshipEngine, MemoryDetail,
 } from '@/components/memory-engine';
 import { HomeDashboard } from '@/components/home-dashboard';
+import { GeminiPowerPanel } from '@/components/gemini-power-panel';
 import { AgentObservability } from '@/components/agent-observability';
 import { UpdatesTab } from '@/components/updates-tab';
 import { KnowledgeGap } from '@/components/knowledge-gap';
@@ -41,8 +42,69 @@ import { FocusMode } from '@/components/focus-mode';
 import { CrossSessionMemory } from '@/components/cross-session-memory';
 import { RAGEngine } from '@/components/rag-engine';
 import { ProductivityHeatmap } from '@/components/productivity-heatmap';
+import { WorkspaceManager } from '@/components/workspace-manager';
+import { AgentMarketplace } from '@/components/agent-marketplace';
+import { SettingsPanel } from '@/components/settings-panel';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect } from 'react';
+import { useEffect, Component } from 'react';
+
+// ─── View Error Boundary ───
+type ViewErrorBoundaryState = { hasError: boolean; error?: Error };
+class ViewErrorBoundary extends Component<{ children: React.ReactNode }, ViewErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidUpdate(prevProps: { children: React.ReactNode }) {
+    // Reset error when children change (view switch)
+    if (this.state.hasError && prevProps.children !== this.props.children) {
+      this.setState({ hasError: false, error: undefined });
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="rounded-xl border border-[rgba(230,57,70,0.2)] bg-[rgba(230,57,70,0.05)] p-8 text-center max-w-md">
+            <div className="text-4xl mb-3">⚠️</div>
+            <div className="text-white text-lg font-medium mb-2">View Rendering Error</div>
+            <div className="text-[#8888aa] text-sm mb-1">{this.state.error?.message || 'An unexpected error occurred'}</div>
+            <div className="text-[#8888aa] text-xs mb-4">Try navigating to a different view or refreshing the page.</div>
+            <button onClick={() => this.setState({ hasError: false, error: undefined })} className="px-4 py-2 rounded-lg border border-[rgba(157,78,221,0.3)] text-[#9d4edd] text-sm hover:bg-[rgba(157,78,221,0.1)]">
+              Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function HydrationGuard({ children }: { children: React.ReactNode }) {
+  const hydrated = useHydration();
+  useEffect(() => {
+    // Trigger rehydration on mount
+    useOSStore.persist.rehydrate();
+  }, []);
+  if (!hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#0a0a1a]">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#E8751A] to-[#7B2CBF] flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-white font-bold text-lg">A</span>
+          </div>
+          <div className="text-white font-bold text-sm tracking-wider">AGENTIC OS</div>
+          <div className="text-[#8888aa] text-xs mt-2">Initializing system...</div>
+        </div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
 
 export default function HomePage() {
   const {
@@ -55,35 +117,11 @@ export default function HomePage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCommandPaletteOpen(true); }
-      if (e.key === 'Escape') { setCommandPaletteOpen(false); setControlRoomAgent(null); }
+      if (e.key === 'Escape') { setCommandPaletteOpen(false); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [setCommandPaletteOpen, setControlRoomAgent]);
-
-  useEffect(() => {
-    const messages = [
-      { agent: 'Claude', layer: 4 as const, level: 'info' as const, message: 'Cognitive Reasoning pipeline active — CEO layer online' },
-      { agent: 'Hermes', layer: 2 as const, level: 'success' as const, message: 'Knowledge Acquisition: skill registry synced — 2,550 skills available' },
-      { agent: 'OpenClaw', layer: 3 as const, level: 'info' as const, message: 'Agent Orchestration: routing table refreshed — 4 agents connected' },
-      { agent: 'Self Vault', layer: 6 as const, level: 'success' as const, message: 'Memory layer: OMI recording exported — 47 new notes today' },
-      { agent: 'Hermes', layer: 5 as const, level: 'info' as const, message: 'Execution layer: Kanban task completed — competitor-analysis-q2' },
-      { agent: 'Claude', layer: 1 as const, level: 'info' as const, message: 'Interaction layer: multimodal input received — voice + screenshot' },
-      { agent: 'OpenClaw', layer: 7 as const, level: 'success' as const, message: 'Governance: session coordination complete — all permissions verified' },
-      { agent: 'Self Vault', layer: 6 as const, level: 'info' as const, message: 'Memory layer: goal progress updated — 3 goals advanced this week' },
-      { agent: 'Hermes', layer: 2 as const, level: 'warn' as const, message: 'Knowledge retrieval: browser pool at capacity — scheduling for off-peak' },
-      { agent: 'Claude', layer: 4 as const, level: 'success' as const, message: 'Cognitive Reasoning: pulled 23 memory entries for context-rich response' },
-    ];
-    const interval = setInterval(() => {
-      const msg = messages[Math.floor(Math.random() * messages.length)];
-      useOSStore.getState().addLog({
-        id: Date.now().toString(),
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-        ...msg,
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [setCommandPaletteOpen]);
 
   const renderView = () => {
     switch (activeView) {
@@ -196,7 +234,8 @@ export default function HomePage() {
 
       // ─── 7 Layer detail views ───
       case 'layer-interaction': {
-        const layer = stackLayers.find(l => l.id === 'interaction')!;
+        const layer = stackLayers.find(l => l.id === 'interaction');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -209,7 +248,8 @@ export default function HomePage() {
       }
 
       case 'layer-knowledge': {
-        const layer = stackLayers.find(l => l.id === 'knowledge')!;
+        const layer = stackLayers.find(l => l.id === 'knowledge');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -222,7 +262,8 @@ export default function HomePage() {
       }
 
       case 'layer-orchestration': {
-        const layer = stackLayers.find(l => l.id === 'orchestration')!;
+        const layer = stackLayers.find(l => l.id === 'orchestration');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -235,7 +276,8 @@ export default function HomePage() {
       }
 
       case 'layer-cognition': {
-        const layer = stackLayers.find(l => l.id === 'cognition')!;
+        const layer = stackLayers.find(l => l.id === 'cognition');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -248,7 +290,8 @@ export default function HomePage() {
       }
 
       case 'layer-execution': {
-        const layer = stackLayers.find(l => l.id === 'execution')!;
+        const layer = stackLayers.find(l => l.id === 'execution');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -265,7 +308,8 @@ export default function HomePage() {
       }
 
       case 'layer-memory': {
-        const layer = stackLayers.find(l => l.id === 'memory')!;
+        const layer = stackLayers.find(l => l.id === 'memory');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -279,7 +323,8 @@ export default function HomePage() {
       }
 
       case 'layer-governance': {
-        const layer = stackLayers.find(l => l.id === 'governance')!;
+        const layer = stackLayers.find(l => l.id === 'governance');
+        if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
@@ -414,6 +459,14 @@ export default function HomePage() {
           </motion.div>
         );
 
+      // ─── Gemini CLI Panel ───
+      case 'gemini-panel':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <GeminiPowerPanel />
+          </motion.div>
+        );
+
       // ─── Cyberpunk Premium Components v2 ───
       case 'focus-mode':
         return (
@@ -479,6 +532,30 @@ export default function HomePage() {
           </motion.div>
         );
 
+      // ─── Workspace Manager ───
+      case 'workspace-manager':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <WorkspaceManager />
+          </motion.div>
+        );
+
+      // ─── Agent Marketplace ───
+      case 'agent-marketplace':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentMarketplace />
+          </motion.div>
+        );
+
+      // ─── Settings ───
+      case 'settings':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <SettingsPanel />
+          </motion.div>
+        );
+
       // ─── Updates ───
       case 'updates':
         return (
@@ -518,12 +595,15 @@ export default function HomePage() {
   const isHomeView = activeView === 'home' || activeView === 'observability' || activeView === 'updates';
 
   return (
+    <HydrationGuard>
     <div className="flex h-screen overflow-hidden bg-[#0a0a1a] grid-bg noise-overlay">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {!isMissionControl3Col && !isHomeView && <TopBar />}
         <main className={`flex-1 overflow-hidden ${isMissionControl3Col || isHomeView ? '' : 'overflow-y-auto p-6'}`} role="main" aria-label="Dashboard Content">
-          <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
+          <ViewErrorBoundary>
+            <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
+          </ViewErrorBoundary>
         </main>
 
         {!isMissionControl3Col && !isHomeView && (
@@ -548,6 +628,7 @@ export default function HomePage() {
             ))}
             <div className="w-px h-6 bg-[rgba(157,78,221,0.15)] mx-1" />
             <motion.button whileHover={{ scale: 1.1, y: -4 }} whileTap={{ scale: 0.95 }}
+              onClick={() => useOSStore.getState().setActiveView('settings')}
               className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8888aa] border border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.5)] transition-colors hover:text-white group relative"
               aria-label="Settings">
               ⚙
@@ -566,5 +647,6 @@ export default function HomePage() {
         {commandPaletteOpen && <CommandPalette />}
       </AnimatePresence>
     </div>
+    </HydrationGuard>
   );
 }

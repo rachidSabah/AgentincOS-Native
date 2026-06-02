@@ -13,50 +13,29 @@ import { useState, useEffect } from 'react';
 
 // ─── Simulated Data ───
 
-const recentActivities = [
-  { id: '1', agent: 'Claude', action: 'Completed cognitive reasoning pipeline for task delegation', time: '2m ago', type: 'reasoning', color: '#E63946' },
-  { id: '2', agent: 'Hermes', action: 'Web research completed — 3 competitor reports generated', time: '5m ago', type: 'research', color: '#FFB627' },
-  { id: '3', agent: 'Self Vault', action: 'OMI recording exported — 47 notes synced to Obsidian', time: '8m ago', type: 'memory', color: '#2E86AB' },
-  { id: '4', agent: 'OpenClaw', action: 'Routing table refreshed — 4 agents connected, 0 conflicts', time: '12m ago', type: 'routing', color: '#E8751A' },
-  { id: '5', agent: 'Hermes', action: 'Skill execution: seo-audit completed in 6.8s', time: '15m ago', type: 'execution', color: '#FFB627' },
-  { id: '6', agent: 'Claude', action: 'Vision pipeline analyzed 3 screenshots from user', time: '22m ago', type: 'perception', color: '#E63946' },
-  { id: '7', agent: 'Self Vault', action: 'Goal progress updated — 3 goals advanced this week', time: '30m ago', type: 'memory', color: '#2E86AB' },
-  { id: '8', agent: 'OpenClaw', action: 'Governance: session permissions verified for all agents', time: '35m ago', type: 'governance', color: '#E8751A' },
-  { id: '9', agent: 'Hermes', action: 'Kanban task completed: competitor-analysis-q2', time: '42m ago', type: 'execution', color: '#FFB627' },
-  { id: '10', agent: 'Claude', action: 'Pulled 23 memory entries for context-rich response', time: '55m ago', type: 'reasoning', color: '#E63946' },
-];
+interface ActivityItem {
+  id: string; agent: string; action: string; time: string; type: string; color: string;
+}
+const recentActivities: ActivityItem[] = [];
 
-const projectsData = [
-  { id: 'p1', name: 'Agent OS v2.0 Launch', progress: 72, tasks: 24, team: ['Claude', 'Hermes', 'OpenClaw'], color: '#E63946' },
-  { id: 'p2', name: 'Hermes Skill Registry 3K+', progress: 85, tasks: 18, team: ['Hermes'], color: '#FFB627' },
-  { id: 'p3', name: 'Cross-Agent Memory Protocol', progress: 30, tasks: 12, team: ['OpenClaw', 'Self Vault'], color: '#9d4edd' },
-  { id: 'p4', name: 'Obsidian Vault 15K Growth', progress: 91, tasks: 8, team: ['Self Vault'], color: '#2E86AB' },
-];
+interface ProjectItem {
+  id: string; name: string; progress: number; tasks: number; team: string[]; color: string;
+}
+const projectsData: ProjectItem[] = [];
 
-const automationsData = [
-  { id: 'a1', name: 'Daily Competitor Scan', trigger: 'Every day at 6:00 AM', status: true, lastRun: '6h ago' },
-  { id: 'a2', name: 'Memory Auto-Sync', trigger: 'Every 30 minutes', status: true, lastRun: '12m ago' },
-  { id: 'a3', name: 'Weekly Performance Report', trigger: 'Every Monday 9:00 AM', status: true, lastRun: '3d ago' },
-  { id: 'a4', name: 'Cost Alert Pipeline', trigger: 'When budget > 80%', status: false, lastRun: '2d ago' },
-];
+interface AutomationItem {
+  id: string; name: string; trigger: string; status: boolean; lastRun: string;
+}
+const automationsData: AutomationItem[] = [];
 
-const memoryGrowthData = [4200, 4600, 5100, 5800, 6400, 7200, 7800, 8500, 9200, 9800, 10400, 11100, 11800, 12847];
+const memoryGrowthData: number[] = [];
 
-const knowledgeNodes = [
-  { id: 'n1', label: 'Agent OS', x: 50, y: 40, color: '#00ffff', size: 18 },
-  { id: 'n2', label: 'Claude', x: 20, y: 25, color: '#E63946', size: 12 },
-  { id: 'n3', label: 'Hermes', x: 80, y: 20, color: '#FFB627', size: 12 },
-  { id: 'n4', label: 'OpenClaw', x: 25, y: 65, color: '#E8751A', size: 12 },
-  { id: 'n5', label: 'Vault', x: 75, y: 70, color: '#2E86AB', size: 12 },
-  { id: 'n6', label: 'Skills', x: 55, y: 80, color: '#9d4edd', size: 10 },
-  { id: 'n7', label: 'Memory', x: 45, y: 15, color: '#00ff88', size: 10 },
-  { id: 'n8', label: 'Governance', x: 15, y: 50, color: '#FFB627', size: 10 },
-];
+interface KnowledgeNode {
+  id: string; label: string; x: number; y: number; color: string; size: number;
+}
+const knowledgeNodes: KnowledgeNode[] = [];
 
-const knowledgeEdges = [
-  ['n1', 'n2'], ['n1', 'n3'], ['n1', 'n4'], ['n1', 'n5'],
-  ['n2', 'n7'], ['n3', 'n6'], ['n4', 'n8'], ['n5', 'n6'],
-];
+const knowledgeEdges: [string, string][] = [];
 
 // ─── Shared Components ───
 
@@ -84,6 +63,7 @@ function StatusDot({ status, color }: { status: string; color: string }) {
 // ─── Welcome Banner ───
 
 function WelcomeBanner() {
+  const { setActiveView } = useOSStore();
   const [time, setTime] = useState<Date | null>(null);
   const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; size: number; duration: number; delay: number; color: string}>>([]);
 
@@ -104,10 +84,10 @@ function WelcomeBanner() {
   }, []);
 
   const quickActions = [
-    { label: 'New Chat', icon: MessageSquare, color: '#00ffff' },
-    { label: 'Search Memory', icon: Search, color: '#9d4edd' },
-    { label: 'Create Task', icon: CheckSquare, color: '#00ff88' },
-    { label: 'View Analytics', icon: BarChart3, color: '#FFB627' },
+    { label: 'New Chat', icon: MessageSquare, color: '#00ffff', view: 'mission-control' as const },
+    { label: 'Search Memory', icon: Search, color: '#9d4edd', view: 'memory-search' as const },
+    { label: 'Create Task', icon: CheckSquare, color: '#00ff88', view: 'workflows' as const },
+    { label: 'View Analytics', icon: BarChart3, color: '#FFB627', view: 'observability' as const },
   ];
 
   return (
@@ -161,6 +141,7 @@ function WelcomeBanner() {
           className="flex flex-wrap gap-2">
           {quickActions.map(action => (
             <button key={action.label}
+              onClick={() => setActiveView(action.view)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[11px] font-medium transition-all duration-200 hover:scale-[1.02]"
               style={{
                 borderColor: `${action.color}30`,
@@ -183,7 +164,7 @@ function AgentStatusRow() {
   const { agents, setActiveView } = useOSStore();
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {agents.map((agent, i) => (
         <motion.button key={agent.id}
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
@@ -221,9 +202,26 @@ function AgentStatusRow() {
 
 function MemoryGrowthWidget() {
   const { systemMetrics } = useOSStore();
+
+  if (memoryGrowthData.length === 0) {
+    return (
+      <GlassCard>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Database size={14} className="text-[#9d4edd]" />
+            <span className="text-white text-xs font-bold uppercase tracking-wider">Memory Growth</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-20 text-[#8888aa] text-xs">
+          No memory data yet
+        </div>
+      </GlassCard>
+    );
+  }
+
   const width = 240;
   const height = 60;
-  const max = Math.max(...memoryGrowthData, 1);
+  const max = Math.max(...memoryGrowthData);
   const min = Math.min(...memoryGrowthData);
   const range = max - min || 1;
 
@@ -261,7 +259,7 @@ function MemoryGrowthWidget() {
       <div className="grid grid-cols-3 gap-2 mt-3">
         <div>
           <div className="text-[8px] text-[#8888aa] uppercase">Total</div>
-          <div className="text-white font-mono font-bold text-sm">{systemMetrics.vaultEntries.toLocaleString()}</div>
+          <div className="text-white font-mono font-bold text-sm">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</div>
         </div>
         <div>
           <div className="text-[8px] text-[#8888aa] uppercase">Growth</div>
@@ -281,7 +279,24 @@ function MemoryGrowthWidget() {
 // ─── Knowledge Graph Preview ───
 
 function KnowledgeGraphPreview() {
+  const { setActiveView } = useOSStore();
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+
+  if (knowledgeNodes.length === 0) {
+    return (
+      <GlassCard>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Network size={14} className="text-[#00ffff]" />
+            <span className="text-white text-xs font-bold uppercase tracking-wider">Knowledge Graph</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-44 text-[#8888aa] text-xs">
+          No knowledge graph data yet
+        </div>
+      </GlassCard>
+    );
+  }
 
   return (
     <GlassCard>
@@ -337,7 +352,8 @@ function KnowledgeGraphPreview() {
         </svg>
       </div>
 
-      <button className="mt-3 w-full text-center text-[10px] py-2 rounded-lg border border-[rgba(0,255,255,0.2)] text-[#00ffff] bg-[rgba(0,255,255,0.05)] hover:bg-[rgba(0,255,255,0.1)] transition-colors flex items-center justify-center gap-1">
+      <button onClick={() => setActiveView('memory-graph')}
+        className="mt-3 w-full text-center text-[10px] py-2 rounded-lg border border-[rgba(0,255,255,0.2)] text-[#00ffff] bg-[rgba(0,255,255,0.05)] hover:bg-[rgba(0,255,255,0.1)] transition-colors flex items-center justify-center gap-1">
         <Network size={11} /> Open Full Graph
       </button>
     </GlassCard>
@@ -347,12 +363,26 @@ function KnowledgeGraphPreview() {
 // ─── Recent Activities ───
 
 function RecentActivities() {
-  const agentIcons: Record<string, string> = {
+  const { logs, agents } = useOSStore();
+  const agentIcons: {[key: string]: string} = {
     Claude: '🧠',
     Hermes: '🔍',
     'Self Vault': '💾',
     OpenClaw: '👥',
+    Gemini: '✨',
   };
+  const agentColorMap: {[key: string]: string} = {};
+  agents.forEach(a => { agentColorMap[a.name] = a.color; });
+
+  // Use live logs from store, fallback to recentActivities
+  const displayLogs = logs.length > 0 ? logs.slice(0, 12).map((log, i) => ({
+    id: log.id,
+    agent: log.agent,
+    action: log.message,
+    time: log.timestamp,
+    type: log.level,
+    color: agentColorMap[log.agent] || '#8888aa',
+  })) : recentActivities;
 
   return (
     <GlassCard>
@@ -361,11 +391,16 @@ function RecentActivities() {
           <Activity size={14} className="text-[#00ff88]" />
           <span className="text-white text-xs font-bold uppercase tracking-wider">Recent Activity</span>
         </div>
-        <span className="text-[9px] text-[#8888aa]">{recentActivities.length} events</span>
+        <span className="text-[9px] text-[#8888aa]">{displayLogs.length} events</span>
       </div>
 
       <div className="space-y-1 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-        {recentActivities.map((activity, i) => (
+        {displayLogs.length === 0 && (
+          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
+            No recent activity yet
+          </div>
+        )}
+        {displayLogs.map((activity, i) => (
           <motion.div key={activity.id}
             initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.04 }}
@@ -401,6 +436,11 @@ function ActiveProjects() {
       </div>
 
       <div className="space-y-2">
+        {projectsData.length === 0 && (
+          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
+            No active projects yet
+          </div>
+        )}
         {projectsData.map((project, i) => (
           <motion.div key={project.id}
             initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
@@ -423,7 +463,7 @@ function ActiveProjects() {
               <div className="flex items-center gap-1">
                 {project.team.slice(0, 3).map((member, mi) => (
                   <div key={mi} className="w-5 h-5 rounded-full border border-[#0a0a1a] flex items-center justify-center text-[8px]"
-                    style={{ backgroundColor: `${member === 'Claude' ? '#E63946' : member === 'Hermes' ? '#FFB627' : member === 'OpenClaw' ? '#E8751A' : '#2E86AB'}30`, marginLeft: mi > 0 ? '-4px' : '0' }}>
+                    style={{ backgroundColor: `${member === 'Claude' ? '#E63946' : member === 'Hermes' ? '#FFB627' : member === 'OpenClaw' ? '#E8751A' : member === 'Gemini' ? '#4285F4' : '#2E86AB'}30`, marginLeft: mi > 0 ? '-4px' : '0' }}>
                     {member[0]}
                   </div>
                 ))}
@@ -479,7 +519,7 @@ function TasksOverview() {
         <div className="text-[9px] text-[#8888aa] uppercase tracking-wider mb-2">Top Urgent</div>
         <div className="space-y-1.5">
           {urgentTasks.map((task, i) => {
-            const agentColors: Record<string, string> = { claude: '#E63946', hermes: '#FFB627', openclaw: '#E8751A', vault: '#2E86AB' };
+            const agentColors: {[key: string]: string} = { claude: '#E63946', hermes: '#FFB627', openclaw: '#E8751A', vault: '#2E86AB', gemini: '#4285F4' };
             return (
               <motion.div key={task.id}
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
@@ -502,12 +542,13 @@ function TasksOverview() {
 function AnalyticsSummary() {
   const { agentAnalytics, totalTokensUsed } = useOSStore();
 
-  const totalSessions = Object.values(agentAnalytics).reduce((s, a) => s + a.totalSessions, 0);
-  const avgResponseTime = Object.values(agentAnalytics).reduce((s, a) => s + a.avgResponseTime, 0) / Object.keys(agentAnalytics).length;
+  const agentValues = Object.values(agentAnalytics);
+  const totalSessions = agentValues.reduce((s, a) => s + a.totalSessions, 0);
+  const avgResponseTime = agentValues.length > 0 ? agentValues.reduce((s, a) => s + a.avgResponseTime, 0) / agentValues.length : 0;
   const totalTokens = Object.values(agentAnalytics).reduce((s, a) => s + a.totalTokens, 0) + totalTokensUsed;
 
   const stats = [
-    { label: 'Sessions', value: totalSessions.toLocaleString(), change: '+12%', up: true, icon: Activity, color: '#00ffff' },
+    { label: 'Sessions', value: (totalSessions ?? 0).toLocaleString('en-US'), change: '+12%', up: true, icon: Activity, color: '#00ffff' },
     { label: 'Avg Response', value: `${(avgResponseTime / 1000).toFixed(1)}s`, change: '-8%', up: false, icon: Clock, color: '#00ff88' },
     { label: 'Tokens Used', value: `${(totalTokens / 1_000_000).toFixed(1)}M`, change: '+23%', up: true, icon: Cpu, color: '#9d4edd' },
     { label: 'Cost', value: '$50.80', change: '+5%', up: true, icon: DollarSign, color: '#FFB627' },
@@ -535,7 +576,7 @@ function AnalyticsSummary() {
             </div>
             <div className="flex items-end gap-2">
               <span className="text-white font-mono font-bold text-base">{stat.value}</span>
-              <span className={`text-[9px] font-mono font-bold flex items-center gap-0.5 ${stat.up ? 'text-[#00ff88]' : 'text-[#00ff88]'}`}>
+              <span className={`text-[9px] font-mono font-bold flex items-center gap-0.5 ${stat.up ? 'text-[#00ff88]' : 'text-[#ff5555]'}`}>
                 {stat.up ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
                 {stat.change}
               </span>
@@ -567,6 +608,11 @@ function AutomationsWidget() {
       </div>
 
       <div className="space-y-2">
+        {automations.length === 0 && (
+          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
+            No automations configured yet
+          </div>
+        )}
         {automations.map((auto, i) => (
           <motion.div key={auto.id}
             initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}

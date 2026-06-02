@@ -28,9 +28,15 @@ const catColor: Record<string, string> = {
   seo: '#1B998B', workflow: '#E8751A', custom: '#2E86AB',
 };
 
+// Deterministic base timestamp to avoid hydration mismatch
+const BASE_TS = 1700000000000;
+
 function timeAgo(ts: number | undefined | null): string {
-  if (!ts) return 'Never';
-  const s = Math.floor((Date.now() - ts) / 1000);
+  if (ts === 0) return 'Just now';
+  if (!ts || typeof ts !== 'number' || !isFinite(ts) || ts < 0) return 'Never';
+  const diff = Date.now() - ts;
+  if (diff < 0) return 'Just now';
+  const s = Math.floor(diff / 1000);
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
@@ -325,8 +331,17 @@ export function PluginManager() {
       const avData = await avRes.json();
       const instData = await instRes.json();
       setAvailable(avData.plugins ?? []);
-      setInstalled(instData.plugins ?? []);
-      setPlugins(instData.plugins ?? []);
+      const fixPlugin = (p: any) => {
+        // Fix timestamps: if installedAt is missing, 0, NaN, in the future, or unreasonably old (before 2024), reset to now
+        const now = Date.now();
+        const minValid = new Date('2024-01-01').getTime(); // 1704067200000
+        const rawTs = p.installedAt;
+        const installedAt = (typeof rawTs === 'number' && isFinite(rawTs) && rawTs > 0 && rawTs > minValid && rawTs <= now) ? rawTs : now;
+        const status = (p.status === 'active' || p.status === 'inactive' || p.status === 'error') ? p.status : 'active';
+        return { ...p, installedAt, status };
+      };
+      setInstalled(instData.plugins?.map(fixPlugin) ?? []);
+      setPlugins(instData.plugins?.map(fixPlugin) ?? []);
     } catch { /* silent */ }
   }, [setPlugins]);
 
@@ -334,7 +349,12 @@ export function PluginManager() {
 
   const pluginAction = async (action: string, name: string, extra?: Record<string, unknown>) => {
     try {
-      await fetch('/api/hermes/plugins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, name, ...extra }) });
+      const payload: Record<string, unknown> = { action, name, ...extra };
+      if (action === 'install') {
+        payload.installedAt = Date.now();
+        payload.status = 'active';
+      }
+      await fetch('/api/hermes/plugins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       fetchAll();
     } catch { /* silent */ }
   };
@@ -467,7 +487,7 @@ export function PluginManager() {
                         {p.permissions.length > 2 && <span className="text-[7px] text-[#8888aa]">+{p.permissions.length - 2}</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[#8888aa] font-mono">{timeAgo(p.installedAt)}</td>
+                    <td className="px-3 py-2 text-[#8888aa] font-mono">{timeAgo(p.installedAt || Date.now())}</td>
                     <td className="px-3 py-2">
                       <button onClick={() => pluginAction('uninstall', p.name)}
                         className="p-1 rounded-md border border-[#ff444425] text-[#ff4444] hover:bg-[#ff444408] transition-colors" title="Uninstall"><Trash2 size={10} /></button>
@@ -498,7 +518,7 @@ export function PromptLibrary() {
   const [filter, setFilter] = useState<CatFilter>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [versionHistory, setVersionHistory] = useState<Record<string, PromptDetail>>({});
+  const [versionHistory, setVersionHistory] = useState<{[key: string]: PromptDetail}>({});
 
   // create form
   const [pName, setPName] = useState('');

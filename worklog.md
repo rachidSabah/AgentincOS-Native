@@ -182,3 +182,104 @@ Stage Summary:
 - Premium AI Memory OS with: Dream Mode, Consensus, Handoff, Conflicts, Knowledge Gap, Decay, Leaderboard, Voice, Audit, Permissions, MCP Registry, Sandbox, Focus Mode, Cross-Session, RAG Engine, Productivity Heatmap
 - Build passes, dev server running on port 3000
 - Pushed to GitHub successfully
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix system updates not persisting / re-showing old updates as new after refresh
+
+Work Log:
+- Analyzed update-store.ts persistence mechanism — found availableUpdates not persisted, hydration timing issue, and version comparison bug
+- Added _hasHydrated flag with onRehydrateStorage callback to prevent premature auto-check
+- Fixed version comparison bug: data.currentVersion → data.latestVersion with semverGt helper
+- Added availableUpdates to partialize config so they survive page refresh
+- Changed update merge logic: new updates are merged with existing (preserving in-progress), duplicates filtered
+- Added deduplication against existing available IDs in addition to installed IDs/versions
+
+Stage Summary:
+- Update store now properly persists and deduplicates updates across refreshes
+- Hydration gate prevents stale data from causing duplicate update notifications
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix Gemini CLI not connecting when installed locally under WSL
+
+Work Log:
+- Rewrote /api/hermes/gemini/route.ts to support multi-detection strategy
+- Added multi-port server detection (3001, 3002, 8080, 4000)
+- Added CLI binary detection via child_process (gemini --version, which gemini, WSL paths)
+- Added new cli-check action for explicit binary detection
+- Updated GeminiPowerPanel to use cli-check fallback and show better status messages
+- Updated connection banner to show "installed but not serving" with gemini serve instructions
+
+Stage Summary:
+- Gemini CLI detection now works in 3 modes: server → CLI binary → demo
+- User will see "INSTALLED" status when binary is found but server isn't running
+- Chat falls back through server → CLI binary → simulated responses
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix SEO Silo errors when Hermes is offline
+
+Work Log:
+- Made fetchSEOOverview silently handle API failures (no error banner for network errors)
+- Made runAnalysis silently handle API errors instead of showing error banners
+- Only show error banners for user-actionable issues
+- Set hermesPowered=false when API fails, so component shows static mode
+
+Stage Summary:
+- SEO Silo no longer shows red error banners for every API failure
+- Component gracefully falls back to static data when Hermes is offline
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix heatmap click error and add resilience
+
+Work Log:
+- Added error boundary state (hasError) to ProductivityHeatmap
+- Shows friendly retry UI instead of full-page crash on rendering errors
+- Previous Record type fixes already resolved the root cause of the crash
+
+Stage Summary:
+- Heatmap now handles rendering errors gracefully with retry UI
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Add GITHUB_TOKEN for update checking
+
+Work Log:
+- Added GITHUB_TOKEN to .env.local (not tracked by git)
+- Removed .env from git tracking to prevent secret leaks
+- Push protection previously blocked the push when token was in .env
+
+Stage Summary:
+- GitHub token configured for update API route to avoid rate limits
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix GitHub update detection, persistence, heatmap errors, Gemini CLI connection, and push to GitHub
+
+Work Log:
+- Fixed `/api/updates/route.ts`: Added `export const dynamic = 'force-dynamic'` and `cache: 'no-store'` to prevent Next.js from caching GitHub API responses
+- Expanded stable channel commit window from 24h to 7 days so pushes older than 1 day are still detected
+- Added GitHub API reachability check in the `/api/updates?action=status` endpoint
+- Added error logging instead of silently swallowing GitHub API errors
+- Fixed update persistence in `update-store.ts`: Changed `SEED_INSTALLED_UPDATES` constant to `getSeedUpdates()` function and improved `merge` function to always prefer persisted localStorage data over seed/defaults
+- Added `HeatmapErrorBoundary` class component to `productivity-heatmap.tsx` to catch rendering errors gracefully
+- Added `ViewErrorBoundary` to `page.tsx` wrapping the main content area to prevent any view from crashing the entire app
+- Enhanced Gemini CLI binary detection in `/api/hermes/gemini/route.ts` with 8 detection strategies: direct PATH, `which`, npm global bin, npx, bun, common filesystem paths, WSL Windows `cmd.exe`, and PowerShell
+- Updated Gemini Power Panel to display version and path information when CLI is detected
+- Added GitHub connection status checking in UpdatesTab component with 2-minute recheck interval
+- Resolved merge conflicts from GitHub remote (home-dashboard.tsx, update-store.ts, gemini route, updates route)
+- Successfully pushed all changes to GitHub
+
+Stage Summary:
+- GitHub updates are now properly detected with force-dynamic rendering and no-cache fetches
+- System updates persist correctly across browser refreshes (persisted data wins over seed data)
+- Heatmap and all views are protected by error boundaries preventing full-page crashes
+- Gemini CLI detection covers 8 strategies including WSL and Windows paths
+- All changes built and pushed to `rachidSabah/Agentic-os` main branch

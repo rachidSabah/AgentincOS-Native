@@ -8,14 +8,50 @@ import {
   Sparkles, Timer, Award, CheckCircle2, Circle, XCircle,
   Grid3X3, LayoutGrid, PieChart, LineChart,
 } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, Component } from 'react';
+import React from 'react';
+
+// ─── Error Boundary for Heatmap ───
+type ErrorBoundaryProps = { children: React.ReactNode; fallback?: React.ReactNode };
+type ErrorBoundaryState = { hasError: boolean; error?: Error };
+
+class HeatmapErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.warn('[HeatmapErrorBoundary] Caught error:', error.message, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) return this.props.fallback;
+      return (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[rgba(230,57,70,0.2)] bg-[rgba(230,57,70,0.05)] p-6 text-center">
+            <BarChart3 size={24} className="mx-auto mb-2 text-[#E63946]" />
+            <div className="text-white text-sm font-medium">Heatmap rendering error</div>
+            <div className="text-[#8888aa] text-xs mt-1">{this.state.error?.message || 'Please refresh the page to try again'}</div>
+            <button onClick={() => this.setState({ hasError: false, error: undefined })} className="mt-3 px-4 py-2 rounded-lg border border-[rgba(157,78,221,0.3)] text-[#9d4edd] text-[11px] hover:bg-[rgba(157,78,221,0.1)]">
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ─── Types ─── */
 interface HeatmapCell {
   hour: number;
   day: number;
   intensity: number; // 0-1
-  agentContributions: Record<string, number>;
+  agentContributions: {[key: string]: number};
   tasksCompleted: number;
   tasksTotal: number;
 }
@@ -31,11 +67,12 @@ interface PeakHour {
 /* ─── Constants ─── */
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const AGENT_COLORS: Record<string, string> = {
+const AGENT_COLORS: {[key: string]: string} = {
   claude: '#E63946',
   hermes: '#FFB627',
   openclaw: '#E8751A',
   vault: '#2E86AB',
+  gemini: '#4285F4',
 };
 
 /* ─── Seeded PRNG to avoid hydration mismatch ─── */
@@ -66,11 +103,12 @@ function generateHeatmapData(): HeatmapCell[][] {
       if (day >= 5) base *= 0.4;
 
       const intensity = Math.min(1, Math.max(0, base));
-      const agentContributions: Record<string, number> = {
+      const agentContributions: {[key: string]: number} = {
         claude: rand() * 0.4,
         hermes: rand() * 0.35,
         openclaw: rand() * 0.25,
         vault: rand() * 0.2,
+        gemini: rand() * 0.3,
       };
 
       const tasksTotal = Math.round(intensity * 12);
@@ -103,7 +141,7 @@ const LAST_WEEK = generateWeekData('Last Week', -8);
 function detectPeakHours(): PeakHour[] {
   const hourAverages = HOURS.map(hour => {
     let total = 0;
-    let topAgent = '';
+    let topAgent = 'claude'; // safe default
     let topAgentScore = 0;
     for (let day = 0; day < 7; day++) {
       const cell = HEATMAP_DATA[day][hour];
@@ -120,7 +158,7 @@ function detectPeakHours(): PeakHour[] {
     hour: h.hour,
     label: `${String(h.hour).padStart(2, '0')}:00`,
     avgIntensity: h.avgIntensity,
-    agent: h.topAgent.charAt(0).toUpperCase() + h.topAgent.slice(1),
+    agent: h.topAgent ? h.topAgent.charAt(0).toUpperCase() + h.topAgent.slice(1) : 'Unknown',
     agentColor: AGENT_COLORS[h.topAgent] || '#8888aa',
   }));
 }
@@ -146,7 +184,7 @@ function getHeatGlow(intensity: number): string {
    WEEKLY HEATMAP
    ═══════════════════════════════════════════════════════════ */
 function WeeklyHeatmap() {
-  const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
+  const [selectedCell, setSelectedCell] = useState<HeatmapCell | null>(null);
   const [showAgents, setShowAgents] = useState(false);
 
   return (
@@ -213,10 +251,20 @@ function WeeklyHeatmap() {
                       style={{
                         backgroundColor: getHeatColor(cell.intensity),
                         boxShadow: getHeatGlow(cell.intensity),
+                        outline: selectedCell?.day === cell.day && selectedCell?.hour === cell.hour ? '2px solid #00ffff' : undefined,
+                        outlineOffset: '1px',
                       }}
                       whileHover={{ scale: 1.3, zIndex: 10 }}
-                      onMouseEnter={() => setHoveredCell(cell)}
-                      onMouseLeave={() => setHoveredCell(null)}
+                      onClick={() => {
+                        if (cell && typeof cell.day === 'number' && typeof cell.hour === 'number') {
+                          setSelectedCell(prev => prev?.hour === cell.hour && prev?.day === cell.day ? null : cell);
+                        }
+                      }}
+                      onMouseEnter={() => {
+                        if (cell && typeof cell.day === 'number' && typeof cell.hour === 'number') {
+                          setSelectedCell(prev => prev ?? cell);
+                        }
+                      }}
                     >
                       {/* Agent contribution bars when toggled */}
                       {showAgents && cell.intensity > 0.1 && (
@@ -242,13 +290,13 @@ function WeeklyHeatmap() {
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
                         <div className="bg-[#1a1a3e] border border-[rgba(157,78,221,0.2)] rounded-lg px-2.5 py-1.5 shadow-lg">
                           <div className="text-[9px] text-white font-medium">
-                            {DAYS[cell.day]} {String(cell.hour).padStart(2, '0')}:00
+                            {DAYS[cell.day] ?? '—'} {String(cell.hour ?? 0).padStart(2, '0')}:00
                           </div>
                           <div className="text-[8px] text-[#8888aa]">
-                            Intensity: <span className="text-[#FF8C42]">{(cell.intensity * 100).toFixed(0)}%</span>
+                            Intensity: <span className="text-[#FF8C42]">{((cell.intensity ?? 0) * 100).toFixed(0)}%</span>
                           </div>
                           <div className="text-[8px] text-[#8888aa]">
-                            Tasks: <span className="text-[#00ff88]">{cell.tasksCompleted}/{cell.tasksTotal}</span>
+                            Tasks: <span className="text-[#00ff88]">{cell.tasksCompleted ?? 0}/{cell.tasksTotal ?? 0}</span>
                           </div>
                         </div>
                       </div>
@@ -260,6 +308,21 @@ function WeeklyHeatmap() {
           </div>
         </div>
       </div>
+      {/* Selected cell detail */}
+      {selectedCell && (
+        <div className="mx-4 mb-4 p-3 rounded-lg border border-[rgba(0,255,255,0.2)] bg-[rgba(0,255,255,0.04)] flex items-center gap-4">
+          <div className="text-[10px] text-[#00ffff] font-mono font-bold">
+            {DAYS[selectedCell.day] ?? '—'} {String(selectedCell.hour ?? 0).padStart(2, '0')}:00
+          </div>
+          <div className="text-[9px] text-[#8888aa]">
+            Intensity: <span className="text-[#FF8C42]">{((selectedCell.intensity ?? 0) * 100).toFixed(0)}%</span>
+          </div>
+          <div className="text-[9px] text-[#8888aa]">
+            Tasks: <span className="text-[#00ff88]">{selectedCell.tasksCompleted ?? 0}/{selectedCell.tasksTotal ?? 0}</span>
+          </div>
+          <button onClick={() => setSelectedCell(null)} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">✕</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -324,7 +387,7 @@ function PeakHoursDetection() {
               <span className="text-[9px] text-[#8888aa]">Peak Focus Window</span>
             </div>
             <span className="text-[10px] text-white font-mono font-bold">
-              {PEAK_HOURS[0].label} — {PEAK_HOURS[1].label}
+              {PEAK_HOURS[0]?.label ?? '--:00'} — {PEAK_HOURS[1]?.label ?? '--:00'}
             </span>
           </div>
         </div>
@@ -338,10 +401,11 @@ function PeakHoursDetection() {
    ═══════════════════════════════════════════════════════════ */
 function AgentContribution() {
   const agents = [
-    { name: 'Claude', color: '#E63946', hours: 38.2, tasks: 47, pct: 35 },
-    { name: 'Hermes', color: '#FFB627', hours: 31.5, tasks: 52, pct: 29 },
-    { name: 'OpenClaw', color: '#E8751A', hours: 24.8, tasks: 33, pct: 23 },
-    { name: 'Vault', color: '#2E86AB', hours: 13.1, tasks: 15, pct: 13 },
+    { name: 'Claude', color: '#E63946', hours: 38.2, tasks: 47, pct: 30 },
+    { name: 'Hermes', color: '#FFB627', hours: 31.5, tasks: 52, pct: 25 },
+    { name: 'OpenClaw', color: '#E8751A', hours: 24.8, tasks: 33, pct: 20 },
+    { name: 'Gemini', color: '#4285F4', hours: 18.4, tasks: 28, pct: 15 },
+    { name: 'Vault', color: '#2E86AB', hours: 13.1, tasks: 15, pct: 10 },
   ];
 
   return (
@@ -640,11 +704,15 @@ function FocusTimeCalculator() {
    PRODUCTIVITY HEATMAP — Main Export
    ═══════════════════════════════════════════════════════════ */
 export function ProductivityHeatmap() {
-  const [currentDate, setCurrentDate] = useState<string>('');
+  return (
+    <HeatmapErrorBoundary>
+      <ProductivityHeatmapInner />
+    </HeatmapErrorBoundary>
+  );
+}
 
-  useEffect(() => {
-    setCurrentDate(new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  }, []);
+function ProductivityHeatmapInner() {
+  const currentDate = useMemo(() => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), []);
 
   return (
     <div className="space-y-4">
@@ -667,8 +735,8 @@ export function ProductivityHeatmap() {
           { label: 'Focus Hours', value: `${THIS_WEEK.focusHours.toFixed(1)}h`, icon: Timer, color: '#00ffff' },
           { label: 'Tasks Done', value: String(THIS_WEEK.completedTasks), icon: CheckCircle2, color: '#00ff88' },
           { label: 'Deep Work', value: `${(THIS_WEEK.focusHours * 0.65).toFixed(0)}h`, icon: Brain, color: '#9d4edd' },
-          { label: 'Peak Hour', value: PEAK_HOURS[0].label, icon: Flame, color: '#FF8C42' },
-          { label: 'Top Agent', value: PEAK_HOURS[0].agent, icon: Award, color: PEAK_HOURS[0].agentColor },
+          { label: 'Peak Hour', value: PEAK_HOURS[0]?.label ?? '--:00', icon: Flame, color: '#FF8C42' },
+          { label: 'Top Agent', value: PEAK_HOURS[0]?.agent ?? 'N/A', icon: Award, color: PEAK_HOURS[0]?.agentColor ?? '#8888aa' },
         ].map((s, i) => (
           <motion.div
             key={s.label}

@@ -8,6 +8,7 @@ import {
   TrendingUp, Search, Sparkles, Activity, Clock,
   BarChart3, Settings, Terminal, ChevronRight, MicOff,
   Eye as EyeIcon, Users, Wrench, Lock, Lightbulb, Wifi, WifiOff,
+  Paperclip, X as XIcon,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
@@ -127,10 +128,11 @@ export function AgentRail() {
 export function LiveWorkspace() {
   const {
     agents, stackLayers, selectedAgentId, setSelectedAgentId,
-    hermesConnection, chatHistories, addChatMessage,
+    hermesConnection, geminiConnection, chatHistories, addChatMessage,
     clearChatHistory, isChatStreaming, setIsChatStreaming,
     addMemory, addLog, incrementTokens,
     sseConnectionStatus, hermesSkills, addSkillExecution, addKanbanTask,
+    chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments,
   } = useOSStore();
 
   const agentId = selectedAgentId || 'hermes';
@@ -138,14 +140,17 @@ export function LiveWorkspace() {
   const primaryLayer = stackLayers.find(l => l.number === agent?.layer);
   const messages = chatHistories[agentId] || [];
   const isHermesLive = agentId === 'hermes' && hermesConnection.running;
+  const isGeminiLive = agentId === 'gemini' && geminiConnection.installed;
 
   const [input, setInput] = useState('');
   const [streamingText, setStreamingText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const quickActions = isHermesLive ? [
-    { label: 'What should I automate today?', prompt: 'Based on my Obsidian vault, give me some ideas on what I should automate today' },
+  const isAnyAgentLive = isHermesLive || isGeminiLive;
+  const quickActions = isAnyAgentLive ? [
+    { label: 'What should I automate today?', prompt: 'Based on my vault, give me some ideas on what I should automate today' },
     { label: 'Research competitors', prompt: 'Research my top 3 competitors and give me a strategic analysis' },
     { label: 'Summarize journal', prompt: 'Summarize my recent journal entries and identify key patterns' },
     { label: 'Peak productivity', prompt: 'What are my most productive hours based on the analytics data?' },
@@ -202,10 +207,13 @@ export function LiveWorkspace() {
 
   useEffect(() => {
     if (agent && primaryLayer && messages.length === 0) {
+      const statusMsg = isHermesLive ? 'Hermes API connected — responses are live.'
+        : isGeminiLive ? 'Gemini CLI detected — responses will use Gemini.'
+        : 'Ready for commands.';
       addChatMessage(agentId, {
         id: `init-${Date.now()}`,
         role: 'agent',
-        content: `${agent.name} workspace initialized. Layers ${agent.layers.map(l => `L${l}`).join(', ')} — ${primaryLayer.role}. ${isHermesLive ? 'Hermes API connected — responses are live. Ask me anything or use the quick actions below.' : 'Ready for commands.'}`,
+        content: `${agent.name} workspace initialized. Layers ${agent.layers.map(l => `L${l}`).join(', ')} — ${primaryLayer.role}. ${statusMsg} Ask me anything or use the quick actions below.`,
         timestamp: Date.now(),
         agentId,
       });
@@ -218,10 +226,185 @@ export function LiveWorkspace() {
 
   if (!agent || !primaryLayer) return null;
 
+  const handleHermesChat = async (userMsg: string) => {
+    setIsChatStreaming(true);
+    setStreamingText('');
+    try {
+      const apiMessages = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }));
+      apiMessages.push({ role: 'user', content: userMsg });
+
+      const res = await fetch('/api/hermes/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, stream: true }),
+      });
+
+      if (!res.ok) {
+        addChatMessage(agentId, {
+          id: `err-${Date.now()}`, role: 'system',
+          content: `Hermes API error: ${res.status}. The agent may be restarting.`,
+          timestamp: Date.now(), agentId,
+        });
+        setIsChatStreaming(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split('\n')) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta?.content || '';
+                if (delta) { fullText += delta; setStreamingText(fullText); }
+              } catch {
+                if (data && data !== '[DONE]') { fullText += data; setStreamingText(fullText); }
+              }
+            }
+          }
+        }
+      }
+
+      const finalText = fullText || 'No response received from Hermes.';
+      addChatMessage(agentId, {
+        id: `agent-${Date.now()}`, role: 'agent',
+        content: finalText, timestamp: Date.now(), agentId,
+      });
+      incrementTokens(Math.ceil(finalText.length / 4));
+
+      addMemory({
+        id: `mem-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        content: `Chat with ${agent?.name ?? 'Hermes'}: Q="${userMsg.substring(0, 100)}" A="${finalText.substring(0, 150)}"`,
+        agent: agent?.name ?? 'Hermes',
+        tags: ['chat', 'auto-saved', agentId],
+      });
+
+      addLog({
+        id: `hermes-chat-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+        agent: 'Hermes', layer: 2, level: 'success',
+        message: `Hermes responded to query (${finalText.length} chars) — auto-saved to memory`,
+      });
+    } catch (err) {
+      addChatMessage(agentId, {
+        id: `err-${Date.now()}`, role: 'system',
+        content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        timestamp: Date.now(), agentId,
+      });
+    } finally {
+      setStreamingText('');
+      setIsChatStreaming(false);
+    }
+  };
+
+  const handleGeminiChat = async (userMsg: string) => {
+    setIsChatStreaming(true);
+    setStreamingText('');
+    try {
+      const res = await fetch('/api/hermes/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'chat', message: userMsg, model: 'gemini-2.5-pro' }),
+      });
+
+      if (!res.ok) {
+        addChatMessage(agentId, {
+          id: `err-${Date.now()}`, role: 'system',
+          content: `Gemini API error: ${res.status}. The Gemini CLI may not be running.`,
+          timestamp: Date.now(), agentId,
+        });
+        setIsChatStreaming(false);
+        return;
+      }
+
+      const data = await res.json();
+      const responseText = data.response ?? data.error ?? 'No response from Gemini.';
+
+      setStreamingText(responseText);
+      await new Promise(r => setTimeout(r, 300)); // brief delay for streaming feel
+
+      addChatMessage(agentId, {
+        id: `agent-${Date.now()}`, role: 'agent',
+        content: responseText, timestamp: Date.now(), agentId,
+      });
+      incrementTokens(data.tokensUsed ?? Math.ceil(responseText.length / 4));
+
+      addMemory({
+        id: `mem-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        content: `Chat with Gemini: Q="${userMsg.substring(0, 100)}" A="${responseText.substring(0, 150)}"`,
+        agent: 'Gemini',
+        tags: ['chat', 'auto-saved', 'gemini'],
+      });
+
+      addLog({
+        id: `gemini-chat-${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+        agent: 'Gemini', layer: 2, level: 'success',
+        message: `Gemini responded (${data.demo ? 'demo' : 'live'}) in ${data.latency ?? '?'}ms — ${responseText.length} chars`,
+      });
+    } catch (err) {
+      addChatMessage(agentId, {
+        id: `err-${Date.now()}`, role: 'system',
+        content: `Gemini connection error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        timestamp: Date.now(), agentId,
+      });
+    } finally {
+      setStreamingText('');
+      setIsChatStreaming(false);
+    }
+  };
+
+  const ACCEPTED_FILE_TYPES = '.pdf,.docx,.xlsx,.csv,.pptx,.txt,.json,.xml,.yaml,.yml,.html,.zip,.rar,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp3,.wav,.ogg,.mp4,.webm,.js,.ts,.py,.rs,.go,.java,.c,.cpp,.h,.rb,.php,.sh,.bat,.sql,.md,.css,.scss,.less,.jsx,.tsx,.vue,.svelte';
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const MAX_INLINE_SIZE = 1024 * 1024; // 1MB
+    const attachment: import('@/lib/store').ChatAttachment = {
+      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      processed: false,
+    };
+    if (file.size < MAX_INLINE_SIZE) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        attachment.dataUrl = reader.result as string;
+        attachment.processed = true;
+        addChatAttachment(attachment);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      addChatAttachment(attachment);
+    }
+    e.target.value = '';
+  };
+
   const handleSend = async (overrideInput?: string) => {
     const userMsg = (overrideInput || input).trim();
-    if (!userMsg || isChatStreaming) return;
+    if ((!userMsg && chatAttachments.length === 0) || isChatStreaming) return;
     setInput('');
+    clearChatAttachments();
 
     addChatMessage(agentId, {
       id: `user-${Date.now()}`,
@@ -233,102 +416,29 @@ export function LiveWorkspace() {
 
     incrementTokens(Math.ceil(userMsg.length / 4));
 
-    if (isHermesLive) {
-      setIsChatStreaming(true);
-      setStreamingText('');
-      try {
-        const apiMessages = messages
-          .filter(m => m.role !== 'system')
-          .map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }));
-        apiMessages.push({ role: 'user', content: userMsg });
-
-        const res = await fetch('/api/hermes/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: apiMessages, stream: true }),
-        });
-
-        if (!res.ok) {
-          addChatMessage(agentId, {
-            id: `err-${Date.now()}`, role: 'system',
-            content: `Hermes API error: ${res.status}. The agent may be restarting.`,
-            timestamp: Date.now(), agentId,
-          });
-          setIsChatStreaming(false);
-          return;
-        }
-
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            for (const line of chunk.split('\n')) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim();
-                if (data === '[DONE]') continue;
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta?.content || '';
-                  if (delta) { fullText += delta; setStreamingText(fullText); }
-                } catch {
-                  if (data && data !== '[DONE]') { fullText += data; setStreamingText(fullText); }
-                }
-              }
-            }
-          }
-        }
-
-        const finalText = fullText || 'No response received from Hermes.';
-        addChatMessage(agentId, {
-          id: `agent-${Date.now()}`, role: 'agent',
-          content: finalText, timestamp: Date.now(), agentId,
-        });
-        incrementTokens(Math.ceil(finalText.length / 4));
-
-        addMemory({
-          id: `mem-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          content: `Chat with ${agent.name}: Q="${userMsg.substring(0, 100)}" A="${finalText.substring(0, 150)}"`,
-          agent: agent.name,
-          tags: ['chat', 'auto-saved', agent.id],
-        });
-
-        addLog({
-          id: `hermes-chat-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-          agent: 'Hermes', layer: 2, level: 'success',
-          message: `Hermes responded to query (${finalText.length} chars) — auto-saved to memory`,
-        });
-      } catch (err) {
-        addChatMessage(agentId, {
-          id: `err-${Date.now()}`, role: 'system',
-          content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          timestamp: Date.now(), agentId,
-        });
-      } finally {
-        setStreamingText('');
-        setIsChatStreaming(false);
-      }
+    // Route to the appropriate agent backend
+    if (agentId === 'hermes' && isHermesLive) {
+      await handleHermesChat(userMsg);
+    } else if (agentId === 'gemini' && isGeminiLive) {
+      await handleGeminiChat(userMsg);
+    } else if (agentId === 'hermes') {
+      addChatMessage(agentId, {
+        id: `agent-${Date.now()}`, role: 'system',
+        content: `Hermes API is offline. Your message "${userMsg}" was received but cannot be processed. Please ensure Hermes is running and connected.`,
+        timestamp: Date.now(), agentId,
+      });
+    } else if (agentId === 'gemini') {
+      addChatMessage(agentId, {
+        id: `agent-${Date.now()}`, role: 'system',
+        content: `Gemini CLI not detected. Your message "${userMsg}" was received but cannot be processed. Install Gemini CLI or start a Gemini server to enable chat.`,
+        timestamp: Date.now(), agentId,
+      });
     } else {
-      setTimeout(() => {
-        const simResponse = `Command "${userMsg}" acknowledged. Processing through Layers ${agent.layers.map(l => `L${l}`).join(', ')} pipeline...`;
-        addChatMessage(agentId, {
-          id: `agent-${Date.now()}`, role: 'agent',
-          content: simResponse, timestamp: Date.now(), agentId,
-        });
-        addMemory({
-          id: `mem-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          content: `Chat with ${agent.name}: ${simResponse.substring(0, 200)}`,
-          agent: agent.name,
-          tags: ['chat', 'auto-saved', agent.id],
-        });
-      }, 800);
+      addChatMessage(agentId, {
+        id: `agent-${Date.now()}`, role: 'system',
+        content: `${agent?.name ?? 'Agent'} is not configured for chat. Your message "${userMsg}" was received but cannot be processed.`,
+        timestamp: Date.now(), agentId,
+      });
     }
   };
 
@@ -362,10 +472,10 @@ export function LiveWorkspace() {
               <span className="text-white text-sm font-bold">{agent.name}</span>
               <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded"
                 style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>L{agent.layers.join(',L')}</span>
-              {isHermesLive && (
+              {(isHermesLive || isGeminiLive) && (
                 <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#00ff88]/15 text-[#00ff88] font-bold flex items-center gap-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse-glow" />
-                  LIVE API
+                  {isGeminiLive ? 'GEMINI CLI' : 'LIVE API'}
                 </span>
               )}
               {isHermesLive && hermesConnection.latency !== undefined && (
@@ -468,7 +578,31 @@ export function LiveWorkspace() {
       )}
 
       <div className="p-4 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.3)]">
+        {/* Attachment chips */}
+        {chatAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {chatAttachments.map(att => (
+              <div key={att.id}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[rgba(157,78,221,0.3)] bg-[rgba(157,78,221,0.1)] text-[10px] text-[#ccccdd] group"
+                title={att.name}>
+                <Paperclip size={9} className="text-[#9d4edd] flex-shrink-0" />
+                <span className="truncate max-w-[120px]">{att.name}</span>
+                <span className="text-[#8888aa]">({formatFileSize(att.size)})</span>
+                <button onClick={() => removeChatAttachment(att.id)}
+                  className="text-[#8888aa] hover:text-[#ff4444] transition-colors flex-shrink-0">
+                  <XIcon size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex gap-2 items-end">
+          <input ref={fileInputRef} type="file" accept={ACCEPTED_FILE_TYPES} onChange={handleFileSelect} className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()}
+            className="flex-shrink-0 w-10 h-10 rounded-lg border border-[rgba(157,78,221,0.2)] text-[#8888aa] hover:text-white hover:border-[rgba(157,78,221,0.4)] flex items-center justify-center transition-all"
+            title="Attach file">
+            <Paperclip size={16} />
+          </button>
           <button onClick={startVoiceInput}
             className={`flex-shrink-0 w-10 h-10 rounded-lg border flex items-center justify-center transition-all ${
               isListening
@@ -483,7 +617,7 @@ export function LiveWorkspace() {
             disabled={isChatStreaming}
             placeholder={isChatStreaming ? 'Hermes is thinking...' : isHermesLive ? 'Message Hermes directly (Live API)...' : `Send command to ${agent.name}...`}
             className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-4 py-2.5 text-white text-sm placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] disabled:opacity-50" />
-          <button onClick={() => handleSend()} disabled={isChatStreaming || !input.trim()}
+          <button onClick={() => handleSend()} disabled={isChatStreaming || (!input.trim() && chatAttachments.length === 0)}
             className="flex-shrink-0 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50"
             style={{ background: `linear-gradient(135deg, ${agent.color}cc, ${agent.color}88)` }}>
             {isChatStreaming ? '...' : 'Send'}
@@ -651,10 +785,10 @@ export function AgentAnalyticsPanel({ agentId }: { agentId: string }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Sessions', value: analytics.totalSessions.toLocaleString(), color: '#E63946', icon: Activity },
-          { label: 'Tokens', value: `${(analytics.totalTokens / 1000000).toFixed(1)}M`, color: '#7B2CBF', icon: Zap },
-          { label: 'Tool Calls', value: analytics.totalToolCalls.toLocaleString(), color: '#00ff88', icon: Terminal },
-          { label: 'Avg Response', value: `${(analytics.avgResponseTime / 1000).toFixed(1)}s`, color: '#FFB627', icon: Clock },
+          { label: 'Sessions', value: (analytics.totalSessions ?? 0).toLocaleString('en-US'), color: '#E63946', icon: Activity },
+          { label: 'Tokens', value: `${((analytics.totalTokens ?? 0) / 1000000).toFixed(1)}M`, color: '#7B2CBF', icon: Zap },
+          { label: 'Tool Calls', value: (analytics.totalToolCalls ?? 0).toLocaleString('en-US'), color: '#00ff88', icon: Terminal },
+          { label: 'Avg Response', value: `${((analytics.avgResponseTime ?? 0) / 1000).toFixed(1)}s`, color: '#FFB627', icon: Clock },
         ].map(stat => (
           <div key={stat.label} className="rounded-lg border bg-[rgba(10,10,26,0.5)] p-3"
             style={{ borderColor: `${stat.color}20` }}>

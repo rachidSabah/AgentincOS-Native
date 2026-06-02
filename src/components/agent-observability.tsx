@@ -9,101 +9,29 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 
-// ─── Heatmap Data Generator ───
-
-function generateHeatmapData() {
-  const agents = ['Claude', 'OpenClaw', 'Hermes', 'Self Vault'];
-  return agents.map(agent => {
-    const hours: number[] = [];
-    for (let h = 0; h < 24; h++) {
-      if (agent === 'Self Vault') hours.push(Math.random() * 80 + 10);
-      else if (agent === 'OpenClaw') hours.push(Math.random() * 200 + 40);
-      else if (agent === 'Hermes') hours.push(Math.random() * 300 + 60);
-      else hours.push(Math.random() * 250 + 50);
-    }
-    return { agent, hours };
-  });
-}
-
 // ─── Simulated Data ───
 
-const agentDetails = [
-  {
-    id: 'claude',
-    name: 'Claude',
-    activeTasks: 7,
-    pendingTasks: 3,
-    cpu: 42,
-    memory: 58,
-    rpm: [12, 18, 14, 22, 19, 25, 21, 28, 24, 20],
-    lastAction: 'Reasoning pipeline — multi-step planning',
-    latencyMs: 142,
-  },
-  {
-    id: 'openclaw',
-    name: 'OpenClaw',
-    activeTasks: 4,
-    pendingTasks: 2,
-    cpu: 28,
-    memory: 35,
-    rpm: [8, 11, 9, 14, 12, 16, 13, 18, 15, 10],
-    lastAction: 'Routing task to Hermes — skill execution',
-    latencyMs: 89,
-  },
-  {
-    id: 'hermes',
-    name: 'Hermes',
-    activeTasks: 12,
-    pendingTasks: 5,
-    cpu: 67,
-    memory: 72,
-    rpm: [22, 28, 25, 34, 30, 38, 33, 42, 36, 29],
-    lastAction: 'Web research — competitor analysis',
-    latencyMs: 203,
-  },
-  {
-    id: 'vault',
-    name: 'Self Vault',
-    activeTasks: 2,
-    pendingTasks: 1,
-    cpu: 12,
-    memory: 24,
-    rpm: [45, 52, 48, 61, 55, 64, 58, 70, 62, 50],
-    lastAction: 'Memory sync — OMI export 47 notes',
-    latencyMs: 34,
-  },
-];
+interface AgentDetail {
+  id: string; name: string; activeTasks: number; pendingTasks: number;
+  cpu: number; memory: number; rpm: number[]; lastAction: string; latencyMs: number;
+}
+const agentDetails: AgentDetail[] = [];
 
-const toolCallsData = [
-  { id: '1', tool: 'web_search', agent: 'Hermes', duration: 1.2, status: 'success' as const },
-  { id: '2', tool: 'code_execute', agent: 'Claude', duration: 3.4, status: 'success' as const },
-  { id: '3', tool: 'memory_store', agent: 'Self Vault', duration: 0.03, status: 'success' as const },
-  { id: '4', tool: 'route_task', agent: 'OpenClaw', duration: 0.08, status: 'success' as const },
-  { id: '5', tool: 'browser_automation', agent: 'Hermes', duration: 8.7, status: 'success' as const },
-  { id: '6', tool: 'api_call', agent: 'Hermes', duration: 2.1, status: 'fail' as const },
-  { id: '7', tool: 'file_read', agent: 'Claude', duration: 0.5, status: 'success' as const },
-  { id: '8', tool: 'vision_analyze', agent: 'Claude', duration: 4.2, status: 'success' as const },
-  { id: '9', tool: 'skill_execute', agent: 'Hermes', duration: 6.8, status: 'success' as const },
-  { id: '10', tool: 'permission_check', agent: 'OpenClaw', duration: 0.02, status: 'success' as const },
-];
+interface ToolCall {
+  id: string; tool: string; agent: string; duration: number; status: 'success' | 'fail';
+}
+const toolCallsData: ToolCall[] = [];
 
-const workflowsData = [
-  { id: 'w1', name: 'Competitor Intelligence Pipeline', progress: 72, currentStep: 'Scraping pricing pages', status: 'running' as const },
-  { id: 'w2', name: 'Daily Digest Generator', progress: 100, currentStep: 'Complete', status: 'completed' as const },
-  { id: 'w3', name: 'Memory Compaction Routine', progress: 45, currentStep: 'Embedding consolidation', status: 'running' as const },
-  { id: 'w4', name: 'SEO Content Silo Builder', progress: 0, currentStep: 'Queued', status: 'pending' as const },
-];
+interface Workflow {
+  id: string; name: string; progress: number; currentStep: string; status: 'running' | 'completed' | 'pending';
+}
+const workflowsData: Workflow[] = [];
 
 const costData = {
-  totalTokens: { input: 4_200_000, output: 1_800_000 },
-  byAgent: [
-    { name: 'Claude', cost: 12.40, color: '#E63946' },
-    { name: 'Hermes', cost: 28.90, color: '#FFB627' },
-    { name: 'OpenClaw', cost: 8.30, color: '#E8751A' },
-    { name: 'Self Vault', cost: 1.20, color: '#2E86AB' },
-  ],
-  dailyTrend: [8, 12, 10, 15, 14, 18, 22, 19, 24, 21, 26, 23, 28, 25],
-  budgetUsed: 50.80,
+  totalTokens: { input: 0, output: 0 },
+  byAgent: [] as Array<{ name: string; cost: number; color: string }>,
+  dailyTrend: [] as number[],
+  budgetUsed: 0,
   budgetTotal: 50,
 };
 
@@ -126,8 +54,9 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function MiniSparkline({ data, color, width = 80, height = 24 }: { data: number[]; color: string; width?: number; height?: number }) {
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
+  if (data.length === 0) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
   const range = max - min || 1;
   const points = data.map((v, i) => {
     const x = (i / (data.length - 1)) * width;
@@ -266,18 +195,18 @@ function SystemMetricsPanel() {
       </div>
 
       <div className="flex items-center justify-around mb-4">
-        <CircularProgress value={systemMetrics.cpu} max={100} color="#00ffff" label="CPU" />
-        <CircularProgress value={systemMetrics.memory} max={100} color="#9d4edd" label="Memory" />
-        <CircularProgress value={systemMetrics.network} max={100} color="#00ff88" label="Network" />
-        <CircularProgress value={systemMetrics.disk} max={100} color="#FFB627" label="Disk" />
+        <CircularProgress value={systemMetrics.cpu ?? 0} max={100} color="#00ffff" label="CPU" />
+        <CircularProgress value={systemMetrics.memory ?? 0} max={100} color="#9d4edd" label="Memory" />
+        <CircularProgress value={systemMetrics.network ?? 0} max={100} color="#00ff88" label="Network" />
+        <CircularProgress value={systemMetrics.disk ?? 0} max={100} color="#FFB627" label="Disk" />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Active Agents', value: systemMetrics.activeAgents, icon: Server, color: '#00ff88' },
-          { label: 'Total Requests', value: systemMetrics.totalRequests.toLocaleString(), icon: Activity, color: '#00ffff' },
-          { label: 'Avg Latency', value: `${systemMetrics.avgLatency}ms`, icon: Clock, color: '#FFB627' },
-          { label: 'Vault Size', value: `${systemMetrics.vaultSize}GB`, icon: HardDrive, color: '#9d4edd' },
+          { label: 'Active Agents', value: systemMetrics.activeAgents ?? 0, icon: Server, color: '#00ff88' },
+          { label: 'Total Requests', value: (systemMetrics.totalRequests ?? 0).toLocaleString('en-US'), icon: Activity, color: '#00ffff' },
+          { label: 'Avg Latency', value: `${systemMetrics.avgLatency ?? 0}ms`, icon: Clock, color: '#FFB627' },
+          { label: 'Vault Size', value: `${systemMetrics.vaultSize ?? 0}GB`, icon: HardDrive, color: '#9d4edd' },
         ].map(item => (
           <div key={item.label} className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2.5 flex items-center gap-2">
             <item.icon size={12} style={{ color: item.color }} />
@@ -296,14 +225,21 @@ function SystemMetricsPanel() {
 
 function ToolCallsPanel() {
   const successCount = toolCallsData.filter(t => t.status === 'success').length;
-  const successRate = Math.round((successCount / toolCallsData.length) * 100);
+  const successRate = toolCallsData.length > 0 ? Math.round((successCount / toolCallsData.length) * 100) : 0;
 
-  const callsByAgent = [
-    { name: 'Claude', count: 3, color: '#E63946' },
-    { name: 'Hermes', count: 4, color: '#FFB627' },
-    { name: 'OpenClaw', count: 2, color: '#E8751A' },
-    { name: 'Self Vault', count: 1, color: '#2E86AB' },
-  ];
+  const callsByAgent = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; color: string }>();
+    const colorMap: Record<string, string> = {
+      Claude: '#E63946', Hermes: '#FFB627', OpenClaw: '#E8751A', 'Self Vault': '#2E86AB',
+    };
+    toolCallsData.forEach(call => {
+      if (!map.has(call.agent)) {
+        map.set(call.agent, { name: call.agent, count: 0, color: colorMap[call.agent] || '#8888aa' });
+      }
+      map.get(call.agent)!.count++;
+    });
+    return Array.from(map.values());
+  }, [toolCallsData]);
   const maxCalls = Math.max(...callsByAgent.map(a => a.count), 1);
 
   return (
@@ -320,6 +256,11 @@ function ToolCallsPanel() {
       </div>
 
       <div className="space-y-1.5 mb-4 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+        {toolCallsData.length === 0 && (
+          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
+            No tool calls recorded yet
+          </div>
+        )}
         <AnimatePresence>
           {toolCallsData.map((call, i) => (
             <motion.div key={call.id}
@@ -384,24 +325,32 @@ function CostTokenPanel() {
 
       <div className="mb-3">
         <div className="text-[9px] text-[#8888aa] uppercase tracking-wider mb-2">Cost by Agent</div>
-        <div className="space-y-1.5">
-          {costData.byAgent.map(agent => (
-            <div key={agent.name} className="flex items-center gap-2">
-              <span className="text-[9px] text-[#ccccdd] w-16">{agent.name}</span>
-              <div className="flex-1 h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${(agent.cost / totalCost) * 100}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                  className="h-full rounded-full" style={{ backgroundColor: agent.color }} />
+        {costData.byAgent.length === 0 ? (
+          <div className="text-[#8888aa] text-xs py-2">No cost data yet</div>
+        ) : (
+          <div className="space-y-1.5">
+            {costData.byAgent.map(agent => (
+              <div key={agent.name} className="flex items-center gap-2">
+                <span className="text-[9px] text-[#ccccdd] w-16">{agent.name}</span>
+                <div className="flex-1 h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${(agent.cost / totalCost) * 100}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    className="h-full rounded-full" style={{ backgroundColor: agent.color }} />
+                </div>
+                <span className="text-[9px] font-mono text-[#ccccdd] w-10 text-right">${agent.cost.toFixed(2)}</span>
               </div>
-              <span className="text-[9px] font-mono text-[#ccccdd] w-10 text-right">${agent.cost.toFixed(2)}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mb-3">
         <div className="text-[9px] text-[#8888aa] uppercase tracking-wider mb-1">Daily Cost Trend</div>
-        <MiniSparkline data={costData.dailyTrend} color="#00ff88" width={200} height={32} />
+        {costData.dailyTrend.length > 0 ? (
+          <MiniSparkline data={costData.dailyTrend} color="#00ff88" width={200} height={32} />
+        ) : (
+          <div className="text-[#8888aa] text-xs py-2">No trend data yet</div>
+        )}
       </div>
 
       <div>
@@ -443,6 +392,11 @@ function WorkflowStatusPanel() {
       </div>
 
       <div className="space-y-2">
+        {workflowsData.length === 0 && (
+          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
+            No workflows yet
+          </div>
+        )}
         {workflowsData.map((wf, i) => {
           const statusColor = wf.status === 'running' ? '#FFB627' : wf.status === 'completed' ? '#00ff88' : '#8888aa';
           return (
@@ -477,7 +431,7 @@ function WorkflowStatusPanel() {
 // ─── Latency Heatmap Panel ───
 
 function LatencyHeatmapPanel() {
-  const data = useMemo(() => generateHeatmapData(), []);
+  const data = useMemo(() => [] as Array<{ agent: string; hours: number[] }>, []);
 
   return (
     <GlassCard>
@@ -501,6 +455,11 @@ function LatencyHeatmapPanel() {
           </div>
 
           {/* Heatmap rows */}
+          {data.length === 0 && (
+            <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
+              No latency data yet
+            </div>
+          )}
           {data.map(row => (
             <div key={row.agent} className="flex items-center gap-1 mb-1">
               <span className="text-[9px] text-[#ccccdd] w-14 text-right pr-1">{row.agent}</span>
@@ -568,13 +527,18 @@ export function AgentObservability() {
             </span>
           </div>
           <span className="text-[9px] text-[#8888aa] font-mono">
-            {systemMetrics.totalRequests.toLocaleString()} total req
+            {(systemMetrics.totalRequests ?? 0).toLocaleString('en-US')} total req
           </span>
         </div>
       </div>
 
       {/* Agent Status Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {agentDetails.length === 0 && (
+          <div className="col-span-full flex items-center justify-center py-8 text-[#8888aa] text-xs">
+            No agent data available yet
+          </div>
+        )}
         {agentDetails.map((detail, i) => (
           <motion.div key={detail.id}
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}

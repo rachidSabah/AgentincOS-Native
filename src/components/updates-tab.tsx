@@ -7,7 +7,7 @@ import {
   Clock, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
   RotateCcw, Package, ArrowDownToLine, Server, Wifi,
   WifiOff, Loader2, ExternalLink, X, ToggleLeft, ToggleRight,
-  Gauge, GitBranch,
+  Gauge, GitBranch, Eye, EyeOff,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { Slider } from '@/components/ui/slider';
@@ -307,8 +307,11 @@ function ChangelogSection({ changelog, color }: { changelog: string; color: stri
 // ─── Settings Panel ───
 
 function UpdateSettingsPanel() {
-  const { updateSettings, setUpdateSettings } = useUpdateStore();
+  const { updateSettings, setUpdateSettings, checkForUpdates } = useUpdateStore();
   const [isOpen, setIsOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState(updateSettings.githubToken || '');
+  const [showToken, setShowToken] = useState(false);
+  const [isSavingToken, setIsSavingToken] = useState(false);
 
   return (
     <GlassCard>
@@ -419,7 +422,6 @@ function UpdateSettingsPanel() {
                       style={{
                         background: updateSettings.channel === key ? `${config.color}10` : 'rgba(10,10,26,0.4)',
                         borderColor: updateSettings.channel === key ? `${config.color}40` : 'rgba(157,78,221,0.1)',
-                        ringColor: updateSettings.channel === key ? config.color : undefined,
                       }}
                     >
                       <div className="text-[10px] font-bold" style={{ color: updateSettings.channel === key ? config.color : '#8888aa' }}>
@@ -429,6 +431,66 @@ function UpdateSettingsPanel() {
                     </motion.button>
                   ))}
                 </div>
+              </div>
+
+              {/* GitHub Token — optional, stored in localStorage, not .env */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-white text-[11px] font-medium flex items-center gap-1.5">
+                      <Shield size={11} className="text-[#9d4edd]" />
+                      GitHub Token
+                      <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20 font-bold">OPTIONAL</span>
+                    </div>
+                    <div className="text-[9px] text-[#8888aa]">Updates work without a token for public repos. Add a token for private repos &amp; higher rate limits — stored locally, never in .env</div>
+                  </div>
+                  {updateSettings.githubToken && (
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20 font-bold">ACTIVE</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      value={tokenInput}
+                      onChange={(e) => setTokenInput(e.target.value)}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[10px] text-white font-mono placeholder:text-[#8888aa] outline-none focus:border-[rgba(157,78,221,0.4)] transition-colors pr-8"
+                    />
+                    <button
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8888aa] hover:text-white transition-colors"
+                    >
+                      {showToken ? <Eye size={12} /> : <EyeOff size={12} />}
+                    </button>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={async () => {
+                      setIsSavingToken(true);
+                      setUpdateSettings({ githubToken: tokenInput.trim() || undefined });
+                      // Verify the token works by checking for updates
+                      await checkForUpdates();
+                      setIsSavingToken(false);
+                    }}
+                    disabled={isSavingToken}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-medium border border-[rgba(0,255,255,0.25)] text-[#00ffff] bg-[rgba(0,255,255,0.06)] hover:bg-[rgba(0,255,255,0.12)] transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isSavingToken ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Download size={10} />
+                    )}
+                    {tokenInput.trim() ? 'Save & Check' : 'Remove'}
+                  </motion.button>
+                </div>
+                {updateSettings.githubToken && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-[8px] text-[#00ff88]">
+                    <CheckCircle2 size={8} />
+                    <span>Token saved — updates will use this token for higher rate limits (optional — updates work without it)</span>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
@@ -529,6 +591,33 @@ export function UpdatesTab() {
   // Current time for formatLastChecked — client-only to avoid hydration mismatch
   const [now, setNow] = useState<number | null>(null);
 
+  // Check GitHub connectivity on mount — works without token for public repos
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const headers: {[key: string]: string} = {};
+        if (updateSettings.githubToken) {
+          headers['X-GitHub-Token'] = updateSettings.githubToken;
+        }
+        const res = await fetch('/api/updates?action=status', { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setIsConnected(data.githubReachable !== false);
+        } else {
+          // Even if the status endpoint fails, GitHub might still be reachable
+          // Don't immediately mark as offline
+          setIsConnected(true);
+        }
+      } catch {
+        setIsConnected(false);
+      }
+    };
+    checkConnection();
+    // Recheck every 2 minutes
+    const connInterval = setInterval(checkConnection, 120000);
+    return () => clearInterval(connInterval);
+  }, []);
+
   useEffect(() => {
     setParticles(Array.from({ length: 20 }, (_, i) => ({
       id: i,
@@ -543,19 +632,35 @@ export function UpdatesTab() {
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-check for updates
+  // Auto-check for updates (only after hydration is complete)
   useEffect(() => {
     if (!updateSettings.autoCheck) return;
 
-    // Initial check
-    checkForUpdates();
+    // Wait for the update store to hydrate from localStorage before checking
+    const unsubscribe = useUpdateStore.subscribe((state) => {
+      if (state._hasHydrated) {
+        // Hydration complete — safe to check for updates
+        checkForUpdates();
+        unsubscribe();
+      }
+    });
+
+    // Also check if already hydrated (race condition)
+    const currentState = useUpdateStore.getState();
+    if (currentState._hasHydrated) {
+      checkForUpdates();
+      unsubscribe();
+    }
 
     // Set up interval
     const interval = setInterval(() => {
       checkForUpdates();
     }, updateSettings.checkInterval * 60 * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [updateSettings.autoCheck, updateSettings.checkInterval, checkForUpdates]);
 
   // Toast helper
@@ -577,8 +682,12 @@ export function UpdatesTab() {
   // Handle install with toast
   const handleInstall = useCallback(async (id: string) => {
     addToast('Installing update...', 'info');
-    await installUpdate(id);
-    addToast('Update installed successfully!', 'success');
+    try {
+      await installUpdate(id);
+      addToast('Update installed successfully!', 'success');
+    } catch {
+      addToast('Failed to install update', 'warning');
+    }
   }, [installUpdate, addToast]);
 
   // Handle rollback with toast
@@ -592,10 +701,7 @@ export function UpdatesTab() {
   const handleCheck = useCallback(async () => {
     addToast('Checking for updates...', 'info');
     await checkForUpdates();
-    if (availableUpdates.length === 0) {
-      addToast('System is up to date', 'success');
-    }
-  }, [checkForUpdates, availableUpdates.length, addToast]);
+  }, [checkForUpdates, addToast]);
 
   // Handle install all
   const handleInstallAll = useCallback(async () => {
@@ -672,7 +778,7 @@ export function UpdatesTab() {
                   System Updates
                 </span>
               </motion.h2>
-              <p className="text-[#8888aa] text-xs">Auto-pull from GitHub · Install updates · Rollback changes</p>
+              <p className="text-[#8888aa] text-xs">Auto-pull from GitHub (no token needed) · Install updates · Rollback changes</p>
             </div>
             <VersionBadge version={currentVersion} />
           </div>
@@ -915,7 +1021,14 @@ export function UpdatesTab() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-white text-[11px] font-medium truncate">rachidSabah/Agentic-os</div>
-              <div className="text-[9px] text-[#8888aa]">main branch · auto-pull enabled</div>
+              <div className="text-[9px] text-[#8888aa]">
+                main branch · auto-pull enabled
+                {updateSettings.githubToken ? (
+                  <span className="text-[#00ff88] ml-1">· token active</span>
+                ) : (
+                  <span className="text-[#FFB627] ml-1">· no token (public only)</span>
+                )}
+              </div>
             </div>
             <a
               href="https://github.com/rachidSabah/Agentic-os"

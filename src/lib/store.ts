@@ -1,6 +1,5 @@
-'use client';
-
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type AgentStatus = 'live' | 'degraded' | 'offline' | 'booting';
 
@@ -96,6 +95,19 @@ export interface HermesConnection {
   skillCount?: number;
   activeSessions?: number;
   mcpServerCount?: number;
+}
+
+export interface GeminiConnection {
+  installed: boolean;
+  running: boolean;
+  version?: string;
+  apiEndpoint?: string;
+  model?: string;
+  latency?: number;
+  lastChecked?: number;
+  projectCount?: number;
+  sandboxEnabled?: boolean;
+  path?: string;
 }
 
 export interface ChatMessage {
@@ -307,6 +319,187 @@ export interface Report {
   metrics: Record<string, unknown>;
 }
 
+// ─── SEO Silo Types ───
+export interface SEOIssue {
+  severity: 'critical' | 'warning' | 'info';
+  category: string;
+  description: string;
+  fix: string;
+}
+
+export interface SEOPage {
+  id: string;
+  clusterId: string;
+  siloId: string;
+  url: string;
+  title: string;
+  metaDescription: string;
+  h1: string;
+  targetKeyword: string;
+  secondaryKeywords: string[];
+  wordCount: number;
+  score: number;
+  issues: SEOIssue[];
+  internalLinks: string[];
+  status: 'draft' | 'optimized' | 'published';
+  content?: string;
+  publishedAt?: number;
+}
+
+export interface SEOCluster {
+  id: string;
+  siloId: string;
+  name: string;
+  keyword: string;
+  pages: SEOPage[];
+  score: number;
+}
+
+export interface SEOSilo {
+  id: string;
+  name: string;
+  pillarUrl: string;
+  pillarKeyword: string;
+  description: string;
+  clusters: SEOCluster[];
+  score: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WebsiteScanResult {
+  url: string;
+  title: string;
+  metaDescription: string;
+  h1: string;
+  h2s: string[];
+  canonicalUrl: string;
+  robotsMeta: string;
+  schemaTypes: string[];
+  pageSize: number;
+  loadTime: number;
+  mobileFriendly: boolean;
+  https: boolean;
+  issues: SEOIssue[];
+  score: number;
+  scannedAt: number;
+}
+
+// ─── Provider Types ───
+export interface ProviderConfig {
+  id: string;
+  name: string;          // e.g. "OpenAI", "Anthropic", "Google", "OpenRouter", "Ollama", "DeepSeek", "Mistral", "Qwen", "BigModel", "GLM", "Grok", "Cohere", "Perplexity", "Together AI", "Fireworks", "Cerebras", "SambaNova", "Custom"
+  type: 'cloud' | 'local' | 'custom';
+  apiEndpoint: string;
+  apiKey: string;         // encrypted at rest
+  models: string[];       // available models
+  defaultModel: string;
+  enabled: boolean;
+  healthStatus: 'healthy' | 'degraded' | 'offline' | 'unknown';
+  lastHealthCheck: number;
+  rateLimit: { rpm: number; tpm: number };
+  costConfig: { alertThreshold: number; hardStop: boolean };
+  icon?: string;
+  color?: string;
+}
+
+// ─── Brain Emulation Types ───
+export type BrainProfile = 'claude' | 'gemini' | 'hermes' | 'openclaw' | 'vault' | 'opencode' | 'custom';
+
+export interface BrainConfig {
+  id: string;
+  name: string;
+  profile: BrainProfile;
+  systemPrompt: string;
+  reasoningStyle: 'chain-of-thought' | 'tree-of-thought' | 'react' | 'plan-and-execute' | 'reflection';
+  toolUsagePattern: 'aggressive' | 'conservative' | 'adaptive';
+  memoryMethod: 'short-term' | 'long-term' | 'semantic' | 'episodic' | 'full';
+  codingWorkflow: 'iterative' | 'plan-first' | 'test-driven' | 'debug-first';
+  researchMethod: 'depth-first' | 'breadth-first' | 'hybrid';
+  temperature: number;
+  topP: number;
+}
+
+// ─── Workspace Types ───
+export interface WorkspaceFile {
+  id: string;
+  name: string;
+  type: string;              // pdf, docx, xlsx, csv, pptx, txt, json, xml, yaml, html, zip, rar, image, audio, video, code, repo, db, log, cad
+  size: number;
+  uploadedAt: number;
+  processed: boolean;        // OCR, vision, transcription, embedding done
+  summary?: string;
+  tags: string[];
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  type: 'project' | 'organization' | 'team' | 'department';
+  agents: string[];           // agent ids assigned
+  models: string[];           // model ids available
+  files: WorkspaceFile[];
+  memory: string[];           // memory ids
+  permissions: string[];
+  knowledge: string[];        // knowledge base ids
+  automations: string[];      // automation ids
+  templates: string[];
+  createdAt: number;
+  updatedAt: number;
+  color: string;
+  icon: string;
+}
+
+// ─── Agent Fallback Types ───
+export interface AgentFallbackConfig {
+  layerAssignments: {[key: string]: string[]};   // layerId -> ordered list of agent ids that can handle it
+  activeHandlers: {[key: string]: string};        // layerId -> currently assigned agent id
+  fallbackHistory: Array<{ from: string; to: string; layer: string; reason: string; timestamp: number }>;
+}
+
+// ─── Model Router Config ───
+export interface ModelRouterConfig {
+  mode: 'automatic' | 'fastest' | 'cheapest' | 'highest-quality' | 'reasoning-first' | 'coding-first' | 'research-first' | 'vision-first' | 'multi-agent-consensus';
+  consensusConfig: {
+    enabled: boolean;
+    agentCount: number;
+    strategy: 'consensus' | 'majority' | 'delegation' | 'race';
+  };
+  parallelRouting: boolean;
+  weightedVoting: boolean;
+}
+
+// ─── Attachment Types ───
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  type: string;       // mime type
+  size: number;
+  dataUrl?: string;   // base64 for small files, or reference to server
+  processed: boolean;
+  summary?: string;
+}
+
+// ─── Marketplace Types ───
+export interface MarketplaceAgent {
+  id: string;
+  name: string;
+  description: string;
+  category: 'business' | 'recruitment' | 'wordpress' | 'seo' | 'marketing' | 'programming' | 'education' | 'aviation' | 'legal' | 'medical' | 'research' | 'custom';
+  author: string;
+  version: string;
+  rating: number;
+  downloads: number;
+  price: number;       // 0 = free
+  installed: boolean;
+  brainProfile: BrainProfile;
+  requiredProviders: string[];
+  icon: string;
+  color: string;
+  tags: string[];
+}
+
 interface OSState {
   activeView: string;
   setActiveView: (view: string) => void;
@@ -321,6 +514,11 @@ interface OSState {
   journal: JournalEntry[];
   memories: MemoryEntry[];
   addMemory: (memory: MemoryEntry) => void;
+  addGoal: (goal: Goal) => void;
+  updateGoal: (id: string, updates: Partial<Goal>) => void;
+  removeGoal: (id: string) => void;
+  addJournalEntry: (entry: JournalEntry) => void;
+  removeJournalEntry: (id: string) => void;
   controlRoomAgent: string | null;
   setControlRoomAgent: (id: string | null) => void;
   commandPaletteOpen: boolean;
@@ -331,6 +529,8 @@ interface OSState {
   setSelfSearchQuery: (q: string) => void;
   hermesConnection: HermesConnection;
   setHermesConnection: (conn: Partial<HermesConnection>) => void;
+  geminiConnection: GeminiConnection;
+  setGeminiConnection: (conn: Partial<GeminiConnection>) => void;
   chatHistories: Record<string, ChatMessage[]>;
   addChatMessage: (agentId: string, msg: ChatMessage) => void;
   clearChatHistory: (agentId: string) => void;
@@ -401,6 +601,60 @@ interface OSState {
   // ─── Reports State ───
   reports: Report[];
   addReport: (report: Report) => void;
+  // ─── Update Tracking State ───
+  installedUpdateIds: string[];
+  addInstalledUpdateId: (id: string) => void;
+  // ─── SEO Silo State ───
+  seoSilos: SEOSilo[];
+  addSEOSilo: (silo: SEOSilo) => void;
+  updateSEOSilo: (id: string, updates: Partial<SEOSilo>) => void;
+  removeSEOSilo: (id: string) => void;
+  seoScanResults: {[key: string]: WebsiteScanResult};
+  addScanResult: (url: string, result: WebsiteScanResult) => void;
+
+  // ─── Provider State ───
+  providers: ProviderConfig[];
+  addProvider: (provider: ProviderConfig) => void;
+  updateProvider: (id: string, updates: Partial<ProviderConfig>) => void;
+  removeProvider: (id: string) => void;
+
+  // ─── Brain Emulation State ───
+  brainConfigs: BrainConfig[];
+  activeBrainId: string | null;
+  addBrainConfig: (config: BrainConfig) => void;
+  updateBrainConfig: (id: string, updates: Partial<BrainConfig>) => void;
+  removeBrainConfig: (id: string) => void;
+  setActiveBrainId: (id: string | null) => void;
+
+  // ─── Workspace State ───
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+  addWorkspace: (workspace: Workspace) => void;
+  updateWorkspace: (id: string, updates: Partial<Workspace>) => void;
+  removeWorkspace: (id: string) => void;
+  setActiveWorkspaceId: (id: string | null) => void;
+
+  // ─── Agent Fallback State ───
+  agentFallbackConfig: AgentFallbackConfig;
+  setAgentFallbackConfig: (config: Partial<AgentFallbackConfig>) => void;
+
+  // ─── Model Router Config State ───
+  modelRouterConfig: ModelRouterConfig;
+  setModelRouterConfig: (config: Partial<ModelRouterConfig>) => void;
+
+  // ─── Chat Attachment State ───
+  chatAttachments: ChatAttachment[];
+  addChatAttachment: (attachment: ChatAttachment) => void;
+  removeChatAttachment: (id: string) => void;
+  clearChatAttachments: () => void;
+
+  // ─── Marketplace State ───
+  marketplaceAgents: MarketplaceAgent[];
+  setMarketplaceAgents: (agents: MarketplaceAgent[]) => void;
+
+  // ─── Hydration Guard ───
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
 }
 
 function generateActivityByHour(peakHour: number): number[] {
@@ -417,7 +671,12 @@ function generateActivityByHour(peakHour: number): number[] {
   return hours;
 }
 
-export const useOSStore = create<OSState>((set) => ({
+export const useOSStore = create<OSState>()(
+  persist(
+    (set) => ({
+  _hasHydrated: false,
+  setHasHydrated: (v) => set({ _hasHydrated: v }),
+
   activeView: 'home',
   setActiveView: (view) => set({ activeView: view }),
 
@@ -556,60 +815,70 @@ export const useOSStore = create<OSState>((set) => ({
       name: 'Claude',
       layer: 4,
       layers: [1, 4],
-      status: 'live',
-      description: 'The CEO of the stack. Handles Interaction & Perception (L1) and Cognitive Reasoning (L4). Plans, evaluates, and decides with full tool access and code execution.',
-      uptime: '4d 12h 33m',
-      latency: 142,
-      requests: 12847,
-      model: 'claude-3.5-sonnet',
+      status: 'offline' as AgentStatus,
+      description: 'The CEO of the stack. Handles Interaction & Perception (L1) and Cognitive Reasoning (L4).',
       color: '#E63946',
       tags: ['REASONING', 'MCP', 'CODE', 'PERCEPTION'],
-      lastActive: '2s ago',
+      uptime: '0s',
+      latency: 0,
+      requests: 0,
+      lastActive: 'never',
     },
     {
       id: 'openclaw',
       name: 'OpenClaw',
       layer: 3,
       layers: [3, 7],
-      status: 'live',
-      description: 'The router and governor. Handles Agent Orchestration (L3) and Governance (L7). Routes tasks, coordinates agents, and ensures system security and reliability.',
-      uptime: '2d 8h 15m',
-      latency: 89,
-      requests: 8932,
-      model: 'multi-model',
+      status: 'offline' as AgentStatus,
+      description: 'The router and governor. Handles Agent Orchestration (L3) and Governance (L7).',
       color: '#E8751A',
       tags: ['ROUTING', 'GOVERNANCE', 'COORDINATION', 'SECURITY'],
-      lastActive: '5s ago',
+      uptime: '0s',
+      latency: 0,
+      requests: 0,
+      lastActive: 'never',
     },
     {
       id: 'hermes',
       name: 'Hermes',
       layer: 2,
       layers: [2, 5],
-      status: 'live',
-      description: 'The worker. Handles Knowledge Acquisition (L2) and Execution (L5). Researches, retrieves information, and takes action through tools, APIs, and workflows.',
-      uptime: '6d 1h 45m',
-      latency: 203,
-      requests: 24531,
-      model: 'hermes-3',
+      status: 'booting' as AgentStatus,
+      description: 'The worker. Handles Knowledge Acquisition (L2) and Execution (L5).',
       color: '#FFB627',
       tags: ['SKILLS', 'RESEARCH', 'EXECUTION', 'KANBAN'],
-      lastActive: '1s ago',
+      uptime: '0s',
+      latency: 0,
+      requests: 0,
+      lastActive: 'never',
     },
     {
       id: 'vault',
       name: 'Self Vault',
       layer: 6,
       layers: [6],
-      status: 'live',
-      description: 'The identity. Handles Memory, Learning & Context (L6). OMI records + Obsidian vault create a continuously growing, compound knowledge base about you and your work.',
-      uptime: '30d 4h 12m',
-      latency: 34,
-      requests: 89234,
-      model: 'obsidian+omi',
+      status: 'offline' as AgentStatus,
+      description: 'The identity. Handles Memory, Learning & Context (L6).',
       color: '#2E86AB',
       tags: ['IDENTITY', 'COMPOUND', 'VAULT', 'MEMORY'],
-      lastActive: '0s ago',
+      uptime: '0s',
+      latency: 0,
+      requests: 0,
+      lastActive: 'never',
+    },
+    {
+      id: 'gemini',
+      name: 'Gemini',
+      layer: 2,
+      layers: [2, 5],
+      status: 'booting' as AgentStatus,
+      description: 'Google Gemini CLI. Multimodal reasoning and code execution.',
+      color: '#4285F4',
+      tags: ['MULTIMODAL', 'CODE', 'RESEARCH', 'LONG-CONTEXT'],
+      uptime: '0s',
+      latency: 0,
+      requests: 0,
+      lastActive: 'never',
     },
   ],
 
@@ -618,62 +887,58 @@ export const useOSStore = create<OSState>((set) => ({
       agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
     })),
 
-  logs: [
-    { id: '1', timestamp: '04:48:12', agent: 'Claude', layer: 4, level: 'success', message: 'Cognitive Reasoning pipeline active — CEO layer online' },
-    { id: '2', timestamp: '04:48:10', agent: 'Hermes', layer: 2, level: 'info', message: 'Knowledge Acquisition: skill registry synced — 2,550 skills available' },
-    { id: '3', timestamp: '04:48:08', agent: 'OpenClaw', layer: 3, level: 'info', message: 'Agent Orchestration: routing table refreshed — 4 agents connected' },
-    { id: '4', timestamp: '04:47:55', agent: 'Self Vault', layer: 6, level: 'success', message: 'Memory layer: OMI recording exported — 47 new notes today' },
-    { id: '5', timestamp: '04:47:42', agent: 'Hermes', layer: 5, level: 'info', message: 'Execution layer: Kanban task completed — competitor-analysis-q2' },
-    { id: '6', timestamp: '04:47:30', agent: 'Claude', layer: 1, level: 'info', message: 'Interaction layer: multimodal input received — voice + screenshot' },
-    { id: '7', timestamp: '04:47:15', agent: 'OpenClaw', layer: 7, level: 'success', message: 'Governance: session coordination complete — all permissions verified' },
-    { id: '8', timestamp: '04:46:58', agent: 'Self Vault', layer: 6, level: 'info', message: 'Memory layer: goal progress updated — 3 goals advanced this week' },
-    { id: '9', timestamp: '04:46:40', agent: 'Hermes', layer: 2, level: 'warn', message: 'Knowledge retrieval: browser pool at capacity — scheduling for off-peak' },
-    { id: '10', timestamp: '04:46:22', agent: 'Claude', layer: 4, level: 'info', message: 'Cognitive Reasoning: pulled 23 memory entries for context-rich response' },
-  ],
+  logs: [] as any[],
   addLog: (log) => set((state) => ({ logs: [log, ...state.logs].slice(0, 50) })),
 
   systemMetrics: {
-    cpu: 34,
-    memory: 67,
-    network: 82,
-    disk: 45,
-    activeAgents: 4,
-    totalRequests: 92599,
-    avgLatency: 178,
-    vaultSize: 2.4,
-    vaultEntries: 12847,
-    compoundDays: 30,
-  },
+    cpu: 42,
+    memory: 61,
+    network: 28,
+    disk: 35,
+    activeAgents: 3,
+    totalRequests: 24567,
+    avgLatency: 187,
+    vaultSize: 4.2,
+    vaultEntries: 1284,
+    compoundDays: 17,
+  } as SystemMetrics,
   setSystemMetrics: (metrics) => set({ systemMetrics: metrics }),
 
   goals: [
-    { id: 'g1', title: 'Ship Agent OS v2.0 to production', progress: 72, timeline: 'this month', category: 'Product' },
-    { id: 'g2', title: 'Reduce p99 latency below 200ms across all 7 layers', progress: 45, timeline: 'this week', category: 'Performance' },
-    { id: 'g3', title: 'Expand Hermes skill registry to 3,000+', progress: 85, timeline: 'this quarter', category: 'Research' },
-    { id: 'g4', title: 'Enable cross-agent memory sharing protocol', progress: 30, timeline: 'this month', category: 'Infrastructure' },
-    { id: 'g5', title: 'Deploy autonomous task delegation pipeline', progress: 60, timeline: 'this quarter', category: 'Automation' },
-    { id: 'g6', title: 'Grow Obsidian vault to 15K+ entries', progress: 91, timeline: 'this month', category: 'Self' },
-  ],
+    { id: 'g1', title: 'Launch Agentic OS v1.0', progress: 72, timeline: 'Q2 2026', category: 'Product' },
+    { id: 'g2', title: 'Integrate all 5 agents with MCP protocol', progress: 45, timeline: 'Q1 2026', category: 'Engineering' },
+    { id: 'g3', title: 'Achieve 99.9% uptime across all layers', progress: 88, timeline: 'Q3 2026', category: 'Reliability' },
+    { id: 'g4', title: 'Build compound memory system (30-day)', progress: 57, timeline: 'Q2 2026', category: 'AI' },
+    { id: 'g5', title: 'Deploy governance layer with full observability', progress: 34, timeline: 'Q3 2026', category: 'Security' },
+  ] as Goal[],
 
   journal: [
-    { id: 'j1', date: 'Today', type: 'voice', content: 'Completed Hermes MCP integration — all stdio transports verified. Routed through OpenClaw, no conflicts. The stack is compounding beautifully.', source: 'OMI' },
-    { id: 'j2', date: 'Today', type: 'text', content: 'OpenClaw session management refactored for horizontal scaling. Now handles 3x concurrent agent sessions without degradation.', source: 'Manual' },
-    { id: 'j3', date: 'Yesterday', type: 'voice', content: 'Claude vision pipeline upgraded to support multi-frame analysis. The Cognition layer can now reason over video streams. Massive unlock for research delegation.', source: 'OMI' },
-    { id: 'j4', date: 'Yesterday', type: 'text', content: 'Vault crossed 12,000 entries. The Memory layer is starting to compound — agents are giving noticeably better advice. Day one this was good. Day thirty is wild.', source: 'Manual' },
-    { id: 'j5', date: '2 days ago', type: 'voice', content: 'Set up OMI continuous recording. Screen + mic all day, auto-export to Obsidian. The knowledge base grows on its own now. That\'s the lever.', source: 'OMI' },
-  ],
+    { id: 'j1', date: '2026-05-31', type: 'voice', content: 'Reviewed 7-layer architecture with team. Decision: Memory layer (L6) is the critical unlock for compound intelligence. Need to prioritize vault structure and OMI recording integration.', source: 'OMI Recording' },
+    { id: 'j2', date: '2026-05-30', type: 'text', content: 'Hermes integration breakthrough — successfully connected deepseek-chat as default provider with mistral-large-latest fallback. MCP server registry now shows 10 servers, 6 connected.', source: 'Manual Entry' },
+    { id: 'j3', date: '2026-05-29', type: 'voice', content: 'Sprint planning: Focus on getting Gemini CLI detected on WSL. The reconnect button needs to be active. Also need to fix plugin timestamps showing negative seconds.', source: 'OMI Recording' },
+    { id: 'j4', date: '2026-05-28', type: 'text', content: 'Updated the update system to work without GitHub token. Public API works for public repos. Token is optional for private repos and higher rate limits. Stored in localStorage, not .env.', source: 'Manual Entry' },
+    { id: 'j5', date: '2026-05-27', type: 'voice', content: 'Compound knowledge graph is growing. 18 seed memories now connected with 12 relationships. Knowledge extraction pipeline is working — extracted goals, preferences, and decisions from chat history.', source: 'OMI Recording' },
+  ] as JournalEntry[],
 
   memories: [
-    { id: 'm1', timestamp: '2 min ago', content: 'Hermes config: ~/.hermes/config.yaml (secrets in .env). Supports 20+ LLM providers, model-agnostic architecture.', agent: 'Hermes', tags: ['config', 'setup'] },
-    { id: 'm2', timestamp: '15 min ago', content: 'OpenClaw gateway protocol v2.1 — backward compatible. All agent routing must go through OpenClaw. No direct agent-to-agent communication.', agent: 'OpenClaw', tags: ['protocol', 'routing'] },
-    { id: 'm3', timestamp: '1h ago', content: 'Claude MCMC mode requires 64K+ token context window. Vision pipeline active. Full code execution capabilities enabled.', agent: 'Claude', tags: ['compute', 'vision'] },
-    { id: 'm4', timestamp: '3h ago', content: 'Browser automation: cloud (Browserbase) / local (Chromium/CDP). Hermes uses this for competitor analysis and web research tasks.', agent: 'Hermes', tags: ['browser', 'research'] },
-    { id: 'm5', timestamp: '6h ago', content: 'Vault structure: Goals/ tracked weekly, Journal/ daily entries, Memory/ auto-saved from every chat. All agents read from vault for context.', agent: 'Self Vault', tags: ['vault', 'structure'] },
-    { id: 'm6', timestamp: '1d ago', content: 'The difference between generic AI and personalised AI is the Memory layer. Without it, agents give generic answers. With it, they give advice as if they\'ve worked at your company for two years.', agent: 'Self Vault', tags: ['insight', 'compound'] },
-    { id: 'm7', timestamp: '2d ago', content: 'OMI records screen + mic all day → exports to Obsidian vault. This is what makes the system compound. Every day it knows more about you, your business, and your priorities.', agent: 'Self Vault', tags: ['omi', 'recording'] },
-  ],
+    { id: 'm1', timestamp: '2026-05-31T10:30:00Z', content: 'Agentic OS 7-layer architecture finalized: Interaction → Knowledge → Orchestration → Cognition → Execution → Memory → Governance', agent: 'Claude', tags: ['architecture', 'layers', 'design'] },
+    { id: 'm2', timestamp: '2026-05-31T09:15:00Z', content: 'Hermes default provider set to deepseek/deepseek-chat (deepseek-v4-pro), fallback to mistral/mistral-large-latest via mistral.ai', agent: 'Hermes', tags: ['config', 'llm', 'providers'] },
+    { id: 'm3', timestamp: '2026-05-30T16:45:00Z', content: 'MCP Server Registry: 10 servers registered, 6 connected (PostgreSQL, Brave Search, GitHub Copilot, Browser Automation, Claude Vision, Linear Project)', agent: 'Hermes', tags: ['mcp', 'servers', 'tools'] },
+    { id: 'm4', timestamp: '2026-05-30T14:20:00Z', content: 'Memory Layer (L6) is the real unlock — Goals, Journal, and Memory compound over time. Day 1 is good, Day 30 is wild.', agent: 'Self Vault', tags: ['memory', 'compound', 'identity'] },
+    { id: 'm5', timestamp: '2026-05-29T11:00:00Z', content: 'Gemini CLI installed on WSL — needs active reconnect button in dashboard. Supports multimodal reasoning, code sandbox, and 1M+ context window.', agent: 'Gemini', tags: ['gemini', 'wsl', 'multimodal'] },
+    { id: 'm6', timestamp: '2026-05-29T09:30:00Z', content: 'Update system now works without GitHub token. Public repos accessible via GitHub public API (rate limited to 60 req/hr). Token optional for higher limits.', agent: 'OpenClaw', tags: ['updates', 'github', 'api'] },
+    { id: 'm7', timestamp: '2026-05-28T15:10:00Z', content: 'Plugin system: GitHub Integration, Jira Connector, Slack Bot, Custom LLM Provider, Obsidian Sync, Stripe Monitor, Email Digest — all available for install', agent: 'Hermes', tags: ['plugins', 'extensions', 'integrations'] },
+    { id: 'm8', timestamp: '2026-05-28T10:00:00Z', content: 'User prefers deepseek for fast tasks, mistral for complex reasoning, Claude for code review. Model routing should auto-select based on task complexity.', agent: 'Self Vault', tags: ['preferences', 'models', 'routing'] },
+  ] as MemoryEntry[],
 
   addMemory: (memory) => set((state) => ({ memories: [memory, ...state.memories] })),
+  addGoal: (goal) => set((state) => ({ goals: [...state.goals, goal] })),
+  updateGoal: (id, updates) => set((state) => ({
+    goals: state.goals.map(g => g.id === id ? { ...g, ...updates } : g),
+  })),
+  removeGoal: (id) => set((state) => ({ goals: state.goals.filter(g => g.id !== id) })),
+  addJournalEntry: (entry) => set((state) => ({ journal: [entry, ...state.journal] })),
+  removeJournalEntry: (id) => set((state) => ({ journal: state.journal.filter(j => j.id !== id) })),
 
   controlRoomAgent: null,
   setControlRoomAgent: (id) => set({ controlRoomAgent: id }),
@@ -696,6 +961,15 @@ export const useOSStore = create<OSState>((set) => ({
     hermesConnection: { ...state.hermesConnection, ...conn },
   })),
 
+  geminiConnection: {
+    installed: false,
+    running: false,
+    lastChecked: 0,
+  },
+  setGeminiConnection: (conn) => set((state) => ({
+    geminiConnection: { ...state.geminiConnection, ...conn },
+  })),
+
   chatHistories: {},
   addChatMessage: (agentId, msg) => set((state) => ({
     chatHistories: {
@@ -713,51 +987,10 @@ export const useOSStore = create<OSState>((set) => ({
   isChatStreaming: false,
   setIsChatStreaming: (streaming) => set({ isChatStreaming: streaming }),
 
-  selectedAgentId: 'hermes',
+  selectedAgentId: null as string | null,
   setSelectedAgentId: (id) => set({ selectedAgentId: id }),
 
-  agentAnalytics: {
-    claude: {
-      totalSessions: 847,
-      totalTokens: 2400000,
-      totalToolCalls: 4231,
-      modelsUsed: ['claude-3.5-sonnet', 'claude-3-opus'],
-      activityByHour: generateActivityByHour(10),
-      peakHour: 10,
-      avgResponseTime: 1200,
-      lastSessionStart: 1700000000000 - 120000,
-    },
-    openclaw: {
-      totalSessions: 523,
-      totalTokens: 1100000,
-      totalToolCalls: 8234,
-      modelsUsed: ['multi-model', 'gpt-4', 'claude-3-sonnet'],
-      activityByHour: generateActivityByHour(14),
-      peakHour: 14,
-      avgResponseTime: 800,
-      lastSessionStart: 1700000000000 - 300000,
-    },
-    hermes: {
-      totalSessions: 1203,
-      totalTokens: 5600000,
-      totalToolCalls: 18432,
-      modelsUsed: ['hermes-3', 'gpt-4', 'claude-3.5-sonnet'],
-      activityByHour: generateActivityByHour(11),
-      peakHour: 11,
-      avgResponseTime: 2100,
-      lastSessionStart: 1700000000000 - 60000,
-    },
-    vault: {
-      totalSessions: 892,
-      totalTokens: 800000,
-      totalToolCalls: 342,
-      modelsUsed: ['obsidian+omi', 'embedding-ada-002'],
-      activityByHour: generateActivityByHour(9),
-      peakHour: 9,
-      avgResponseTime: 300,
-      lastSessionStart: 1700000000000 - 5000,
-    },
-  },
+  agentAnalytics: {} as Record<string, any>,
   setAgentAnalytics: (agentId, analytics) => set((state) => ({
     agentAnalytics: {
       ...state.agentAnalytics,
@@ -768,14 +1001,7 @@ export const useOSStore = create<OSState>((set) => ({
   hermesSkills: [],
   setHermesSkills: (skills) => set({ hermesSkills: skills }),
 
-  kanbanTasks: [
-    { id: 'kt1', title: 'Deploy Hermes v3.2 to production', status: 'in_progress', priority: 'high', assignedTo: 'hermes', createdAt: 1700000000000 - 86400000 },
-    { id: 'kt2', title: 'Implement cross-agent memory sharing', status: 'todo', priority: 'high', assignedTo: 'openclaw', createdAt: 1700000000000 - 172800000 },
-    { id: 'kt3', title: 'Optimize vault query latency', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: 1700000000000 - 259200000 },
-    { id: 'kt4', title: 'Research competitor AI stacks', status: 'in_progress', priority: 'medium', assignedTo: 'hermes', createdAt: 1700000000000 - 43200000 },
-    { id: 'kt5', title: 'Review Claude MCP integration docs', status: 'todo', priority: 'low', assignedTo: 'claude', createdAt: 1700000000000 - 345600000 },
-    { id: 'kt6', title: 'Set up OMI continuous recording', status: 'done', priority: 'medium', assignedTo: 'vault', createdAt: 1700000000000 - 432000000 },
-  ],
+  kanbanTasks: [] as any[],
   addKanbanTask: (task) => set((state) => ({ kanbanTasks: [...state.kanbanTasks, task] })),
   updateKanbanTask: (id, updates) => set((state) => ({
     kanbanTasks: state.kanbanTasks.map(t => t.id === id ? { ...t, ...updates } : t),
@@ -872,7 +1098,7 @@ export const useOSStore = create<OSState>((set) => ({
   addSecurityAlert: (alert) => set((state) => ({
     securityAlerts: [alert, ...state.securityAlerts].slice(0, 100),
   })),
-  securityRiskScore: 15,
+  securityRiskScore: 0,
   setSecurityRiskScore: (score) => set({ securityRiskScore: score }),
 
   // ─── Model Router State ───
@@ -884,4 +1110,412 @@ export const useOSStore = create<OSState>((set) => ({
   addReport: (report) => set((state) => ({
     reports: [report, ...state.reports].slice(0, 50),
   })),
-}));
+
+  // ─── Update Tracking State ───
+  installedUpdateIds: [],
+  addInstalledUpdateId: (id) => set((state) => ({
+    installedUpdateIds: [...new Set([...state.installedUpdateIds, id])],
+  })),
+
+  // ─── SEO Silo State ───
+  seoSilos: [],
+  addSEOSilo: (silo) => set((state) => ({
+    seoSilos: [...state.seoSilos, silo],
+  })),
+  updateSEOSilo: (id, updates) => set((state) => ({
+    seoSilos: state.seoSilos.map(s => s.id === id ? { ...s, ...updates, updatedAt: Date.now() } : s),
+  })),
+  removeSEOSilo: (id) => set((state) => ({
+    seoSilos: state.seoSilos.filter(s => s.id !== id),
+  })),
+  seoScanResults: {},
+  addScanResult: (url, result) => set((state) => ({
+    seoScanResults: { ...state.seoScanResults, [url]: result },
+  })),
+
+  // ─── Provider State ───
+  providers: [
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://api.openai.com/v1',
+      apiKey: '',
+      models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o1-mini', 'gpt-4-turbo'],
+      defaultModel: 'gpt-4o',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 60, tpm: 100000 },
+      costConfig: { alertThreshold: 50, hardStop: false },
+      icon: '🤖',
+      color: '#10a37f',
+    },
+    {
+      id: 'anthropic',
+      name: 'Anthropic',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://api.anthropic.com/v1',
+      apiKey: '',
+      models: ['claude-4-sonnet', 'claude-4-opus', 'claude-sonnet-4-20250514'],
+      defaultModel: 'claude-4-sonnet',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 50, tpm: 80000 },
+      costConfig: { alertThreshold: 50, hardStop: false },
+      icon: '🧠',
+      color: '#E63946',
+    },
+    {
+      id: 'google',
+      name: 'Google',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: '',
+      models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+      defaultModel: 'gemini-2.5-pro',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 60, tpm: 100000 },
+      costConfig: { alertThreshold: 50, hardStop: false },
+      icon: '✨',
+      color: '#4285F4',
+    },
+    {
+      id: 'openrouter',
+      name: 'OpenRouter',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://openrouter.ai/api/v1',
+      apiKey: '',
+      models: ['anthropic/claude-4-sonnet', 'openai/gpt-4o', 'google/gemini-2.5-pro', 'meta-llama/llama-3-70b-instruct', 'mistralai/mistral-large'],
+      defaultModel: 'anthropic/claude-4-sonnet',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 100, tpm: 200000 },
+      costConfig: { alertThreshold: 50, hardStop: false },
+      icon: '🔀',
+      color: '#FFB627',
+    },
+    {
+      id: 'ollama',
+      name: 'Ollama',
+      type: 'local' as const,
+      apiEndpoint: 'http://localhost:11434/api',
+      apiKey: '',
+      models: ['llama3', 'llama3:70b', 'mistral', 'codellama', 'qwen2', 'deepseek-coder-v2'],
+      defaultModel: 'llama3',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 1000, tpm: 1000000 },
+      costConfig: { alertThreshold: 0, hardStop: false },
+      icon: '🦙',
+      color: '#1B998B',
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://api.deepseek.com/v1',
+      apiKey: '',
+      models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-coder'],
+      defaultModel: 'deepseek-chat',
+      enabled: true,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 60, tpm: 100000 },
+      costConfig: { alertThreshold: 20, hardStop: false },
+      icon: '🔍',
+      color: '#FFB627',
+    },
+    {
+      id: 'mistral',
+      name: 'Mistral',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://api.mistral.ai/v1',
+      apiKey: '',
+      models: ['mistral-large-latest', 'mistral-medium-latest', 'codestral-latest'],
+      defaultModel: 'mistral-large-latest',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 50, tpm: 80000 },
+      costConfig: { alertThreshold: 30, hardStop: false },
+      icon: '🌬️',
+      color: '#FF8C42',
+    },
+    {
+      id: 'glm',
+      name: 'BigModel / GLM',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://open.bigmodel.cn/api/paas/v4',
+      apiKey: '',
+      models: ['glm-4-plus', 'glm-4-0520', 'glm-4-air', 'glm-4-airx', 'glm-4-flash'],
+      defaultModel: 'glm-4-plus',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 60, tpm: 100000 },
+      costConfig: { alertThreshold: 30, hardStop: false },
+      icon: '🌟',
+      color: '#7B2CBF',
+    },
+    {
+      id: 'groq',
+      name: 'Groq',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://api.groq.com/openai/v1',
+      apiKey: '',
+      models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+      defaultModel: 'llama-3.3-70b-versatile',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 30, tpm: 80000 },
+      costConfig: { alertThreshold: 20, hardStop: false },
+      icon: '⚡',
+      color: '#F55036',
+    },
+    {
+      id: 'cohere',
+      name: 'Cohere',
+      type: 'cloud' as const,
+      apiEndpoint: 'https://api.cohere.ai/v1',
+      apiKey: '',
+      models: ['command-r-plus', 'command-r', 'embed-v3'],
+      defaultModel: 'command-r-plus',
+      enabled: false,
+      healthStatus: 'unknown' as const,
+      lastHealthCheck: 0,
+      rateLimit: { rpm: 40, tpm: 60000 },
+      costConfig: { alertThreshold: 20, hardStop: false },
+      icon: '🎯',
+      color: '#39594D',
+    },
+  ],
+  addProvider: (provider) => set((state) => ({
+    providers: [...state.providers, provider],
+  })),
+  updateProvider: (id, updates) => set((state) => ({
+    providers: state.providers.map(p => p.id === id ? { ...p, ...updates } : p),
+  })),
+  removeProvider: (id) => set((state) => ({
+    providers: state.providers.filter(p => p.id !== id),
+  })),
+
+  // ─── Brain Emulation State ───
+  brainConfigs: [
+    {
+      id: 'brain-claude',
+      name: 'Claude Thinking Style',
+      profile: 'claude' as BrainProfile,
+      systemPrompt: 'You are Claude, an AI assistant by Anthropic. You think step-by-step, are thorough, and prioritize safety and accuracy. You use structured reasoning and self-reflection.',
+      reasoningStyle: 'chain-of-thought' as const,
+      toolUsagePattern: 'adaptive' as const,
+      memoryMethod: 'full' as const,
+      codingWorkflow: 'plan-first' as const,
+      researchMethod: 'depth-first' as const,
+      temperature: 0.7,
+      topP: 0.9,
+    },
+    {
+      id: 'brain-gemini',
+      name: 'Gemini CLI Workflow',
+      profile: 'gemini' as BrainProfile,
+      systemPrompt: 'You are Gemini, Google\'s multimodal AI. You leverage long context windows, grounded search, and sandbox execution for comprehensive analysis.',
+      reasoningStyle: 'plan-and-execute' as const,
+      toolUsagePattern: 'aggressive' as const,
+      memoryMethod: 'long-term' as const,
+      codingWorkflow: 'iterative' as const,
+      researchMethod: 'hybrid' as const,
+      temperature: 0.8,
+      topP: 0.95,
+    },
+    {
+      id: 'brain-hermes',
+      name: 'Hermes Agent Logic',
+      profile: 'hermes' as BrainProfile,
+      systemPrompt: 'You are Hermes, an autonomous AI agent with deep tool integration. You execute tasks efficiently using available skills and MCP servers.',
+      reasoningStyle: 'react' as const,
+      toolUsagePattern: 'aggressive' as const,
+      memoryMethod: 'short-term' as const,
+      codingWorkflow: 'iterative' as const,
+      researchMethod: 'breadth-first' as const,
+      temperature: 0.6,
+      topP: 0.85,
+    },
+    {
+      id: 'brain-openclaw',
+      name: 'OpenClaw Behavior',
+      profile: 'openclaw' as BrainProfile,
+      systemPrompt: 'You are OpenClaw, an orchestration and governance agent. You route tasks, coordinate multiple agents, and ensure system reliability.',
+      reasoningStyle: 'tree-of-thought' as const,
+      toolUsagePattern: 'conservative' as const,
+      memoryMethod: 'semantic' as const,
+      codingWorkflow: 'plan-first' as const,
+      researchMethod: 'breadth-first' as const,
+      temperature: 0.5,
+      topP: 0.8,
+    },
+    {
+      id: 'brain-vault',
+      name: 'Vault Methodology',
+      profile: 'vault' as BrainProfile,
+      systemPrompt: 'You are Vault, the memory and identity agent. You maintain context across sessions, build compound knowledge, and personalize interactions.',
+      reasoningStyle: 'reflection' as const,
+      toolUsagePattern: 'conservative' as const,
+      memoryMethod: 'episodic' as const,
+      codingWorkflow: 'test-driven' as const,
+      researchMethod: 'depth-first' as const,
+      temperature: 0.4,
+      topP: 0.75,
+    },
+  ],
+  activeBrainId: null,
+  addBrainConfig: (config) => set((state) => ({
+    brainConfigs: [...state.brainConfigs, config],
+  })),
+  updateBrainConfig: (id, updates) => set((state) => ({
+    brainConfigs: state.brainConfigs.map(b => b.id === id ? { ...b, ...updates } : b),
+  })),
+  removeBrainConfig: (id) => set((state) => ({
+    brainConfigs: state.brainConfigs.filter(b => b.id !== id),
+  })),
+  setActiveBrainId: (id) => set({ activeBrainId: id }),
+
+  // ─── Workspace State ───
+  workspaces: [],
+  activeWorkspaceId: null,
+  addWorkspace: (workspace) => set((state) => ({
+    workspaces: [...state.workspaces, workspace],
+  })),
+  updateWorkspace: (id, updates) => set((state) => ({
+    workspaces: state.workspaces.map(w => w.id === id ? { ...w, ...updates } : w),
+  })),
+  removeWorkspace: (id) => set((state) => ({
+    workspaces: state.workspaces.filter(w => w.id !== id),
+  })),
+  setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
+
+  // ─── Agent Fallback State ───
+  agentFallbackConfig: {
+    layerAssignments: {
+      interaction: ['claude', 'gemini', 'hermes'],
+      knowledge: ['hermes', 'gemini', 'claude'],
+      orchestration: ['openclaw', 'claude', 'hermes'],
+      cognition: ['claude', 'gemini', 'hermes'],
+      execution: ['hermes', 'gemini', 'claude'],
+      memory: ['vault', 'claude', 'gemini'],
+      governance: ['openclaw', 'claude', 'hermes'],
+    },
+    activeHandlers: {
+      interaction: 'claude',
+      knowledge: 'hermes',
+      orchestration: 'openclaw',
+      cognition: 'claude',
+      execution: 'hermes',
+      memory: 'vault',
+      governance: 'openclaw',
+    },
+    fallbackHistory: [],
+  },
+  setAgentFallbackConfig: (config) => set((state) => ({
+    agentFallbackConfig: { ...state.agentFallbackConfig, ...config },
+  })),
+
+  // ─── Model Router Config State ───
+  modelRouterConfig: {
+    mode: 'automatic' as const,
+    consensusConfig: { enabled: false, agentCount: 3, strategy: 'consensus' as const },
+    parallelRouting: false,
+    weightedVoting: false,
+  },
+  setModelRouterConfig: (config) => set((state) => ({
+    modelRouterConfig: { ...state.modelRouterConfig, ...config },
+  })),
+
+  // ─── Chat Attachment State ───
+  chatAttachments: [],
+  addChatAttachment: (attachment) => set((state) => ({
+    chatAttachments: [...state.chatAttachments, attachment],
+  })),
+  removeChatAttachment: (id) => set((state) => ({
+    chatAttachments: state.chatAttachments.filter(a => a.id !== id),
+  })),
+  clearChatAttachments: () => set({ chatAttachments: [] }),
+
+  // ─── Marketplace State ───
+  marketplaceAgents: [
+    { id: 'ma-seo-agent', name: 'SEO Agent Pro', description: 'Full-service SEO optimization agent with keyword research, content optimization, and competitor analysis.', category: 'seo' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.8, downloads: 1250, price: 0, installed: false, brainProfile: 'hermes' as BrainProfile, requiredProviders: ['deepseek'], icon: '🔍', color: '#FFB627', tags: ['seo', 'marketing', 'content'] },
+    { id: 'ma-recruit-agent', name: 'Recruitment Agent', description: 'AI-powered recruitment agent for sourcing, screening, and candidate management.', category: 'recruitment' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.5, downloads: 890, price: 0, installed: false, brainProfile: 'claude' as BrainProfile, requiredProviders: ['openai'], icon: '👔', color: '#E63946', tags: ['recruitment', 'hr', 'hiring'] },
+    { id: 'ma-code-agent', name: 'Code Architect', description: 'Full-stack code generation, refactoring, and debugging agent with multi-language support.', category: 'programming' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.9, downloads: 2100, price: 0, installed: false, brainProfile: 'claude' as BrainProfile, requiredProviders: ['anthropic'], icon: '💻', color: '#7B2CBF', tags: ['code', 'development', 'architecture'] },
+    { id: 'ma-marketing-agent', name: 'Marketing Director', description: 'Strategic marketing agent for campaign planning, content creation, and analytics.', category: 'marketing' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.3, downloads: 650, price: 0, installed: false, brainProfile: 'gemini' as BrainProfile, requiredProviders: ['google'], icon: '📊', color: '#4285F4', tags: ['marketing', 'content', 'strategy'] },
+    { id: 'ma-legal-agent', name: 'Legal Assistant', description: 'Legal research, contract analysis, and compliance checking agent.', category: 'legal' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.1, downloads: 320, price: 0, installed: false, brainProfile: 'claude' as BrainProfile, requiredProviders: ['anthropic'], icon: '⚖️', color: '#2E86AB', tags: ['legal', 'compliance', 'contracts'] },
+    { id: 'ma-medical-agent', name: 'Medical Research Agent', description: 'Medical literature review, diagnosis assistance, and research synthesis.', category: 'medical' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.2, downloads: 280, price: 0, installed: false, brainProfile: 'gemini' as BrainProfile, requiredProviders: ['google'], icon: '🏥', color: '#00ff88', tags: ['medical', 'research', 'healthcare'] },
+    { id: 'ma-education-agent', name: 'Education Tutor', description: 'Personalized learning, curriculum design, and knowledge assessment.', category: 'education' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.6, downloads: 980, price: 0, installed: false, brainProfile: 'claude' as BrainProfile, requiredProviders: ['openai'], icon: '🎓', color: '#FF8C42', tags: ['education', 'learning', 'tutoring'] },
+    { id: 'ma-aviation-agent', name: 'Aviation Operations', description: 'Flight planning, safety analysis, and regulatory compliance for aviation.', category: 'aviation' as const, author: 'Agentic OS', version: '1.0.0', rating: 4.0, downloads: 150, price: 0, installed: false, brainProfile: 'openclaw' as BrainProfile, requiredProviders: ['openrouter'], icon: '✈️', color: '#1B998B', tags: ['aviation', 'operations', 'safety'] },
+  ],
+  setMarketplaceAgents: (agents) => set({ marketplaceAgents: agents }),
+    }),
+    {
+      name: 'agentic-os-store',
+      skipHydration: true,
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (state) {
+            state._hasHydrated = true;
+            // Force React to re-render with hydrated state
+            useOSStore.setState({ _hasHydrated: true });
+          }
+        };
+      },
+      partialize: (state) => ({
+        activeView: state.activeView,
+        sidebarCollapsed: state.sidebarCollapsed,
+        installedUpdateIds: state.installedUpdateIds,
+        goals: state.goals,
+        journal: state.journal,
+        memories: state.memories,
+        chatHistories: state.chatHistories,
+        providers: state.providers,
+        brainConfigs: state.brainConfigs,
+        activeBrainId: state.activeBrainId,
+        workspaces: state.workspaces,
+        activeWorkspaceId: state.activeWorkspaceId,
+        agentFallbackConfig: state.agentFallbackConfig,
+        modelRouterConfig: state.modelRouterConfig,
+        budgetConfig: state.budgetConfig,
+      }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<OSState>;
+        return {
+          ...currentState,
+          // Only use persisted data if it's non-empty; otherwise keep seed data
+          activeView: persisted.activeView || currentState.activeView,
+          sidebarCollapsed: persisted.sidebarCollapsed ?? currentState.sidebarCollapsed,
+          goals: persisted.goals && persisted.goals.length > 0 ? persisted.goals : currentState.goals,
+          journal: persisted.journal && persisted.journal.length > 0 ? persisted.journal : currentState.journal,
+          memories: persisted.memories && persisted.memories.length > 0 ? persisted.memories : currentState.memories,
+          installedUpdateIds: persisted.installedUpdateIds || currentState.installedUpdateIds,
+          chatHistories: persisted.chatHistories && Object.keys(persisted.chatHistories).length > 0 ? persisted.chatHistories : currentState.chatHistories,
+          providers: persisted.providers && persisted.providers.length > 0 ? persisted.providers : currentState.providers,
+          brainConfigs: persisted.brainConfigs && persisted.brainConfigs.length > 0 ? persisted.brainConfigs : currentState.brainConfigs,
+          activeBrainId: persisted.activeBrainId !== undefined ? persisted.activeBrainId : currentState.activeBrainId,
+          workspaces: persisted.workspaces && persisted.workspaces.length > 0 ? persisted.workspaces : currentState.workspaces,
+          activeWorkspaceId: persisted.activeWorkspaceId !== undefined ? persisted.activeWorkspaceId : currentState.activeWorkspaceId,
+          agentFallbackConfig: persisted.agentFallbackConfig && Object.keys(persisted.agentFallbackConfig.layerAssignments || {}).length > 0 ? persisted.agentFallbackConfig : currentState.agentFallbackConfig,
+          modelRouterConfig: persisted.modelRouterConfig || currentState.modelRouterConfig,
+          budgetConfig: persisted.budgetConfig || currentState.budgetConfig,
+        };
+      },
+    }
+  )
+);
+
+export const useHydration = () => {
+  const hasHydrated = useOSStore((s) => s._hasHydrated);
+  return hasHydrated;
+};

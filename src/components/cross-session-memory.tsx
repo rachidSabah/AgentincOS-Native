@@ -72,6 +72,8 @@ const MEMORY_NODES: MemoryNode[] = [
 
 /* ─── Helpers ─── */
 const SYNC_STATUS_MAP: Record<string, { color: string; label: string }> = {
+  active: { color: '#00ffff', label: 'Active' },
+  archived: { color: '#8888aa', label: 'Archived' },
   synced: { color: '#00ff88', label: 'Synced' },
   syncing: { color: '#FFB627', label: 'Syncing' },
   offline: { color: '#8888aa', label: 'Offline' },
@@ -159,9 +161,9 @@ function SessionTimeline() {
                     {/* Status indicator */}
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: SYNC_STATUS_MAP[session.status].color }} />
-                        <span className="text-[8px]" style={{ color: SYNC_STATUS_MAP[session.status].color }}>
-                          {SYNC_STATUS_MAP[session.status].label}
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: (SYNC_STATUS_MAP[session.status] ?? SYNC_STATUS_MAP.active).color }} />
+                        <span className="text-[8px]" style={{ color: (SYNC_STATUS_MAP[session.status] ?? SYNC_STATUS_MAP.active).color }}>
+                          {(SYNC_STATUS_MAP[session.status] ?? SYNC_STATUS_MAP.active).label}
                         </span>
                       </div>
                     </div>
@@ -301,7 +303,7 @@ function DeviceList() {
 
       <div className="p-3 space-y-1.5">
         {DEVICES.map((device, i) => {
-          const statusInfo = SYNC_STATUS_MAP[device.status];
+          const statusInfo = SYNC_STATUS_MAP[device.status] ?? { color: '#8888aa', label: device.status };
           const IconComp = device.icon;
           return (
             <motion.div

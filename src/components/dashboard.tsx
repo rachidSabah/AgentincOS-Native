@@ -9,9 +9,11 @@ import {
   Route, FlaskConical, Gem, ArrowRight, MessageSquare, Terminal,
   Globe, Layers, Clock, Users, Wrench, Eye as EyeIcon, Lock, Lightbulb,
   BarChart3, Moon, Scale, ArrowRightLeft, AlertTriangle, Server,
-  Link2, Flame,
+  Link2, Flame, Bot, Plus, X, Check, Trash2,
+  FolderOpen, Store, Paperclip, X as XIcon,
+  Settings2, Briefcase,
 } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 const layerIconMap: Record<string, typeof Crown> = {
   interaction: EyeIcon,
@@ -170,7 +172,7 @@ export function AgentHeroCards() {
 
   const heroAgents = [
     {
-      ...agents.find(a => a.id === 'claude')!,
+      ...agents.find(a => a.id === 'claude') ?? agents[0],
       heroIcon: Crown,
       borderAccent: '#E63946',
       features: ['MCP Protocol', 'Code Execution', 'Vision Pipeline', '64K Context'],
@@ -178,7 +180,7 @@ export function AgentHeroCards() {
       layerNames: ['L1 Interaction', 'L4 Cognition'],
     },
     {
-      ...agents.find(a => a.id === 'openclaw')!,
+      ...agents.find(a => a.id === 'openclaw') ?? agents[0],
       heroIcon: Route,
       borderAccent: '#E8751A',
       features: ['Agent Routing', 'Session Mgmt', 'Policy Engine', 'Observability'],
@@ -186,7 +188,7 @@ export function AgentHeroCards() {
       layerNames: ['L3 Orchestration', 'L7 Governance'],
     },
     {
-      ...agents.find(a => a.id === 'hermes')!,
+      ...agents.find(a => a.id === 'hermes') ?? agents[0],
       heroIcon: FlaskConical,
       borderAccent: '#FFB627',
       features: ['2,550+ Skills', 'Browser Automation', 'API Execution', 'MCP Server'],
@@ -194,12 +196,20 @@ export function AgentHeroCards() {
       layerNames: ['L2 Knowledge', 'L5 Execution'],
     },
     {
-      ...agents.find(a => a.id === 'vault')!,
+      ...agents.find(a => a.id === 'vault') ?? agents[0],
       heroIcon: Gem,
       borderAccent: '#2E86AB',
       features: ['Obsidian Vault', 'OMI Recording', 'Goal Tracking', 'Memory Search'],
       tagline: 'Memory & Context',
       layerNames: ['L6 Memory'],
+    },
+    {
+      ...agents.find(a => a.id === 'gemini') ?? agents[0],
+      heroIcon: Bot,
+      borderAccent: '#4285F4',
+      features: ['1M+ Context', 'Multimodal', 'Code Sandbox', 'Deep Research'],
+      tagline: 'Multimodal + Code Execution',
+      layerNames: ['L2 Knowledge', 'L5 Execution'],
     },
   ];
 
@@ -211,7 +221,7 @@ export function AgentHeroCards() {
         </h2>
         <span className="text-[10px] text-[#8888aa] font-mono tracking-wider">{agents.filter(a => a.status === 'live').length}/{agents.length} ONLINE</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {heroAgents.map((agent, i) => {
           const IconComp = agent.heroIcon;
           return (
@@ -291,11 +301,11 @@ export function AgentHeroCards() {
                   </div>
                   <div className="bg-[rgba(10,10,26,0.5)] rounded-md p-1.5 text-center">
                     <div className="text-[8px] text-[#8888aa] uppercase tracking-wider">Latency</div>
-                    <div className="text-[10px] font-mono font-bold" style={{ color: agent.latency > 300 ? '#ffaa00' : '#00ff88' }}>{agent.latency}ms</div>
+                    <div className="text-[10px] font-mono font-bold" style={{ color: (agent.latency ?? 0) > 300 ? '#ffaa00' : '#00ff88' }}>{agent.latency ?? 0}ms</div>
                   </div>
                   <div className="bg-[rgba(10,10,26,0.5)] rounded-md p-1.5 text-center">
                     <div className="text-[8px] text-[#8888aa] uppercase tracking-wider">Requests</div>
-                    <div className="text-white text-[10px] font-mono font-bold">{(agent.requests / 1000).toFixed(1)}K</div>
+                    <div className="text-white text-[10px] font-mono font-bold">{((agent.requests ?? 0) / 1000).toFixed(1)}K</div>
                   </div>
                 </div>
 
@@ -395,11 +405,11 @@ export function SEOSilo() {
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Active Agents</div>
-            <div className="text-[#E63946] font-mono text-lg font-bold">{systemMetrics.activeAgents}</div>
+            <div className="text-[#E63946] font-mono text-lg font-bold">{systemMetrics.activeAgents ?? 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Compounding</div>
-            <div className="text-[#00ff88] font-mono text-lg font-bold">Day {systemMetrics.compoundDays}</div>
+            <div className="text-[#00ff88] font-mono text-lg font-bold">Day {systemMetrics.compoundDays ?? 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Total Skills</div>
@@ -422,6 +432,12 @@ export function Sidebar() {
     { id: 'stack-overview', label: 'Mission Stack', icon: Layers },
     { id: 'seo-silo', label: 'SEO Silo', icon: Search },
     { id: 'layer-flow', label: 'Layer Flow', icon: Activity },
+    { id: 'settings', label: 'Settings', icon: Settings2 },
+  ];
+
+  const workspaceNav = [
+    { id: 'workspace-manager', label: 'Workspaces', icon: Briefcase },
+    { id: 'agent-marketplace', label: 'Marketplace', icon: Store },
   ];
 
   const memoryNav = [
@@ -449,6 +465,7 @@ export function Sidebar() {
     { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap },
     { id: 'workflows', label: 'Workflows', icon: Activity },
     { id: 'model-router', label: 'Model Router', icon: Cpu },
+    { id: 'gemini-panel', label: 'Gemini CLI', icon: Bot },
     { id: 'knowledge-gap', label: 'Knowledge Gap', icon: Search },
     { id: 'memory-decay', label: 'Memory Decay', icon: Clock },
     { id: 'agent-leaderboard', label: 'Leaderboard', icon: Crown },
@@ -468,6 +485,7 @@ export function Sidebar() {
     { id: 'cross-session-memory', label: 'X-Session Memory', icon: Link2 },
     { id: 'rag-engine', label: 'RAG Engine', icon: Zap },
     { id: 'productivity-heatmap', label: 'Heatmap', icon: BarChart3 },
+
   ];
 
   const extNav = [
@@ -532,6 +550,31 @@ export function Sidebar() {
             </button>
           );
         })}
+
+        <div className="pt-3">
+          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#FFB627] uppercase tracking-widest flex items-center gap-1"><Briefcase size={9} /> Workspace</div>}
+          {workspaceNav.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group relative ${
+                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(255,182,39,0.06)]'
+                }`}
+                style={isActive ? { background: 'rgba(255,182,39,0.08)' } : {}}
+              >
+                {isActive && <motion.div layoutId="sidebar-workspace-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: '#FFB627' }} />}
+                <item.icon size={14} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: '#FFB627' } : {}} />
+                <AnimatePresence>
+                  {!sidebarCollapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            );
+          })}
+        </div>
 
         <div className="pt-3">
           {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#00ffff] uppercase tracking-widest flex items-center gap-1"><Database size={9} /> Memory Engine</div>}
@@ -697,6 +740,10 @@ export function TopBar() {
     'cross-session-memory': 'Cross-Session Memory — Sync',
     'rag-engine': 'RAG Engine — Pipeline',
     'productivity-heatmap': 'Productivity Heatmap — Analytics',
+    'settings': 'Settings — Providers, Models & Brain Emulation',
+    'workspace-manager': 'Workspace Manager — Projects & Teams',
+    'agent-marketplace': 'Agent Marketplace — Install AI Agents',
+    'gemini-panel': 'Gemini CLI — Multimodal AI Power Panel',
   };
 
   return (
@@ -727,13 +774,13 @@ export function TopBar() {
 export function QuickStats() {
   const { agents, systemMetrics } = useOSStore();
   const liveAgents = agents.filter(a => a.status === 'live').length;
-  const totalRequests = agents.reduce((sum, a) => sum + a.requests, 0);
+  const totalRequests = agents.reduce((sum, a) => sum + (a.requests ?? 0), 0);
 
   const stats = [
     { label: 'Agents Online', value: `${liveAgents}/${agents.length}`, color: '#E63946', icon: Radio },
-    { label: 'Total Requests', value: totalRequests.toLocaleString(), color: '#7B2CBF', icon: Activity },
-    { label: 'Avg Latency', value: `${systemMetrics.avgLatency}ms`, color: '#00ff88', icon: Zap },
-    { label: 'Vault Entries', value: systemMetrics.vaultEntries.toLocaleString(), color: '#2E86AB', icon: Database },
+    { label: 'Total Requests', value: (totalRequests ?? 0).toLocaleString('en-US'), color: '#7B2CBF', icon: Activity },
+    { label: 'Avg Latency', value: `${systemMetrics.avgLatency ?? 0}ms`, color: '#00ff88', icon: Zap },
+    { label: 'Vault Entries', value: (systemMetrics.vaultEntries ?? 0).toLocaleString('en-US'), color: '#2E86AB', icon: Database },
   ];
 
   return (
@@ -766,6 +813,7 @@ export function NetworkTopology() {
     { x: 150, y: 120, label: 'OpenClaw', layers: [3, 7], color: '#E8751A', id: 'openclaw' },
     { x: 40, y: 200, label: 'Hermes', layers: [2, 5], color: '#FFB627', id: 'hermes' },
     { x: 260, y: 200, label: 'Self Vault', layers: [6], color: '#2E86AB', id: 'vault' },
+    { x: 40, y: 40, label: 'Gemini', layers: [2, 5], color: '#4285F4', id: 'gemini' },
   ];
 
   return (
@@ -1032,20 +1080,20 @@ export function StackOverview() {
             <TrendingUp size={16} className="text-[#FFB627]" />
             Compounding Progress
           </h3>
-          <span className="text-[10px] text-[#FFB627] font-mono">DAY {systemMetrics.compoundDays}</span>
+          <span className="text-[10px] text-[#FFB627] font-mono">DAY {systemMetrics.compoundDays ?? 0}</span>
         </div>
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Vault Size</div>
-            <div className="text-white font-mono text-lg font-bold">{systemMetrics.vaultSize} GB</div>
+            <div className="text-white font-mono text-lg font-bold">{systemMetrics.vaultSize ?? 0} GB</div>
           </div>
           <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Entries</div>
-            <div className="text-[#FFB627] font-mono text-lg font-bold">{systemMetrics.vaultEntries.toLocaleString()}</div>
+            <div className="text-[#FFB627] font-mono text-lg font-bold">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</div>
           </div>
           <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Compounding</div>
-            <div className="text-[#00ff88] font-mono text-lg font-bold">{systemMetrics.compoundDays}d</div>
+            <div className="text-[#00ff88] font-mono text-lg font-bold">{systemMetrics.compoundDays ?? 0}d</div>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -1153,15 +1201,15 @@ export function LayerCard({ layer }: { layer: StackLayer }) {
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-center">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Uptime</div>
-              <div className="text-white text-sm font-mono">{layerAgents[0].uptime}</div>
+              <div className="text-white text-sm font-mono">{layerAgents[0].uptime ?? '—'}</div>
             </div>
             <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-center">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Latency</div>
-              <div className="text-sm font-mono" style={{ color: layerAgents[0].latency > 300 ? '#ffaa00' : '#00ff88' }}>{layerAgents[0].latency}ms</div>
+              <div className="text-sm font-mono" style={{ color: (layerAgents[0].latency ?? 0) > 300 ? '#ffaa00' : '#00ff88' }}>{layerAgents[0].latency ?? 0}ms</div>
             </div>
             <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-center">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Requests</div>
-              <div className="text-white text-sm font-mono">{layerAgents[0].requests.toLocaleString()}</div>
+              <div className="text-white text-sm font-mono">{(layerAgents[0]?.requests ?? 0).toLocaleString('en-US')}</div>
             </div>
           </div>
         )}
@@ -1209,7 +1257,7 @@ export function AgentStatusBar() {
                 <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded" style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>L{agent.layers.join(',L')}</span>
                 <span className="text-white text-sm font-semibold">{agent.name}</span>
               </div>
-              <div className="text-[#8888aa] text-[11px] mt-0.5">{agent.latency}ms · {agent.lastActive}</div>
+              <div className="text-[#8888aa] text-[11px] mt-0.5">{agent.latency ?? 0}ms · {agent.lastActive ?? '—'}</div>
             </div>
             <ChevronDown size={14} className="text-[#8888aa] group-hover:text-white transition-colors rotate-[-90deg]" />
           </motion.button>
@@ -1234,7 +1282,7 @@ export function CompoundVisualizer() {
           <TrendingUp size={14} className="text-[#FFB627]" />
           Compounding Curve
         </h3>
-        <span className="text-[10px] text-[#FFB627] font-mono">DAY {systemMetrics.compoundDays}</span>
+        <span className="text-[10px] text-[#FFB627] font-mono">DAY {systemMetrics.compoundDays ?? 0}</span>
       </div>
 
       <svg viewBox="0 0 300 80" className="w-full">
@@ -1260,7 +1308,7 @@ export function CompoundVisualizer() {
           }).join(' ') + ' L 300 80 L 0 80 Z'}
           fill="url(#compound-grad)"
         />
-        <circle cx={(systemMetrics.compoundDays / 30) * 300} cy={78 - (days[systemMetrics.compoundDays - 1]?.quality || 50) / 100 * 72} r="4" fill="#FFB627" />
+        <circle cx={((systemMetrics.compoundDays ?? 0) / 30) * 300} cy={78 - (days[(systemMetrics.compoundDays ?? 1) - 1]?.quality || 50) / 100 * 72} r="4" fill="#FFB627" />
       </svg>
 
       <div className="flex justify-between text-[10px] text-[#8888aa] mt-2">
@@ -1271,15 +1319,15 @@ export function CompoundVisualizer() {
       <div className="mt-3 pt-3 border-t border-[rgba(46,134,171,0.1)] grid grid-cols-3 gap-3 text-center">
         <div>
           <div className="text-[10px] text-[#8888aa] uppercase">Vault Size</div>
-          <div className="text-white font-mono text-sm font-bold">{systemMetrics.vaultSize} GB</div>
+          <div className="text-white font-mono text-sm font-bold">{systemMetrics.vaultSize ?? 0} GB</div>
         </div>
         <div>
           <div className="text-[10px] text-[#8888aa] uppercase">Entries</div>
-          <div className="text-[#FFB627] font-mono text-sm font-bold">{systemMetrics.vaultEntries.toLocaleString()}</div>
+          <div className="text-[#FFB627] font-mono text-sm font-bold">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</div>
         </div>
         <div>
           <div className="text-[10px] text-[#8888aa] uppercase">Compounding</div>
-          <div className="text-[#00ff88] font-mono text-sm font-bold">{systemMetrics.compoundDays}d</div>
+          <div className="text-[#00ff88] font-mono text-sm font-bold">{systemMetrics.compoundDays ?? 0}d</div>
         </div>
       </div>
     </div>
@@ -1332,8 +1380,8 @@ export function SystemMonitor() {
       </div>
       <div className="mt-4 pt-4 border-t border-[rgba(157,78,221,0.1)] grid grid-cols-3 gap-3">
         <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Layers</div><div className="text-white font-mono text-sm font-bold">7</div></div>
-        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Requests</div><div className="text-white font-mono text-sm font-bold">{(systemMetrics.totalRequests / 1000).toFixed(1)}K</div></div>
-        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Avg Latency</div><div className="text-[#00ff88] font-mono text-sm font-bold">{systemMetrics.avgLatency}ms</div></div>
+        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Requests</div><div className="text-white font-mono text-sm font-bold">{((systemMetrics.totalRequests ?? 0) / 1000).toFixed(1)}K</div></div>
+        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Avg Latency</div><div className="text-[#00ff88] font-mono text-sm font-bold">{systemMetrics.avgLatency ?? 0}ms</div></div>
       </div>
     </div>
   );
@@ -1409,12 +1457,46 @@ export function LatencyGraph() {
 
 /* ───────── CONTROL ROOM ───────── */
 export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: () => void }) {
-  const { agents, stackLayers, hermesConnection, chatHistories, addChatMessage, clearChatHistory, isChatStreaming, setIsChatStreaming } = useOSStore();
+  const { agents, stackLayers, hermesConnection, chatHistories, addChatMessage, clearChatHistory, isChatStreaming, setIsChatStreaming, chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments } = useOSStore();
   const agent = agents.find(a => a.id === agentId);
   const layer = stackLayers.find(l => l.number === agent?.layer);
   const [input, setInput] = useState('');
   const [streamingText, setStreamingText] = useState('');
   const messages = chatHistories[agentId] || [];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const ACCEPTED_FILE_TYPES = '.pdf,.docx,.xlsx,.csv,.pptx,.txt,.json,.xml,.yaml,.yml,.html,.zip,.rar,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp3,.wav,.ogg,.mp4,.webm,.js,.ts,.py,.rs,.go,.java,.c,.cpp,.h,.rb,.php,.sh,.bat,.sql,.md,.css,.scss,.less,.jsx,.tsx,.vue,.svelte';
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const MAX_INLINE_SIZE = 1024 * 1024;
+    const attachment: import('@/lib/store').ChatAttachment = {
+      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      processed: false,
+    };
+    if (file.size < MAX_INLINE_SIZE) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        attachment.dataUrl = reader.result as string;
+        attachment.processed = true;
+        addChatAttachment(attachment);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      addChatAttachment(attachment);
+    }
+    e.target.value = '';
+  };
 
   useEffect(() => {
     if (agent && layer && messages.length === 0) {
@@ -1438,9 +1520,10 @@ export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: ()
   const isHermesLive = agentId === 'hermes' && hermesConnection.running;
 
   const handleSend = async () => {
-    if (!input.trim() || isChatStreaming) return;
+    if ((!input.trim() && chatAttachments.length === 0) || isChatStreaming) return;
     const userMsg = input.trim();
     setInput('');
+    clearChatAttachments();
 
     addChatMessage(agentId, {
       id: `user-${Date.now()}`,
@@ -1450,7 +1533,9 @@ export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: ()
       agentId,
     });
 
-    if (isHermesLive) {
+    // For Hermes agent, ALWAYS use the /api/hermes/chat endpoint
+    // which has ZAI SDK fallback when Hermes CLI is not running
+    if (agentId === 'hermes') {
       setIsChatStreaming(true);
       setStreamingText('');
       try {
@@ -1461,7 +1546,7 @@ export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: ()
         const res = await fetch('/api/hermes/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: apiMessages, stream: true }),
+          body: JSON.stringify({ messages: apiMessages, model: 'deepseek-chat', stream: true }),
         });
         if (!res.ok) {
           addChatMessage(agentId, { id: `err-${Date.now()}`, role: 'system', content: `Hermes API error: ${res.status}`, timestamp: Date.now(), agentId });
@@ -1499,6 +1584,7 @@ export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: ()
         setIsChatStreaming(false);
       }
     } else {
+      // For non-Hermes agents, show a simulated response
       setTimeout(() => {
         addChatMessage(agentId, { id: `agent-${Date.now()}`, role: 'agent', content: `Command "${userMsg}" acknowledged. Processing through Layers ${agent.layers.map(l => `L${l}`).join(', ')} pipeline...`, timestamp: Date.now(), agentId });
       }, 800);
@@ -1559,22 +1645,48 @@ export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: ()
             )}
           </div>
           <div className="p-4 border-t border-[rgba(157,78,221,0.1)]">
+            {/* Attachment chips */}
+            {chatAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {chatAttachments.map(att => (
+                  <div key={att.id}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[rgba(157,78,221,0.3)] bg-[rgba(157,78,221,0.1)] text-[10px] text-[#ccccdd]"
+                    title={att.name}>
+                    <Paperclip size={9} className="text-[#9d4edd] flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{att.name}</span>
+                    <span className="text-[#8888aa]">({formatFileSize(att.size)})</span>
+                    <button onClick={() => removeChatAttachment(att.id)}
+                      className="text-[#8888aa] hover:text-[#ff4444] transition-colors flex-shrink-0">
+                      <XIcon size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-3">
+              <input ref={fileInputRef} type="file" accept={ACCEPTED_FILE_TYPES} onChange={handleFileSelect} className="hidden" />
+              <button onClick={() => fileInputRef.current?.click()}
+                className="flex-shrink-0 w-10 h-10 rounded-lg border border-[rgba(157,78,221,0.2)] text-[#8888aa] hover:text-white hover:border-[rgba(157,78,221,0.4)] flex items-center justify-center transition-all"
+                title="Attach file">
+                <Paperclip size={16} />
+              </button>
               <input value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
                 disabled={isChatStreaming}
-                placeholder={isChatStreaming ? 'Hermes is thinking...' : isHermesLive ? `Message Hermes directly (Live API)...` : `Send command to ${agent.name} (L${agent.layers.join(',L')})...`}
+                placeholder={isChatStreaming ? 'Hermes is thinking...' : agentId === 'hermes' ? `Message Hermes (AI-powered via ${isHermesLive ? 'Live API' : 'Fallback AI'})...` : `Send command to ${agent.name} (L${agent.layers.join(',L')})...`}
                 className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-4 py-2.5 text-white text-sm placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] disabled:opacity-50" />
-              <button onClick={handleSend} disabled={isChatStreaming || !input.trim()}
+              <button onClick={handleSend} disabled={isChatStreaming || (!input.trim() && chatAttachments.length === 0)}
                 className="px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50"
                 style={{ background: `linear-gradient(135deg, ${agent.color}cc, ${agent.color}88)` }}>
                 {isChatStreaming ? '...' : 'Send'}
               </button>
             </div>
-            {isHermesLive && (
-              <div className="mt-2 text-[10px] text-[#00ff88] flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse-glow" />
-                Connected to Hermes API at {hermesConnection.apiEndpoint} — Model: {hermesConnection.model || 'default'}
+            {agentId === 'hermes' && (
+              <div className="mt-2 text-[10px] flex items-center gap-1" style={{ color: isHermesLive ? '#00ff88' : '#FFB627' }}>
+                <div className={`w-1.5 h-1.5 rounded-full ${isHermesLive ? 'bg-[#00ff88] animate-pulse-glow' : 'bg-[#FFB627]'}`} />
+                {isHermesLive
+                  ? `Connected to Hermes API at ${hermesConnection.apiEndpoint} — Model: ${hermesConnection.model || 'default'}`
+                  : 'Hermes CLI offline — using AI fallback (still functional)'}
               </div>
             )}
           </div>
@@ -1642,24 +1754,85 @@ export function CommandPalette() {
 
 /* ───────── SELF: GOALS VIEW ───────── */
 export function GoalsView() {
-  const { goals } = useOSStore();
+  const { goals, addGoal, updateGoal, removeGoal } = useOSStore();
+  const [showForm, setShowForm] = useState(false);
+  const [formTitle, setFormTitle] = useState('');
+  const [formCategory, setFormCategory] = useState('Product');
+  const [formTimeline, setFormTimeline] = useState('Q2 2026');
+  const [formProgress, setFormProgress] = useState(0);
+
+  const handleAdd = () => {
+    if (!formTitle.trim()) return;
+    addGoal({
+      id: `g${Date.now()}`,
+      title: formTitle.trim(),
+      category: formCategory,
+      timeline: formTimeline,
+      progress: formProgress,
+    });
+    setFormTitle(''); setFormCategory('Product'); setFormTimeline('Q2 2026'); setFormProgress(0);
+    setShowForm(false);
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Target size={20} className="text-[#E63946]" />
-        <h2 className="text-white font-bold text-xl uppercase tracking-wider">Goals</h2>
-        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(230,57,70,0.2)] text-[#E63946] font-mono">{goals.length} active</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Target size={20} className="text-[#E63946]" />
+          <h2 className="text-white font-bold text-xl uppercase tracking-wider">Goals</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(230,57,70,0.2)] text-[#E63946] font-mono">{goals.length} active</span>
+        </div>
+        <button onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-medium transition-all hover:scale-105 active:scale-95"
+          style={{ borderColor: '#E6394635', color: '#E63946', background: '#E6394608' }}>
+          <Plus size={11} /> Add Goal
+        </button>
       </div>
+
+      {/* Add Goal Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="rounded-xl border border-[#E6394625] bg-[rgba(18,18,42,0.8)] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] text-[#E63946] uppercase tracking-wider font-bold flex items-center gap-1"><Target size={11} /> New Goal</h3>
+                <button onClick={() => setShowForm(false)} className="text-[#8888aa] hover:text-white"><X size={12} /></button>
+              </div>
+              <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Goal title"
+                className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-[11px] placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
+              <div className="flex flex-wrap gap-2">
+                <select value={formCategory} onChange={e => setFormCategory(e.target.value)}
+                  className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none">
+                  {['Product', 'Engineering', 'Reliability', 'AI', 'Security', 'Growth'].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input value={formTimeline} onChange={e => setFormTimeline(e.target.value)} placeholder="Timeline" className="w-28 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] focus:outline-none" />
+                <input type="number" min={0} max={100} value={formProgress} onChange={e => setFormProgress(Number(e.target.value))} placeholder="%" className="w-20 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none" />
+              </div>
+              <button onClick={handleAdd} disabled={!formTitle.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold text-white transition-all disabled:opacity-30"
+                style={{ background: 'linear-gradient(135deg, #E63946cc, #E6394688)' }}>
+                <Check size={11} /> Add Goal
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid gap-3">
         {goals.map((goal, i) => (
           <motion.div key={goal.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-            className="rounded-xl border border-[rgba(230,57,70,0.1)] bg-[rgba(18,18,42,0.6)] p-5 card-hover">
+            className="group rounded-xl border border-[rgba(230,57,70,0.1)] bg-[rgba(18,18,42,0.6)] p-5 card-hover relative">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.08)] font-medium">{goal.category}</span>
                 <h4 className="text-white text-sm font-semibold">{goal.title}</h4>
               </div>
-              <span className="text-[10px] text-[#8888aa]">{goal.timeline}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-[#8888aa]">{goal.timeline}</span>
+                <button onClick={() => removeGoal(goal.id)}
+                  className="p-1 rounded-md border border-[rgba(230,57,70,0.2)] text-[#ff4444] hover:bg-[rgba(230,57,70,0.08)] transition-colors opacity-0 group-hover:opacity-100"
+                  title="Delete goal"><Trash2 size={10} /></button>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex-1 h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
@@ -1677,18 +1850,74 @@ export function GoalsView() {
 
 /* ───────── SELF: JOURNAL VIEW ───────── */
 export function JournalView() {
-  const { journal } = useOSStore();
+  const { journal, addJournalEntry, removeJournalEntry } = useOSStore();
+  const [showForm, setShowForm] = useState(false);
+  const [formType, setFormType] = useState<'voice' | 'text'>('text');
+  const [formContent, setFormContent] = useState('');
+  const [formSource, setFormSource] = useState('Manual Entry');
+
+  const handleAdd = () => {
+    if (!formContent.trim()) return;
+    addJournalEntry({
+      id: `j${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      type: formType,
+      content: formContent.trim(),
+      source: formSource,
+    });
+    setFormContent(''); setFormType('text'); setFormSource('Manual Entry');
+    setShowForm(false);
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <BookOpen size={20} className="text-[#7B2CBF]" />
-        <h2 className="text-white font-bold text-xl uppercase tracking-wider">Journal</h2>
-        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] font-mono">{journal.length} entries</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <BookOpen size={20} className="text-[#7B2CBF]" />
+          <h2 className="text-white font-bold text-xl uppercase tracking-wider">Journal</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] font-mono">{journal.length} entries</span>
+        </div>
+        <button onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-medium transition-all hover:scale-105 active:scale-95"
+          style={{ borderColor: '#7B2CBF35', color: '#7B2CBF', background: '#7B2CBF08' }}>
+          <Plus size={11} /> Add Entry
+        </button>
       </div>
+
+      {/* Add Journal Entry Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="rounded-xl border border-[#7B2CBF25] bg-[rgba(18,18,42,0.8)] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] text-[#7B2CBF] uppercase tracking-wider font-bold flex items-center gap-1"><BookOpen size={11} /> New Entry</h3>
+                <button onClick={() => setShowForm(false)} className="text-[#8888aa] hover:text-white"><X size={12} /></button>
+              </div>
+              <textarea value={formContent} onChange={e => setFormContent(e.target.value)} rows={3} placeholder="Journal entry..."
+                className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-[11px] placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] resize-none" />
+              <div className="flex flex-wrap gap-2">
+                <select value={formType} onChange={e => setFormType(e.target.value as 'voice' | 'text')}
+                  className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none">
+                  <option value="text">Text</option>
+                  <option value="voice">Voice</option>
+                </select>
+                <input value={formSource} onChange={e => setFormSource(e.target.value)} placeholder="Source"
+                  className="w-36 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] focus:outline-none" />
+              </div>
+              <button onClick={handleAdd} disabled={!formContent.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold text-white transition-all disabled:opacity-30"
+                style={{ background: 'linear-gradient(135deg, #7B2CBFcc, #7B2CBF88)' }}>
+                <Check size={11} /> Add Entry
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid gap-3">
         {journal.map((entry, i) => (
           <motion.div key={entry.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-            className="rounded-xl border border-[rgba(123,44,191,0.1)] bg-[rgba(18,18,42,0.6)] p-5 card-hover">
+            className="group rounded-xl border border-[rgba(123,44,191,0.1)] bg-[rgba(18,18,42,0.6)] p-5 card-hover">
             <div className="flex items-center gap-3 mb-3">
               <span className="text-white text-sm font-medium">{entry.date}</span>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
@@ -1697,6 +1926,10 @@ export function JournalView() {
                 {entry.type === 'voice' ? <><Mic size={10} className="inline mr-1" />VOICE</> : <><PenLine size={10} className="inline mr-1" />TEXT</>}
               </span>
               <span className="text-[10px] text-[#8888aa]">via {entry.source}</span>
+              <div className="flex-1" />
+              <button onClick={() => removeJournalEntry(entry.id)}
+                className="p-1 rounded-md border border-[rgba(230,57,70,0.2)] text-[#ff4444] hover:bg-[rgba(230,57,70,0.08)] transition-colors opacity-0 group-hover:opacity-100"
+                title="Delete entry"><Trash2 size={10} /></button>
             </div>
             <p className="text-[#ccccdd] text-sm leading-relaxed">{entry.content}</p>
           </motion.div>
@@ -1708,20 +1941,75 @@ export function JournalView() {
 
 /* ───────── SELF: MEMORY VIEW ───────── */
 export function MemoryView() {
-  const { memories, selfSearchQuery, setSelfSearchQuery, agents } = useOSStore();
+  const { memories, selfSearchQuery, setSelfSearchQuery, agents, addMemory } = useOSStore();
   const filtered = selfSearchQuery
     ? memories.filter(m => m.content.toLowerCase().includes(selfSearchQuery.toLowerCase()) || m.tags.some(t => t.toLowerCase().includes(selfSearchQuery.toLowerCase())))
     : memories;
 
   const layerColors: Record<string, string> = Object.fromEntries(agents.map(a => [a.name, a.color]));
 
+  const [showForm, setShowForm] = useState(false);
+  const [formContent, setFormContent] = useState('');
+  const [formAgent, setFormAgent] = useState('Self Vault');
+  const [formTags, setFormTags] = useState('');
+
+  const handleAdd = () => {
+    if (!formContent.trim()) return;
+    addMemory({
+      id: `m${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      content: formContent.trim(),
+      agent: formAgent,
+      tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
+    });
+    setFormContent(''); setFormAgent('Self Vault'); setFormTags('');
+    setShowForm(false);
+  };
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Database size={20} className="text-[#2E86AB]" />
-        <h2 className="text-white font-bold text-xl uppercase tracking-wider">Memory</h2>
-        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(46,134,171,0.2)] text-[#2E86AB] font-mono">{memories.length} entries</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Database size={20} className="text-[#2E86AB]" />
+          <h2 className="text-white font-bold text-xl uppercase tracking-wider">Memory</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(46,134,171,0.2)] text-[#2E86AB] font-mono">{memories.length} entries</span>
+        </div>
+        <button onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-medium transition-all hover:scale-105 active:scale-95"
+          style={{ borderColor: '#2E86AB35', color: '#2E86AB', background: '#2E86AB08' }}>
+          <Plus size={11} /> Add Memory
+        </button>
       </div>
+
+      {/* Add Memory Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="rounded-xl border border-[#2E86AB25] bg-[rgba(18,18,42,0.8)] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] text-[#2E86AB] uppercase tracking-wider font-bold flex items-center gap-1"><Database size={11} /> New Memory</h3>
+                <button onClick={() => setShowForm(false)} className="text-[#8888aa] hover:text-white"><X size={12} /></button>
+              </div>
+              <textarea value={formContent} onChange={e => setFormContent(e.target.value)} rows={2} placeholder="Memory content..."
+                className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-[11px] placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] resize-none" />
+              <div className="flex flex-wrap gap-2">
+                <select value={formAgent} onChange={e => setFormAgent(e.target.value)}
+                  className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none">
+                  {['Self Vault', 'Claude', 'Hermes', 'OpenClaw', 'Gemini'].map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <input value={formTags} onChange={e => setFormTags(e.target.value)} placeholder="Tags (comma separated)"
+                  className="flex-1 min-w-[160px] bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] focus:outline-none" />
+              </div>
+              <button onClick={handleAdd} disabled={!formContent.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold text-white transition-all disabled:opacity-30"
+                style={{ background: 'linear-gradient(135deg, #2E86ABcc, #2E86AB88)' }}>
+                <Check size={11} /> Add Memory
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8888aa]" />
         <input value={selfSearchQuery} onChange={e => setSelfSearchQuery(e.target.value)}
@@ -1844,8 +2132,8 @@ export function OmiObsidianStatus() {
       </div>
       <div className="space-y-2 text-xs">
         <div className="flex justify-between"><span className="text-[#8888aa]">Export Target</span><span className="text-white font-mono">Obsidian Vault</span></div>
-        <div className="flex justify-between"><span className="text-[#8888aa]">Vault Size</span><span className="text-white font-mono">{systemMetrics.vaultSize} GB</span></div>
-        <div className="flex justify-between"><span className="text-[#8888aa]">Total Entries</span><span className="text-[#2E86AB] font-mono">{systemMetrics.vaultEntries.toLocaleString()}</span></div>
+        <div className="flex justify-between"><span className="text-[#8888aa]">Vault Size</span><span className="text-white font-mono">{systemMetrics.vaultSize ?? 0} GB</span></div>
+        <div className="flex justify-between"><span className="text-[#8888aa]">Total Entries</span><span className="text-[#2E86AB] font-mono">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</span></div>
         <div className="flex justify-between"><span className="text-[#8888aa]">Notes Today</span><span className="text-[#00ff88] font-mono">47</span></div>
       </div>
     </div>
@@ -1942,10 +2230,13 @@ export function useHermesDetection() {
   useEffect(() => {
     if (!hermesConnection.running) return;
 
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let eventSource: EventSource | null = null;
+
     const connectSSE = () => {
       setSSEConnectionStatus('connecting');
       try {
-        const eventSource = new EventSource('/api/hermes/stream');
+        eventSource = new EventSource('/api/hermes/stream');
 
         eventSource.addEventListener('hermes:status', (e) => {
           try {
@@ -1980,23 +2271,20 @@ export function useHermesDetection() {
 
         eventSource.onerror = () => {
           setSSEConnectionStatus('error');
-          eventSource.close();
-          // Reconnect after 10 seconds
-          setTimeout(connectSSE, 10000);
-        };
-
-        return () => {
-          eventSource.close();
-          setSSEConnectionStatus('disconnected');
+          eventSource?.close();
+          eventSource = null;
+          reconnectTimeout = setTimeout(connectSSE, 10000);
         };
       } catch {
         setSSEConnectionStatus('error');
       }
     };
 
-    const cleanup = connectSSE();
+    connectSSE();
     return () => {
-      if (cleanup) cleanup();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (eventSource) eventSource.close();
+      setSSEConnectionStatus('disconnected');
     };
   }, [hermesConnection.running, setSSEConnectionStatus, setHermesConnection, addHermesLatency]);
 
@@ -2104,6 +2392,89 @@ export function HermesConnectionBanner() {
       </div>
       <button onClick={() => setControlRoomAgent('hermes')}
         className="px-4 py-2 rounded-lg text-xs font-medium border border-[rgba(0,255,136,0.3)] text-[#00ff88] bg-[rgba(0,255,136,0.1)] hover:bg-[rgba(0,255,136,0.2)] transition-colors flex items-center gap-1.5">
+        <MessageSquare size={12} /> Chat
+      </button>
+    </motion.div>
+  );
+}
+
+/* ───────── GEMINI CONNECTION BANNER ───────── */
+export function GeminiConnectionBanner() {
+  const { geminiConnection, setControlRoomAgent } = useOSStore();
+
+  const latencyColor = geminiConnection.latency
+    ? geminiConnection.latency < 200 ? '#34A853'
+    : geminiConnection.latency < 500 ? '#FBBC05' : '#EA4335'
+    : '#8888aa';
+
+  if (!geminiConnection.installed) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-[rgba(66,133,244,0.2)] bg-[rgba(66,133,244,0.05)] p-3 flex items-center gap-3"
+      >
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(66,133,244,0.1)] border border-[rgba(66,133,244,0.2)]">
+          <Bot size={16} className="text-[#4285F4]" />
+        </div>
+        <div className="flex-1">
+          <div className="text-white text-sm font-medium">Gemini CLI Not Detected</div>
+          <div className="text-[#8888aa] text-xs">Install Google Gemini CLI to enable multimodal AI chat (L2 Knowledge + L5 Execution).</div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!geminiConnection.running) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-[rgba(251,188,5,0.2)] bg-[rgba(251,188,5,0.05)] p-3 flex items-center gap-3"
+      >
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(251,188,5,0.1)] border border-[rgba(251,188,5,0.2)]">
+          <div className="w-3 h-3 rounded-full bg-[#FBBC05] animate-pulse-glow" />
+        </div>
+        <div className="flex-1">
+          <div className="text-white text-sm font-medium">Gemini CLI Installed — Not Running</div>
+          <div className="text-[#8888aa] text-xs">Start the CLI: <code className="text-[#4285F4] bg-[rgba(66,133,244,0.1)] px-1.5 py-0.5 rounded text-[10px]">gemini serve</code></div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-[rgba(52,168,83,0.2)] bg-[rgba(52,168,83,0.05)] p-3 flex items-center gap-3"
+    >
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(52,168,83,0.1)] border border-[rgba(52,168,83,0.2)]">
+        <div className="relative">
+          <div className="w-3 h-3 rounded-full bg-[#34A853] animate-pulse-glow" />
+          <div className="absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-30 bg-[#34A853]" />
+        </div>
+      </div>
+      <div className="flex-1">
+        <div className="text-white text-sm font-medium flex items-center gap-2">
+          Gemini AI Connected
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#34A853]/15 text-[#34A853] font-bold tracking-wider">LIVE</span>
+          {geminiConnection.latency !== undefined && (
+            <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold" style={{ color: latencyColor, backgroundColor: `${latencyColor}15` }}>
+              {geminiConnection.latency}ms
+            </span>
+          )}
+        </div>
+        <div className="text-[#8888aa] text-xs flex items-center gap-1.5 flex-wrap">
+          {geminiConnection.apiEndpoint && <span>API: <span className="text-[#34A853]">{geminiConnection.apiEndpoint}</span></span>}
+          {geminiConnection.model && <span>· Model: <span className="text-[#34A853]">{geminiConnection.model}</span></span>}
+          {geminiConnection.version && <span>· v<span className="text-[#34A853]">{geminiConnection.version}</span></span>}
+          {geminiConnection.projectCount !== undefined && <span>· Projects: <span className="text-[#4285F4]">{geminiConnection.projectCount}</span></span>}
+          {geminiConnection.sandboxEnabled && <span>· <span className="text-[#34A853]">Sandbox Active</span></span>}
+        </div>
+      </div>
+      <button onClick={() => setControlRoomAgent('gemini')}
+        className="px-4 py-2 rounded-lg text-xs font-medium border border-[rgba(52,168,83,0.3)] text-[#34A853] bg-[rgba(52,168,83,0.1)] hover:bg-[rgba(52,168,83,0.2)] transition-colors flex items-center gap-1.5">
         <MessageSquare size={12} /> Chat
       </button>
     </motion.div>

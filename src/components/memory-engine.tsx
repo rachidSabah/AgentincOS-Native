@@ -1756,7 +1756,7 @@ function MemoryExtractor() {
 
 function AgentMemorySharing() {
   const { memories, memoryRelations, memoryTimeline } = useMemoryStore();
-  const [agentAccess, setAgentAccess] = useState<Record<string, { read: boolean; write: boolean; admin: boolean }>>({
+  const [agentAccess, setAgentAccess] = useState<{[key: string]: { read: boolean; write: boolean; admin: boolean }}>({
     claude: { read: true, write: true, admin: false },
     openclaw: { read: true, write: true, admin: true },
     hermes: { read: true, write: false, admin: false },
