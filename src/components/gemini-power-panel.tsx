@@ -65,11 +65,13 @@ export function GeminiPowerPanel() {
           message: `Gemini CLI detected and connected — model: ${data.model || 'gemini-2.5-pro'} — latency: ${data.latency}ms`,
         });
       } else if (data.installed) {
-        // CLI installed but not running as server
+        const cliReady = data.cliReady || data.running;
+        const statusLabel = cliReady ? 'CLI Ready' : 'installed — not serving';
+        const agentStatus = cliReady ? 'live' as const : 'degraded' as const;
         const pathInfo = data.path ? ` at ${data.path}` : '';
         updateAgent('gemini', {
-          status: 'degraded',
-          lastActive: 'installed — not serving',
+          status: agentStatus,
+          lastActive: statusLabel,
           model: data.version ? `gemini-2.5-pro (v${data.version})` : 'gemini-2.5-pro',
         });
         addLog({
@@ -77,8 +79,8 @@ export function GeminiPowerPanel() {
           timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
           agent: 'Gemini',
           layer: 2,
-          level: 'info',
-          message: `Gemini CLI installed${data.version ? ` (v${data.version})` : ''}${pathInfo} but not running as server. Start with: gemini serve`,
+          level: cliReady ? 'success' : 'info',
+          message: `Gemini CLI ${data.version ? `v${data.version}` : ''}${pathInfo} — ${cliReady ? 'Ready for chat via CLI' : 'Not responding. Try: gemini serve'}`,
         });
       } else {
         // Also try CLI binary check as fallback (checks WSL, Windows, npx)
@@ -235,7 +237,7 @@ export function GeminiPowerPanel() {
             <div className={`w-2 h-2 rounded-full ${isRunning ? 'animate-pulse-glow' : ''}`}
               style={{ backgroundColor: isRunning ? GOOGLE_GREEN : isInstalled ? GOOGLE_YELLOW : GOOGLE_BLUE }} />
             <span className="text-[10px] font-mono" style={{ color: isRunning ? GOOGLE_GREEN : isInstalled ? GOOGLE_YELLOW : GOOGLE_BLUE }}>
-              {isRunning ? 'ONLINE' : isInstalled ? 'INSTALLED' : 'SDK'}
+              {isRunning ? 'ONLINE' : isInstalled ? 'CLI READY' : 'SDK'}
             </span>
           </div>
         </div>

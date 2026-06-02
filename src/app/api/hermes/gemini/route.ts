@@ -245,14 +245,24 @@ export async function GET(req: NextRequest) {
       const binaryInfo = await detectGeminiBinary();
 
       if (binaryInfo.installed) {
+        // Quick CLI test to verify it actually works
+        let cliWorking = false;
+        try {
+          const testCmd = IS_WIN ? 'gemini --version' : 'gemini --version';
+          const execFn = IS_WIN ? execAsync : execFileAsync;
+          const { stdout } = await execFn(testCmd, { timeout: 5000, ...(IS_WIN ? { shell: true } : {}) });
+          cliWorking = stdout.trim().length > 0;
+        } catch { /* CLI not responding */ }
+
         return NextResponse.json({
           installed: true,
-          running: false,
+          running: cliWorking,
+          cliReady: cliWorking,
           version: binaryInfo.version || 'unknown',
           path: binaryInfo.path,
           latency,
           lastChecked: Date.now(),
-          message: 'Gemini CLI is installed but not running as a server. Click "Start Gemini" or run: gemini serve',
+          message: cliWorking ? 'Gemini CLI is ready — direct chat available via CLI' : 'Gemini CLI is installed but not responding. Run: gemini serve',
         });
       }
 
