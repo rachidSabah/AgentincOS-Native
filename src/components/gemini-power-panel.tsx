@@ -98,7 +98,7 @@ export function GeminiPowerPanel() {
               updateAgent('gemini', {
                 status: 'degraded',
                 lastActive: `installed${cliData.version ? ` (v${cliData.version})` : ''}`,
-                model: 'gemini-2.5-pro (demo)',
+                model: 'gemini-2.5-pro (via SDK)',
               });
               addLog({
                 id: `gemini-cli-${Date.now()}`,
@@ -108,27 +108,27 @@ export function GeminiPowerPanel() {
                 level: 'info',
                 message: `Gemini CLI binary found${cliData.version ? ` (v${cliData.version})` : ''} at ${cliData.path || 'CLI'} — start server with: gemini serve`,
               });
-              return; // Found via fallback, don't fall through to demo
+              return; // Found via fallback, don't fall through to SDK mode
             }
           }
         } catch {
-          // CLI check failed, fall through to demo mode
+          // CLI check failed, fall through to SDK mode
         }
 
-        // Demo mode — keep agent as degraded with demo indication
-        updateAgent('gemini', { status: 'degraded', lastActive: 'demo mode', model: 'gemini-2.5-pro (demo)' });
+        // SDK fallback mode — Gemini CLI not detected, but ZAI SDK provides real AI
+        updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'gemini-2.5-pro (via SDK)' });
         addLog({
-          id: `gemini-demo-${Date.now()}`,
+          id: `gemini-sdk-${Date.now()}`,
           timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
           agent: 'Gemini',
           layer: 2,
           level: 'info',
-          message: 'Gemini CLI not detected — running in demo mode with simulated responses. If installed under WSL, try: wsl gemini serve',
+          message: 'Gemini CLI not detected — using built-in AI SDK for real responses. Install Gemini CLI for direct CLI features.',
         });
       }
     } catch {
       setGeminiConnection({ installed: false, running: false, lastChecked: Date.now() });
-      updateAgent('gemini', { status: 'degraded', lastActive: 'demo mode', model: 'gemini-2.5-pro (demo)' });
+      updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'gemini-2.5-pro (via SDK)' });
     } finally {
       setIsDetecting(false);
     }
@@ -227,7 +227,7 @@ export function GeminiPowerPanel() {
             <div className={`w-2 h-2 rounded-full ${isRunning ? 'animate-pulse-glow' : ''}`}
               style={{ backgroundColor: isRunning ? GOOGLE_GREEN : isInstalled ? GOOGLE_YELLOW : GOOGLE_BLUE }} />
             <span className="text-[10px] font-mono" style={{ color: isRunning ? GOOGLE_GREEN : isInstalled ? GOOGLE_YELLOW : GOOGLE_BLUE }}>
-              {isRunning ? 'ONLINE' : isInstalled ? 'INSTALLED' : 'DEMO'}
+              {isRunning ? 'ONLINE' : isInstalled ? 'INSTALLED' : 'SDK'}
             </span>
           </div>
         </div>
@@ -251,12 +251,12 @@ export function GeminiPowerPanel() {
           </div>
           <div className="flex-1">
             <div className="text-white text-sm font-medium">
-              {isInstalled ? 'Gemini CLI Installed — Not Running' : 'Gemini CLI — Demo Mode'}
+              {isInstalled ? 'Gemini CLI Installed — Not Running' : 'Gemini CLI — AI SDK Mode'}
             </div>
             <div className="text-[#8888aa] text-xs">
               {isInstalled
                 ? <>Gemini CLI is installed{geminiConnection.version ? ` (v${geminiConnection.version})` : ''}{geminiConnection.path ? ` at ${geminiConnection.path}` : geminiConnection.apiEndpoint ? ` at ${geminiConnection.apiEndpoint}` : ''}. Start the server: <code className="text-[#4285F4] bg-[rgba(66,133,244,0.1)] px-1.5 py-0.5 rounded text-[10px]">gemini serve</code> or use interactively: <code className="text-[#4285F4] bg-[rgba(66,133,244,0.1)] px-1.5 py-0.5 rounded text-[10px]">gemini</code></>
-                : <>Running with simulated responses. Install <code className="text-[#4285F4] bg-[rgba(66,133,244,0.1)] px-1.5 py-0.5 rounded text-[10px]">gemini cli</code> for live AI. If installed under WSL, click Re-detect.</>}
+                : <>AI SDK providing real responses. Install <code className="text-[#4285F4] bg-[rgba(66,133,244,0.1)] px-1.5 py-0.5 rounded text-[10px]">gemini cli</code> for direct CLI access. If installed under WSL, click Re-detect.</>}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -609,7 +609,7 @@ function GeminiChatTab({ selectedModel, isRunning }: { selectedModel: string; is
             <div className="text-[9px] text-[#8888aa] mt-1">Model: {selectedModel}</div>
             {!isRunning && (
               <div className="text-[9px] mt-2 px-3 py-1.5 rounded-lg border border-[rgba(251,188,5,0.2)] bg-[rgba(251,188,5,0.05)] text-[#FBBC05] inline-block">
-                Demo mode — install Gemini CLI for live AI responses
+                AI SDK active — install Gemini CLI for direct CLI features
               </div>
             )}
           </div>

@@ -337,7 +337,9 @@ export async function POST(req: NextRequest) {
     }
 
     case 'chat': {
-      // Try real Gemini CLI server first (try all ports)
+      const startTime = Date.now();
+
+      // Strategy 1: Try real Gemini CLI server (try all ports)
       for (const port of GEMINI_CLI_PORTS) {
         const res = await geminiRequest('/api/chat', {
           method: 'POST',
@@ -346,71 +348,11 @@ export async function POST(req: NextRequest) {
 
         if (res?.ok) {
           const data = await res.json();
-          return NextResponse.json(data);
+          return NextResponse.json({ ...data, via: 'gemini-cli-server' });
         }
       }
 
-      // Try CLI binary directly as fallback
-      try {
-        const { stdout } = await execFileAsync('gemini', [
-          'chat',
-          '--model', model || 'gemini-2.5-pro',
-          '--message', message,
-          '--format', 'json',
-        ], { timeout: 30000 });
-
-        if (stdout.trim()) {
-          try {
-            const data = JSON.parse(stdout);
-            return NextResponse.json(data);
-          } catch {
-            // Not JSON, return as text
-            return NextResponse.json({
-              response: stdout.trim(),
-              model: model || 'gemini-2.5-pro',
-              tokensUsed: Math.floor((message?.length || 0) * 1.2),
-              latency: 2000,
-            });
-          }
-        }
-      } catch {
-        // CLI not available or failed
-      }
-
-      // Try WSL binary (multiple strategies)
-      const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
-      const wslStrategies = [
-        // Strategy 1: wsl with -- separator (works on WSL2)
-        ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-        // Strategy 2: wsl with -e (works on older WSL)
-        ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-        // Strategy 3: wsl bash with expanded PATH for nvm/npm
-        ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-      ];
-
-      for (const args of wslStrategies) {
-        try {
-          const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
-          if (stdout.trim()) {
-            try {
-              const data = JSON.parse(stdout);
-              return NextResponse.json({ ...data, via: 'wsl' });
-            } catch {
-              return NextResponse.json({
-                response: stdout.trim(),
-                model: model || 'gemini-2.5-pro',
-                tokensUsed: Math.floor((message?.length || 0) * 1.2),
-                latency: 2000,
-                via: 'wsl',
-              });
-            }
-          }
-        } catch {
-          // try next strategy
-        }
-      }
-
-      // ZAI SDK fallback — real AI response independent of Hermes
+      // Strategy 2: ZAI SDK — real AI response (primary when no Gemini CLI running)
       try {
         const zai = await getZAI();
         const sdkMessages = [
@@ -423,37 +365,89 @@ export async function POST(req: NextRequest) {
         });
 
         const responseText = completion.choices[0]?.message?.content ?? '';
+        const latency = Date.now() - startTime;
 
         return NextResponse.json({
           response: responseText,
           model: model || 'gemini-2.5-pro',
           tokensUsed: Math.floor((message?.length || 0) * 1.2) + Math.floor(responseText.length * 1.3),
-          latency: 1500,
+          latency,
           sources: 0,
           confidence: 0.88,
           via: 'zai-sdk',
         });
       } catch (zaiError) {
-        console.error('[gemini/chat] ZAI SDK fallback failed:', zaiError);
-
-        // Final fallback: simulated response
-        const responses = [
-          `I've analyzed your request across multiple dimensions. Here's my assessment:\n\n**Key Findings:**\n- The task requires multi-step reasoning with context from 3 knowledge domains\n- Cross-referencing with vault memory shows 12 relevant prior interactions\n- Recommended approach: phased execution with validation checkpoints\n\n**Proposed Plan:**\n1. Gather context from knowledge layer\n2. Cross-validate with memory entries\n3. Generate structured output with citations\n4. Verify against safety constraints\n\nShall I proceed with execution?`,
-          `Processing through Gemini 2.5 Pro with 1M token context window...\n\n**Analysis Complete:**\n- Parsed 847 tokens from input\n- Retrieved 23 relevant memory entries\n- Generated 3 alternative approaches\n- Ranked by confidence: A (94%), B (87%), C (72%)\n\n**Recommendation:** Approach A provides the best balance of accuracy and efficiency. It leverages the long-context window for comprehensive analysis while maintaining sub-2s response latency.\n\nReady for next step.`,
-          `Running deep research mode with sandboxed code execution...\n\n**Research Results:**\n- Scanned 5 data sources in 2.3s\n- Found 47 relevant documents\n- Extracted 156 key facts\n- Confidence score: 0.91\n\n**Code Execution:**\n\`\`\`python\nresult = analyze_data(sources=5, depth='deep')\n# Output: 47 docs, 156 facts, 0.91 confidence\n\`\`\`\n\nThe analysis is ready for review. I can drill deeper into any specific finding.`,
-        ];
-        const response = responses[Math.abs((message?.length || 0) * 37 + 13) % responses.length];
-
-        return NextResponse.json({
-          response,
-          model: model || 'gemini-2.5-pro',
-          tokensUsed: Math.floor((message?.length || 0) * 1.5) + 847,
-          latency: 1100 + Math.floor(((message?.length || 0) * 7 + 13) % 500),
-          sources: 5,
-          confidence: 0.91,
-          demo: true,
-        });
+        console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
       }
+
+      // Strategy 3: Try CLI binary directly
+      try {
+        const { stdout } = await execFileAsync('gemini', [
+          'chat',
+          '--model', model || 'gemini-2.5-pro',
+          '--message', message,
+          '--format', 'json',
+        ], { timeout: 30000 });
+
+        if (stdout.trim()) {
+          const latency = Date.now() - startTime;
+          try {
+            const data = JSON.parse(stdout);
+            return NextResponse.json({ ...data, via: 'gemini-cli', latency });
+          } catch {
+            return NextResponse.json({
+              response: stdout.trim(),
+              model: model || 'gemini-2.5-pro',
+              tokensUsed: Math.floor((message?.length || 0) * 1.2),
+              latency,
+              via: 'gemini-cli',
+            });
+          }
+        }
+      } catch {
+        // CLI not available or failed
+      }
+
+      // Strategy 4: Try WSL binary
+      const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+      const wslStrategies = [
+        ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+        ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+        ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+      ];
+
+      for (const args of wslStrategies) {
+        try {
+          const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
+          if (stdout.trim()) {
+            const latency = Date.now() - startTime;
+            try {
+              const data = JSON.parse(stdout);
+              return NextResponse.json({ ...data, via: 'wsl', latency });
+            } catch {
+              return NextResponse.json({
+                response: stdout.trim(),
+                model: model || 'gemini-2.5-pro',
+                tokensUsed: Math.floor((message?.length || 0) * 1.2),
+                latency,
+                via: 'wsl',
+              });
+            }
+          }
+        } catch {
+          // try next strategy
+        }
+      }
+
+      // All strategies failed — return honest error, not fake response
+      return NextResponse.json({
+        response: 'I\'m unable to connect to any AI provider right now. Please check that at least one provider is configured and enabled in Settings > Providers, or ensure the Gemini CLI is running. You can also verify your API keys are valid.',
+        model: model || 'gemini-2.5-pro',
+        tokensUsed: 0,
+        latency: Date.now() - startTime,
+        error: true,
+        via: 'none',
+      });
     }
 
     case 'execute': {

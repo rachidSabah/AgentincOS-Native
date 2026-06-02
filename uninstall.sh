@@ -1,80 +1,98 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# Agentic OS — One-Command Uninstallation Script
+#  Agentic OS Ultimate Edition V5.0 — One-Command Uninstaller
+#  https://github.com/rachidSabah/Agentic-os
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
-BOLD='\033[1m'
-RED='\033[31m'
-GREEN='\033[32m'
-YELLOW='\033[33m'
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+PURPLE='\033[0;35m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${RED}${BOLD}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${RED}${BOLD}  🧠 Agentic OS — Uninstallation${NC}"
-echo -e "${RED}${BOLD}═══════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${PURPLE}   🧠 Agentic OS Ultimate Edition V5.0 — Uninstaller${NC}"
+echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
+# Find install directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="${1:-$SCRIPT_DIR}"
 
-# ─── Stop Running Processes ───
-echo -e "${BOLD}Checking for running Agentic OS processes...${NC}"
+if [ ! -d "$INSTALL_DIR" ]; then
+  echo -e "${RED}Error: Directory $INSTALL_DIR does not exist.${NC}"
+  exit 1
+fi
 
-# Kill any next dev processes on port 3100
-if lsof -ti:3100 &> /dev/null; then
-  echo -e "${YELLOW}Stopping processes on port 3100...${NC}"
-  lsof -ti:3100 | xargs kill -9 2>/dev/null || true
-  echo -e "${GREEN}✓ Stopped${NC}"
+cd "$INSTALL_DIR"
+
+# ─── Step 1: Stop Running Process ───
+echo -e "${CYAN}[1/4]${NC} Stopping Agentic OS..."
+
+if [ -f .agentic-os.pid ]; then
+  PID=$(cat .agentic-os.pid)
+  if kill -0 "$PID" 2>/dev/null; then
+    kill "$PID" 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Stopped process (PID: $PID)"
+  else
+    echo -e "  ${YELLOW}⚠${NC} Process $PID is not running"
+  fi
+  rm -f .agentic-os.pid
 else
-  echo -e "${GREEN}✓ No processes on port 3100${NC}"
+  # Try to find by port
+  PORT=$(grep -oP 'PORT=\K\d+' .env.local 2>/dev/null || echo "3100")
+  LSOF_PID=$(lsof -ti :"$PORT" 2>/dev/null || true)
+  if [ -n "$LSOFF_PID" ]; then
+    kill "$LSOF_PID" 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Killed process on port $PORT (PID: $LSOF_PID)"
+  else
+    echo -e "  ${YELLOW}⚠${NC} No running process found"
+  fi
 fi
 
-# Kill any next build processes
-pkill -f "next build" 2>/dev/null || true
-pkill -f "next dev" 2>/dev/null || true
-
+# ─── Step 2: Remove node_modules ───
 echo ""
-echo -e "${YELLOW}${BOLD}⚠ This will remove Agentic OS completely!${NC}"
-echo -e "${YELLOW}  Directory: ${SCRIPT_DIR}${NC}"
-echo ""
-read -p "Are you sure you want to uninstall Agentic OS? [y/N]: " -n 1 -r
-echo
+echo -e "${CYAN}[2/4]${NC} Removing node_modules..."
 
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-  echo -e "${GREEN}Uninstall cancelled.${NC}"
-  exit 0
+if [ -d node_modules ]; then
+  rm -rf node_modules
+  echo -e "  ${GREEN}✓${NC} node_modules removed"
+else
+  echo -e "  ${YELLOW}⚠${NC} node_modules not found"
 fi
 
-# ─── Remove Build Artifacts ───
+# ─── Step 3: Remove build artifacts ───
 echo ""
-echo -e "${BOLD}Removing build artifacts...${NC}"
-rm -rf "$SCRIPT_DIR/.next" 2>/dev/null && echo -e "${GREEN}✓ Removed .next/${NC}" || echo -e "${GREEN}✓ .next/ not found${NC}"
-rm -rf "$SCRIPT_DIR/node_modules" 2>/dev/null && echo -e "${GREEN}✓ Removed node_modules/${NC}" || echo -e "${GREEN}✓ node_modules/ not found${NC}"
-rm -rf "$SCRIPT_DIR/out" 2>/dev/null && echo -e "${GREEN}✓ Removed out/${NC}" || true
+echo -e "${CYAN}[3/4]${NC} Removing build artifacts..."
 
-# ─── Remove Local Storage ───
-echo ""
-echo -e "${BOLD}Note: Browser localStorage data (Agentic OS state) will persist in your browser.${NC}"
-echo -e "  To clear it: Open DevTools → Application → Local Storage → Clear"
+rm -rf .next
+rm -f agentic-os.log
+rm -f .env.local
 
-# ─── Optionally Remove Entire Directory ───
+echo -e "  ${GREEN}✓${NC} Build artifacts removed"
+
+# ─── Step 4: Ask about full removal ───
 echo ""
-read -p "Remove the entire Agentic OS directory ($SCRIPT_DIR)? [y/N]: " -n 1 -r
+echo -e "${CYAN}[4/4]${NC} Full removal..."
+
+read -p "Do you want to completely remove the Agentic OS directory ($INSTALL_DIR)? [y/N] " -n 1 -r
 echo
-
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-  # Navigate out before removing
-  cd /tmp
-  rm -rf "$SCRIPT_DIR"
-  echo -e "${GREEN}✓ Removed $SCRIPT_DIR${NC}"
+  cd /
+  rm -rf "$INSTALL_DIR"
+  echo -e "  ${GREEN}✓${NC} Directory $INSTALL_DIR completely removed"
 else
-  echo -e "${YELLOW}Directory kept. Only build artifacts were removed.${NC}"
+  echo -e "  ${YELLOW}⚠${NC} Directory kept. You can manually remove it later: rm -rf $INSTALL_DIR"
 fi
 
+# ─── Summary ───
 echo ""
-echo -e "${GREEN}${BOLD}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}${BOLD}  ✓ Agentic OS uninstalled successfully!${NC}"
-echo -e "${GREEN}${BOLD}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  🧹 Agentic OS Uninstalled${NC}"
+echo -e "${PURPLE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  To reinstall: bash install.sh"
+echo -e "  To reinstall: bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/install.sh)\""
 echo ""

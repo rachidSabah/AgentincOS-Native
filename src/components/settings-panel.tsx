@@ -141,13 +141,17 @@ function GlassPanel({ children, className = '' }: { children: React.ReactNode; c
 
 function ToggleSwitch({ checked, onChange, color = '#7B2CBF' }: { checked: boolean; onChange: (v: boolean) => void; color?: string }) {
   return (
-    <button
+    <div
+      role="switch"
+      aria-checked={checked}
+      tabIndex={0}
       onClick={() => onChange(!checked)}
-      className="w-10 h-5 rounded-full transition-all duration-200 relative flex-shrink-0"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(!checked); } }}
+      className="w-10 h-5 rounded-full transition-all duration-200 relative flex-shrink-0 cursor-pointer"
       style={{ backgroundColor: checked ? color : 'rgba(136,136,170,0.3)' }}
     >
       <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all duration-200 ${checked ? 'right-0.5' : 'left-0.5'}`} />
-    </button>
+    </div>
   );
 }
 
@@ -346,9 +350,12 @@ function ProvidersTab() {
               }}
             >
               {/* Provider Card Header */}
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => startEdit(provider)}
-                className="w-full p-3 flex items-center gap-3 hover:bg-[rgba(157,78,221,0.04)] transition-colors text-left"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEdit(provider); } }}
+                className="w-full p-3 flex items-center gap-3 hover:bg-[rgba(157,78,221,0.04)] transition-colors text-left cursor-pointer"
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
@@ -383,18 +390,19 @@ function ProvidersTab() {
                   </div>
                   {/* Enabled Toggle */}
                   <div
-                    onClick={(e) => { e.stopPropagation(); updateProvider(provider.id, { enabled: !provider.enabled }); }}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    onKeyDown={(e) => { e.stopPropagation(); }}
                     className="flex items-center gap-1"
                   >
                     <ToggleSwitch
                       checked={provider.enabled}
-                      onChange={(v) => updateProvider(provider.id, { enabled: v })}
+                      onChange={(v) => { updateProvider(provider.id, { enabled: v }); }}
                       color={provider.color || '#7B2CBF'}
                     />
                   </div>
                   {isExpanded ? <ChevronDown size={12} className="text-[#8888aa]" /> : <ChevronRight size={12} className="text-[#8888aa]" />}
                 </div>
-              </button>
+              </div>
 
               {/* Expanded Inline Editor */}
               <AnimatePresence>

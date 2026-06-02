@@ -338,7 +338,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     } catch {
       const errMsg = isRunning
         ? 'Failed to reach Gemini CLI. Check your connection.'
-        : 'Gemini CLI is not running. Connect first or use demo mode.';
+        : 'Gemini CLI is not running. The built-in AI SDK will provide responses, or connect Gemini CLI for direct access.';
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-e-${Date.now()}`,
         role: 'system',
@@ -383,7 +383,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
             </div>
             {!isRunning && (
               <div className="text-[10px] px-3 py-1.5 rounded-lg border border-[rgba(255,182,39,0.2)] bg-[rgba(255,182,39,0.05)] text-[#FFB627]">
-                Demo mode — Connect Gemini CLI for live AI responses
+                AI SDK active — Connect Gemini CLI for direct CLI features
               </div>
             )}
           </div>
@@ -800,7 +800,7 @@ function FilesTab({ isRunning }: { isRunning: boolean }) {
         const data = await res.json();
         setFileContent(data.content || `// Content of ${path}`);
       } else {
-        setFileContent(`// File: ${path}\n// Content not available in demo mode`);
+        setFileContent(`// File: ${path}\n// Content not available — connect Gemini CLI for file access`);
       }
     } catch {
       setFileContent(`// File: ${path}\n// Could not load file content`);

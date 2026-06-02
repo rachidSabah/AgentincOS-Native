@@ -1,16 +1,17 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
-  "version": "0.2.0",
+  "name": "agentic-os",
+  "version": "5.0.0",
   "private": true,
+  "description": "Agentic OS Ultimate Edition V5.0 — Cyberpunk AI OS Dashboard with 7-Layer Agent Architecture, Gemini CLI Integration, Swarm Intelligence, Agent Builder, Marketplace, and more.",
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "next dev -p 3100 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
+    "stop": "kill $(cat .agentic-os.pid 2>/dev/null) 2>/dev/null || lsof -ti :3100 | xargs kill 2>/dev/null || echo 'No running process found'",
+    "restart": "npm run stop && sleep 2 && npm run start",
     "lint": "eslint .",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "install-agentic": "bash install.sh",
+    "uninstall-agentic": "bash uninstall.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
