@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const providerId = searchParams.get('providerId');
+  const providerId = searchParams.get('providerId') || searchParams.get('id');
 
   if (!providerId) {
     return NextResponse.json({ error: 'providerId is required' }, { status: 400 });
