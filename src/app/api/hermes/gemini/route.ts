@@ -425,17 +425,16 @@ export async function POST(req: NextRequest) {
         console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
       }
 
-      // Strategy 3: Try CLI binary directly (cross-platform shell option)
+      // Strategy 3: Try CLI binary directly (cross-platform)
       try {
         const binCmd = IS_WIN ? 'gemini.cmd' : 'gemini';
-        const { stdout } = await execFileAsync(binCmd, [
-          'chat',
-          '--model', model || 'gemini-2.5-pro',
-          '--message', message,
-          '--format', 'json',
-        ], { timeout: 30000, ...(IS_WIN ? { shell: true } : {}) });
+        const execFn = IS_WIN ? execAsync : execFileAsync;
+        const execArgs = IS_WIN 
+          ? `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${(message || '').replace(/"/g, '\\"')}" --format json`
+          : ['chat', '--model', model || 'gemini-2.5-pro', '--message', message || '', '--format', 'json'];
+        const { stdout } = await execFn(execArgs, { timeout: 30000, ...(IS_WIN ? { shell: true } : {}) });
 
-        if (stdout.trim()) {
+        if (stdout?.trim()) {
           const latency = Date.now() - startTime;
           try {
             const data = JSON.parse(stdout);
@@ -454,10 +453,10 @@ export async function POST(req: NextRequest) {
         // CLI not available or failed
       }
 
-      // Strategy 4: Platform-specific fallbacks
-      if (!IS_WIN) {
-        // Unix: Try WSL binary
+      // Strategy 4: Try WSL binary (Windows and Unix)
+      {
         const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+        const wslCmd = IS_WIN ? 'wsl.exe' : 'wsl';
         const wslStrategies = [
           ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
           ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
@@ -466,8 +465,8 @@ export async function POST(req: NextRequest) {
 
         for (const args of wslStrategies) {
           try {
-            const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
-            if (stdout.trim()) {
+            const { stdout } = await execFileAsync(wslCmd, args, { timeout: 30000 });
+            if (stdout?.trim()) {
               const latency = Date.now() - startTime;
               try {
                 const data = JSON.parse(stdout);
@@ -486,7 +485,7 @@ export async function POST(req: NextRequest) {
             // try next strategy
           }
         }
-      } // end if (!IS_WIN)
+      }
 
       // All strategies failed — return honest error, not fake response
       return NextResponse.json({
