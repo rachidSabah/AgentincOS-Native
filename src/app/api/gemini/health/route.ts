@@ -1,28 +1,60 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import {
+  performGeminiHealthCheck,
+  getCachedGeminiHealth,
+  setCachedGeminiHealth,
+  isGeminiInstalledAsync,
+  isGeminiProcessRunningAsync,
+  findGeminiBinaryAsync,
+  getGeminiVersionAsync,
+} from "@/lib/gemini";
+
+// ---------------------------------------------------------------------------
+// GET handler — Health check for Gemini CLI
+// ---------------------------------------------------------------------------
 
 export async function GET() {
-  // Check if Gemini CLI is available
   try {
-    // In a real implementation, this would check:
-    // 1. If gemini CLI binary exists on the system
-    // 2. If it's running and responsive
-    // 3. Get version info
-    // For now, return a structured response
-    return NextResponse.json({
-      installed: false,
-      running: false,
-      version: null,
-      path: null,
-      model: 'gemini-2.5-pro',
-      message: 'Gemini CLI not detected. Install with: npm install -g @google/gemini-cli',
-      installCommand: 'npm install -g @google/gemini-cli',
-      docsUrl: 'https://github.com/google-gemini/gemini-cli',
-    });
+    // Use cached health check if available
+    const cached = getCachedGeminiHealth();
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
+    // Perform comprehensive health check
+    const healthCheck = await performGeminiHealthCheck();
+    setCachedGeminiHealth(healthCheck);
+
+    return NextResponse.json(healthCheck);
   } catch (error) {
-    return NextResponse.json({
-      installed: false,
-      running: false,
-      error: 'Health check failed',
-    }, { status: 500 });
+    console.error("[gemini/health] Health check failed:", error);
+
+    // Try to provide at least basic information even on error
+    try {
+      const installed = await isGeminiInstalledAsync();
+      return NextResponse.json({
+        healthy: false,
+        latency: -1,
+        lastCheck: Date.now(),
+        details: `Health check encountered an error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        cliInstalled: installed,
+        cliResponsive: false,
+        apiConnection: false,
+      });
+    } catch {
+      return NextResponse.json(
+        {
+          healthy: false,
+          latency: -1,
+          lastCheck: Date.now(),
+          details: "Health check failed completely. Unable to determine Gemini CLI status.",
+          cliInstalled: false,
+          cliResponsive: false,
+          apiConnection: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+        { status: 500 },
+      );
+    }
   }
 }

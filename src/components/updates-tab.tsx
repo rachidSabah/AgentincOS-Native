@@ -9,7 +9,7 @@ import {
   WifiOff, Loader2, ExternalLink, X, ToggleLeft, ToggleRight,
   Gauge, GitBranch, Eye, EyeOff,
 } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Slider } from '@/components/ui/slider';
 
 // ─── Type Badge Colors ───

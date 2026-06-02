@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createDefaultAgentIntelligence, type AgentIntelligence, type BrainMode } from './intelligence-layer';
+import { BUILTIN_SKILLS, type Skill } from './skill-system';
+import { type Artifact } from './artifact-system';
 
 // ═══════════════════════════════════════════════════════════
 // AGENTIC OS — Provider-Independent AI Operating System
@@ -113,6 +116,149 @@ export interface Agent {
   capabilities: string[];
   createdFrom: 'builtin' | 'marketplace' | 'custom';
   version: string;
+  layer: number;
+  layers: number[];
+}
+
+// ─── Stack Layer Types ───
+export interface StackLayer {
+  id: string;
+  number: number;
+  name: string;
+  color: string;
+  flowLabel: string;
+  flowIcon: string;
+  icon: string;
+  role: string;
+  agent: string;
+  whatItDoes: string;
+  keyCapabilities: string[];
+  description: string;
+}
+
+// ─── Agent Analytics ───
+export interface AgentAnalytics {
+  totalSessions: number;
+  totalTokens: number;
+  totalToolCalls: number;
+  avgResponseTime: number;
+  activityByHour: number[];
+  peakHour: number;
+}
+
+// ─── Hermes Connection ───
+export interface HermesConnection {
+  running: boolean;
+  apiEndpoint: string;
+  model: string;
+  version: string;
+  latency: number;
+}
+
+// ─── Gemini Connection ───
+export interface GeminiConnection {
+  installed: boolean;
+  running: boolean;
+  version: string;
+  model: string;
+}
+
+// ─── Goal Types ───
+export interface Goal {
+  id: string;
+  title: string;
+  category: string;
+  timeline: string;
+  progress: number;
+  color: string;
+}
+
+// ─── Journal Types ───
+export interface JournalEntry {
+  id: string;
+  date: string;
+  type: 'voice' | 'text';
+  source: string;
+  content: string;
+}
+
+// ─── Skill Execution ───
+export interface SkillExecution {
+  id: string;
+  skill: string;
+  status: 'running' | 'completed' | 'failed';
+  result?: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
+// ─── Hermes Skill ───
+export interface HermesSkill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+// ─── Chat Attachment ───
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  processed: boolean;
+  dataUrl?: string;
+}
+
+// ─── Swarm Types ───
+export interface SwarmVote {
+  agentId: string;
+  vote: 'approve' | 'reject' | 'abstain';
+  reasoning: string;
+  timestamp: number;
+}
+
+export interface SwarmProposal {
+  id: string;
+  agentId: string;
+  content: string;
+  confidence: number;
+  votes: SwarmVote[];
+  timestamp: number;
+}
+
+export interface SwarmSession {
+  id: string;
+  task: string;
+  agents: string[];
+  strategy: string;
+  maxRounds: number;
+  currentRound: number;
+  proposals: SwarmProposal[];
+  status: 'forming' | 'proposing' | 'voting' | 'executing' | 'completed' | 'dissolved';
+  winningProposal: SwarmProposal | null;
+  consensusPercentage: number;
+  createdAt: number;
+}
+
+// ─── Log Entry ───
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  agent: string;
+  layer: number;
+  level: 'info' | 'warn' | 'error' | 'success';
+  message: string;
+}
+
+// ─── Kanban Task ───
+export interface KanbanTask {
+  id: string;
+  title: string;
+  priority: 'low' | 'medium' | 'high';
+  assignedTo: string;
+  status: 'todo' | 'in-progress' | 'done';
+  createdAt: number;
 }
 
 // ─── Workspace Types ───
@@ -823,9 +969,76 @@ interface OSState {
   selfSearchQuery: string;
   setSelfSearchQuery: (q: string) => void;
 
+  // ─── Stack Layers ───
+  stackLayers: StackLayer[];
+
+  // ─── Agent Selection ───
+  selectedAgentId: string | null;
+  setSelectedAgentId: (id: string | null) => void;
+
+  // ─── Connections ───
+  hermesConnection: HermesConnection;
+  geminiConnection: GeminiConnection;
+  sseConnectionStatus: string;
+
+  // ─── Agent Analytics ───
+  agentAnalytics: {[key: string]: AgentAnalytics};
+
+  // ─── Goals & Journal ───
+  goals: Goal[];
+  journal: JournalEntry[];
+
+  // ─── Hermes ───
+  hermesSkills: HermesSkill[];
+  skillExecutions: SkillExecution[];
+  addSkillExecution: (exec: SkillExecution) => void;
+
+  // ─── Chat Attachments ───
+  chatAttachments: ChatAttachment[];
+  addChatAttachment: (att: ChatAttachment) => void;
+  removeChatAttachment: (id: string) => void;
+  clearChatAttachments: () => void;
+
+  // ─── Swarm Intelligence ───
+  activeSwarms: SwarmSession[];
+  swarmHistory: SwarmSession[];
+  addSwarm: (swarm: SwarmSession) => void;
+  updateSwarm: (id: string, updates: Partial<SwarmSession>) => void;
+
+  // ─── Logs ───
+  logs: LogEntry[];
+  addLog: (log: LogEntry) => void;
+
+  // ─── Kanban ───
+  kanbanTasks: KanbanTask[];
+  addKanbanTask: (task: KanbanTask) => void;
+
   // ─── Hydration Guard ───
   _hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
+
+  // ─── Intelligence Layer ───
+  agentIntelligence: {[key: string]: AgentIntelligence};
+  updateAgentIntelligence: (agentId: string, updates: Partial<AgentIntelligence>) => void;
+
+  // ─── Brain Modes ───
+  activeBrainMode: string;
+  setActiveBrainMode: (mode: string) => void;
+
+  // ─── Skills ───
+  skills: Skill[];
+  activeSkillIds: string[];
+  toggleSkill: (skillId: string) => void;
+
+  // ─── Artifacts ───
+  artifacts: Artifact[];
+  addArtifact: (artifact: Artifact) => void;
+  updateArtifact: (id: string, updates: Partial<Artifact>) => void;
+
+  // ─── Swarm Intelligence ───
+  swarmScore: number;
+  swarmTier: string;
+  lastSwarmTrigger: string;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -910,6 +1123,8 @@ export const useOSStore = create<OSState>()(
           capabilities: ['planning', 'reasoning', 'delegation', 'coordination', 'memory-retrieval', 'tool-selection'],
           createdFrom: 'builtin' as const,
           version: '1.0.0',
+          layer: 1,
+          layers: [1, 2, 3, 4, 5, 6, 7],
         },
         {
           id: 'code-agent',
@@ -929,6 +1144,8 @@ export const useOSStore = create<OSState>()(
           capabilities: ['code-generation', 'debugging', 'code-review', 'refactoring'],
           createdFrom: 'builtin' as const,
           version: '1.0.0',
+          layer: 3,
+          layers: [3, 5],
         },
         {
           id: 'research-agent',
@@ -948,6 +1165,8 @@ export const useOSStore = create<OSState>()(
           capabilities: ['web-research', 'document-analysis', 'fact-checking', 'synthesis'],
           createdFrom: 'builtin' as const,
           version: '1.0.0',
+          layer: 4,
+          layers: [4, 6],
         },
         {
           id: 'task-agent',
@@ -967,6 +1186,8 @@ export const useOSStore = create<OSState>()(
           capabilities: ['task-execution', 'api-calls', 'workflow-automation', 'monitoring'],
           createdFrom: 'builtin' as const,
           version: '1.0.0',
+          layer: 5,
+          layers: [5, 7],
         },
       ],
       addAgent: (agent) => set((s) => ({ agents: [...s.agents, agent] })),
@@ -1131,11 +1352,111 @@ export const useOSStore = create<OSState>()(
       },
       setSystemMetrics: (metrics) => set({ systemMetrics: metrics }),
 
+      // ─── Stack Layers ───
+      stackLayers: [
+        { id: 'brain', number: 1, name: 'Brain Layer', color: '#9d4edd', flowLabel: 'Intelligence', flowIcon: '🧠', icon: '🧠', role: 'Intelligence & Orchestration', agent: 'Brain', whatItDoes: 'The native intelligence. Plans, reasons, delegates, coordinates.', keyCapabilities: ['Planning', 'Reasoning', 'Delegation', 'Coordination'], description: 'Brain Layer' },
+        { id: 'providers', number: 2, name: 'Provider Layer', color: '#00ffff', flowLabel: 'Providers', flowIcon: '🔌', icon: '🔌', role: 'Model Provider Management', agent: 'Router', whatItDoes: 'Manages connections to LLM providers as interchangeable engines.', keyCapabilities: ['API Management', 'Health Monitoring', 'Routing'], description: 'Provider Layer' },
+        { id: 'agents', number: 3, name: 'Agent Layer', color: '#00ff88', flowLabel: 'Agents', flowIcon: '🤖', icon: '🤖', role: 'Specialized Agent Workers', agent: 'Agents', whatItDoes: 'Specialized agents for code, research, tasks.', keyCapabilities: ['Code', 'Research', 'Tasks', 'Swarm'], description: 'Agent Layer' },
+        { id: 'knowledge', number: 4, name: 'Knowledge Layer', color: '#FFB627', flowLabel: 'Knowledge', flowIcon: '📚', icon: '📚', role: 'Knowledge & Memory Engine', agent: 'Knowledge', whatItDoes: 'Knowledge base, memory, knowledge graph, RAG.', keyCapabilities: ['Knowledge Base', 'Memory', 'Graph', 'RAG'], description: 'Knowledge Layer' },
+        { id: 'execution', number: 5, name: 'Execution Layer', color: '#E8751A', flowLabel: 'Execution', flowIcon: '⚡', icon: '⚡', role: 'Workflows & Automation', agent: 'Runner', whatItDoes: 'Workflows, automations, plugins, prompts.', keyCapabilities: ['Workflows', 'Automations', 'Plugins'], description: 'Execution Layer' },
+        { id: 'memory', number: 6, name: 'Memory Layer', color: '#2E86AB', flowLabel: 'Memory', flowIcon: '💾', icon: '💾', role: 'Multi-tier Memory System', agent: 'Memory', whatItDoes: 'Short-term, long-term, episodic, semantic memory.', keyCapabilities: ['STM', 'LTM', 'Episodic', 'Semantic'], description: 'Memory Layer' },
+        { id: 'governance', number: 7, name: 'Governance Layer', color: '#1B998B', flowLabel: 'Governance', flowIcon: '🛡️', icon: '🛡️', role: 'Observability & Security', agent: 'Governor', whatItDoes: 'Observability, cost, security, audit trail.', keyCapabilities: ['Observability', 'Cost', 'Security', 'Audit'], description: 'Governance Layer' },
+      ],
+
+      // ─── Agent Selection ───
+      selectedAgentId: null,
+      setSelectedAgentId: (id) => set({ selectedAgentId: id }),
+
+      // ─── Connections ───
+      hermesConnection: { running: false, apiEndpoint: '', model: '', version: '', latency: 0 },
+      geminiConnection: { installed: false, running: false, version: '', model: 'gemini-2.5-pro' },
+      sseConnectionStatus: 'disconnected',
+
+      // ─── Agent Analytics ───
+      agentAnalytics: {
+        brain: { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+        'code-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+        'research-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+        'task-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+      },
+
+      // ─── Goals & Journal ───
+      goals: [
+        { id: 'g1', title: 'Launch Agentic OS V5.0', category: 'Milestone', timeline: 'Q2 2025', progress: 72, color: '#E63946' },
+        { id: 'g2', title: 'Complete Gemini CLI Integration', category: 'Feature', timeline: 'Q2 2025', progress: 40, color: '#7B2CBF' },
+        { id: 'g3', title: '100% Provider Independence', category: 'Architecture', timeline: 'Q2 2025', progress: 85, color: '#00ff88' },
+      ],
+      journal: [
+        { id: 'j1', date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), type: 'text', source: 'Brain', content: 'Agentic OS architectural redesign complete. Removed all external dependencies. Platform is now provider-independent.' },
+        { id: 'j2', date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), type: 'text', source: 'Brain', content: 'Gemini CLI designated as default local execution agent with auto-detection and health monitoring.' },
+      ],
+
+      // ─── Hermes ───
+      hermesSkills: [] as HermesSkill[],
+      skillExecutions: [] as SkillExecution[],
+      addSkillExecution: (exec) => set((s) => ({ skillExecutions: [exec, ...s.skillExecutions].slice(0, 50) })),
+
+      // ─── Chat Attachments ───
+      chatAttachments: [] as ChatAttachment[],
+      addChatAttachment: (att) => set((s) => ({ chatAttachments: [...s.chatAttachments, att] })),
+      removeChatAttachment: (id) => set((s) => ({ chatAttachments: s.chatAttachments.filter(a => a.id !== id) })),
+      clearChatAttachments: () => set({ chatAttachments: [] }),
+
+      // ─── Swarm Intelligence ───
+      activeSwarms: [] as SwarmSession[],
+      swarmHistory: [] as SwarmSession[],
+      addSwarm: (swarm) => set((s) => ({ activeSwarms: [...s.activeSwarms, swarm] })),
+      updateSwarm: (id, updates) => set((s) => ({
+        activeSwarms: s.activeSwarms.map(sw => sw.id === id ? { ...sw, ...updates } : sw),
+      })),
+
+      // ─── Logs ───
+      logs: [] as LogEntry[],
+      addLog: (log) => set((s) => ({ logs: [log, ...s.logs].slice(0, 200) })),
+
+      // ─── Kanban ───
+      kanbanTasks: [] as KanbanTask[],
+      addKanbanTask: (task) => set((s) => ({ kanbanTasks: [...s.kanbanTasks, task] })),
+
       // ─── UI State ───
       controlRoomAgent: null,
       setControlRoomAgent: (id) => set({ controlRoomAgent: id }),
       selfSearchQuery: '',
       setSelfSearchQuery: (q) => set({ selfSearchQuery: q }),
+
+      // ─── Intelligence Layer ───
+      agentIntelligence: {},
+      updateAgentIntelligence: (agentId, updates) => set((s) => ({
+        agentIntelligence: {
+          ...s.agentIntelligence,
+          [agentId]: { ...(s.agentIntelligence[agentId] || createDefaultAgentIntelligence(agentId)), ...updates },
+        },
+      })),
+
+      // ─── Brain Modes ───
+      activeBrainMode: 'hermes-brain',
+      setActiveBrainMode: (mode) => set({ activeBrainMode: mode }),
+
+      // ─── Skills ───
+      skills: BUILTIN_SKILLS,
+      activeSkillIds: ['coding', 'research'],
+      toggleSkill: (skillId) => set((s) => ({
+        activeSkillIds: s.activeSkillIds.includes(skillId)
+          ? s.activeSkillIds.filter(id => id !== skillId)
+          : [...s.activeSkillIds, skillId],
+      })),
+
+      // ─── Artifacts ───
+      artifacts: [],
+      addArtifact: (artifact) => set((s) => ({ artifacts: [...s.artifacts, artifact] })),
+      updateArtifact: (id, updates) => set((s) => ({
+        artifacts: s.artifacts.map(a => a.id === id ? { ...a, ...updates } : a),
+      })),
+
+      // ─── Swarm Intelligence ───
+      swarmScore: 0,
+      swarmTier: 'single-agent',
+      lastSwarmTrigger: '',
     }),
     {
       name: 'agentic-os-store',
@@ -1163,6 +1484,26 @@ export const useOSStore = create<OSState>()(
         deployments: state.deployments,
         activeProviderId: state.activeProviderId,
         sidebarCollapsed: state.sidebarCollapsed,
+        selectedAgentId: state.selectedAgentId,
+        hermesConnection: state.hermesConnection,
+        geminiConnection: state.geminiConnection,
+        agentAnalytics: state.agentAnalytics,
+        goals: state.goals,
+        journal: state.journal,
+        hermesSkills: state.hermesSkills,
+        skillExecutions: state.skillExecutions,
+        chatAttachments: state.chatAttachments,
+        activeSwarms: state.activeSwarms,
+        swarmHistory: state.swarmHistory,
+        logs: state.logs,
+        kanbanTasks: state.kanbanTasks,
+        agentIntelligence: state.agentIntelligence,
+        activeBrainMode: state.activeBrainMode,
+        skills: state.skills,
+        activeSkillIds: state.activeSkillIds,
+        artifacts: state.artifacts,
+        swarmScore: state.swarmScore,
+        swarmTier: state.swarmTier,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

@@ -234,7 +234,17 @@ export function Sidebar() {
         { id: 'providers', label: 'Providers', icon: Cpu },
         { id: 'models', label: 'Models', icon: Boxes },
         { id: 'model-router', label: 'Model Router', icon: Route },
-        { id: 'gemini-cli', label: 'Gemini CLI', icon: Gem },
+        { id: 'gemini-dashboard', label: 'Gemini Dashboard', icon: Gem },
+        { id: 'gemini-cli', label: 'Gemini CLI Setup', icon: Gem },
+      ],
+    },
+    {
+      label: 'System', color: '#4285f4', icon: Terminal,
+      items: [
+        { id: 'terminal', label: 'Terminal Center', icon: Terminal },
+        { id: 'system', label: 'System Manager', icon: Settings2 },
+        { id: 'file-explorer', label: 'File Explorer', icon: FolderOpen },
+        { id: 'execution-viewer', label: 'Execution Viewer', icon: Activity },
       ],
     },
     {

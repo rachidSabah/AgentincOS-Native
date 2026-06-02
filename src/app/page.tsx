@@ -49,6 +49,11 @@ import { AgentMarketplace } from '@/components/agent-marketplace';
 import { SettingsPanel } from '@/components/settings-panel';
 import { BrainLayerDashboard, BrainTaskPanel as BrainTaskPanelDetail, BrainReasoningView } from '@/components/brain-layer';
 import { ProviderSettingsPage, ProviderHealthCard, ActiveProviderBadge, GeminiCLISetup } from '@/components/provider-settings';
+import { GeminiCLIDashboard } from '@/components/gemini-cli-dashboard';
+import { TerminalCenter } from '@/components/terminal-center';
+import { SystemManagement } from '@/components/system-management';
+import { FileExplorer } from '@/components/file-explorer';
+import { LiveExecutionViewer } from '@/components/live-execution-viewer';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, Component } from 'react';
 
@@ -595,11 +600,51 @@ export default function HomePage() {
           </motion.div>
         );
 
-      // ─── Gemini CLI Panel ───
+      // ─── Gemini CLI Dashboard (Enhanced) ───
+      case 'gemini-dashboard':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <GeminiCLIDashboard />
+          </motion.div>
+        );
+
+      // ─── Gemini CLI Panel (Legacy) ───
       case 'gemini-cli':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <GeminiPowerPanel />
+          </motion.div>
+        );
+
+      // ─── Terminal Center ───
+      case 'terminal':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <TerminalCenter />
+          </motion.div>
+        );
+
+      // ─── System Management ───
+      case 'system':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <SystemManagement />
+          </motion.div>
+        );
+
+      // ─── File Explorer ───
+      case 'file-explorer':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <FileExplorer />
+          </motion.div>
+        );
+
+      // ─── Live Execution Viewer ───
+      case 'execution-viewer':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <LiveExecutionViewer />
           </motion.div>
         );
 
@@ -728,7 +773,7 @@ export default function HomePage() {
   };
 
   const isMissionControl3Col = activeView === 'mission-control';
-  const isHomeView = activeView === 'home' || activeView === 'observability' || activeView === 'updates';
+  const isHomeView = activeView === 'home' || activeView === 'observability' || activeView === 'updates' || activeView === 'gemini-dashboard' || activeView === 'terminal';
 
   return (
     <HydrationGuard>
