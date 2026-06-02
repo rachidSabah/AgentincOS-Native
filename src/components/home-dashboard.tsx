@@ -1,41 +1,17 @@
 'use client';
 
 import { useOSStore } from '@/lib/store';
+import type { AgentStatus } from '@/lib/store';
 import { motion } from 'framer-motion';
 import {
-  MessageSquare, Search, CheckSquare, BarChart3,
-  Activity, Clock, Zap, ArrowUpRight, ArrowDownRight,
-  TrendingUp, DollarSign, FolderKanban,
+  MessageSquare, Search, BarChart3,
+  Activity, Zap, ArrowUpRight, ArrowDownRight,
   ChevronRight,
   Database, Network, Cpu,
+  Server, Brain, HardDrive, DollarSign,
+  FolderKanban, Gem, Clock, Layers,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-
-// ─── Simulated Data ───
-
-interface ActivityItem {
-  id: string; agent: string; action: string; time: string; type: string; color: string;
-}
-const recentActivities: ActivityItem[] = [];
-
-interface ProjectItem {
-  id: string; name: string; progress: number; tasks: number; team: string[]; color: string;
-}
-const projectsData: ProjectItem[] = [];
-
-interface AutomationItem {
-  id: string; name: string; trigger: string; status: boolean; lastRun: string;
-}
-const automationsData: AutomationItem[] = [];
-
-const memoryGrowthData: number[] = [];
-
-interface KnowledgeNode {
-  id: string; label: string; x: number; y: number; color: string; size: number;
-}
-const knowledgeNodes: KnowledgeNode[] = [];
-
-const knowledgeEdges: [string, string][] = [];
 
 // ─── Shared Components ───
 
@@ -60,16 +36,28 @@ function StatusDot({ status, color }: { status: string; color: string }) {
   );
 }
 
+const STATUS_COLORS: {[key: string]: string} = {
+  live: '#00ff88',
+  degraded: '#FFB627',
+  offline: '#ff4444',
+  booting: '#4285F4',
+  error: '#E63946',
+};
+
+const HEALTH_COLORS: {[key: string]: string} = {
+  healthy: '#00ff88',
+  degraded: '#FFB627',
+  offline: '#ff4444',
+  unknown: '#8888aa',
+};
+
 // ─── Welcome Banner ───
 
 function WelcomeBanner() {
-  const { setActiveView } = useOSStore();
-  const [time, setTime] = useState<Date | null>(null);
-  const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; size: number; duration: number; delay: number; color: string}>>([]);
-
-  useEffect(() => {
-    // Generate particles only on client to avoid hydration mismatch
-    setParticles(Array.from({ length: 40 }, (_, i) => ({
+  const { setActiveView, systemMetrics } = useOSStore();
+  const [time, setTime] = useState<Date>(() => new Date());
+  const particles = useState<Array<{id: number; x: number; y: number; size: number; duration: number; delay: number; color: string}>>(() =>
+    Array.from({ length: 40 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -77,18 +65,23 @@ function WelcomeBanner() {
       duration: Math.random() * 8 + 6,
       delay: Math.random() * 4,
       color: Math.random() > 0.5 ? '#00ffff' : '#9d4edd',
-    })));
-    setTime(new Date());
+    }))
+  )[0];
+
+  useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
 
   const quickActions = [
-    { label: 'New Chat', icon: MessageSquare, color: '#00ffff', view: 'mission-control' as const },
-    { label: 'Search Memory', icon: Search, color: '#9d4edd', view: 'memory-search' as const },
-    { label: 'Create Task', icon: CheckSquare, color: '#00ff88', view: 'workflows' as const },
-    { label: 'View Analytics', icon: BarChart3, color: '#FFB627', view: 'observability' as const },
+    { label: 'Brain Layer', icon: Brain, color: '#9d4edd', view: 'settings' as const },
+    { label: 'Providers', icon: Server, color: '#00ffff', view: 'settings' as const },
+    { label: 'Knowledge', icon: Database, color: '#00ff88', view: 'knowledge' as const },
+    { label: 'Analytics', icon: BarChart3, color: '#FFB627', view: 'observability' as const },
   ];
+
+  const activeProviders = systemMetrics.activeProviders;
+  const activeAgents = systemMetrics.activeAgents;
 
   return (
     <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[rgba(0,255,255,0.08)] via-[rgba(157,78,221,0.06)] to-[rgba(10,10,26,0.8)] border border-[rgba(0,255,255,0.15)] p-6">
@@ -126,7 +119,7 @@ function WelcomeBanner() {
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(0,255,136,0.1)] border border-[rgba(0,255,136,0.2)]">
               <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse" />
-              <span className="text-[10px] text-[#00ff88] font-medium">All 7 Layers Operational</span>
+              <span className="text-[10px] text-[#00ff88] font-medium">{activeProviders} Providers · {activeAgents} Agents Active</span>
             </div>
             <span className="text-[10px] text-[#8888aa]">
               {time ? time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}
@@ -158,20 +151,54 @@ function WelcomeBanner() {
   );
 }
 
+// ─── System Overview Cards ───
+
+function SystemOverviewCards() {
+  const { systemMetrics, totalCost, totalTokensUsed } = useOSStore();
+
+  const cards = [
+    { label: 'Active Providers', value: systemMetrics.activeProviders, icon: Server, color: '#00ffff' },
+    { label: 'Active Agents', value: systemMetrics.activeAgents, icon: Brain, color: '#9d4edd' },
+    { label: 'Total Tokens', value: totalTokensUsed > 1_000_000 ? `${(totalTokensUsed / 1_000_000).toFixed(1)}M` : totalTokensUsed > 1000 ? `${(totalTokensUsed / 1000).toFixed(1)}K` : totalTokensUsed, icon: Cpu, color: '#00ff88' },
+    { label: 'Total Cost', value: `$${totalCost.toFixed(2)}`, icon: DollarSign, color: '#FFB627' },
+    { label: 'Knowledge', value: systemMetrics.knowledgeEntries, icon: Database, color: '#4285F4' },
+    { label: 'Memories', value: systemMetrics.memoryEntries, icon: Layers, color: '#E8751A' },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {cards.map((card, i) => (
+        <motion.div key={card.label}
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05 }}
+          className="bg-[rgba(18,18,42,0.6)] backdrop-blur-sm border border-[rgba(157,78,221,0.15)] rounded-xl p-3 transition-all duration-300 hover:border-[rgba(157,78,221,0.3)] hover:shadow-[0_0_30px_rgba(157,78,221,0.08)]">
+          <div className="flex items-center gap-1.5 mb-2">
+            <card.icon size={12} style={{ color: card.color }} />
+            <span className="text-[8px] text-[#8888aa] uppercase tracking-wider">{card.label}</span>
+          </div>
+          <div className="text-white font-mono font-bold text-lg" style={{ color: card.color }}>
+            {card.value}
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Agent Status Row ───
 
 function AgentStatusRow() {
   const { agents, setActiveView } = useOSStore();
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
       {agents.map((agent, i) => (
         <motion.button key={agent.id}
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
           onClick={() => setActiveView('mission-control')}
           className="GlassCard bg-[rgba(18,18,42,0.6)] backdrop-blur-sm border border-[rgba(157,78,221,0.15)] rounded-xl p-3 text-left transition-all duration-300 hover:border-[rgba(157,78,221,0.3)] hover:shadow-[0_0_30px_rgba(157,78,221,0.08)] group">
           <div className="flex items-center gap-2 mb-2">
-            <StatusDot status={agent.status} color={agent.color} />
+            <StatusDot status={agent.status} color={STATUS_COLORS[agent.status] || agent.color} />
             <span className="text-white text-xs font-semibold">{agent.name}</span>
           </div>
           <div className="flex items-center gap-3">
@@ -198,101 +225,23 @@ function AgentStatusRow() {
   );
 }
 
-// ─── Memory Growth Widget ───
+// ─── Provider Status Cards ───
 
-function MemoryGrowthWidget() {
-  const { systemMetrics } = useOSStore();
+function ProviderStatusCards() {
+  const { providers } = useOSStore();
+  const enabledProviders = providers.filter(p => p.enabled);
 
-  if (memoryGrowthData.length === 0) {
+  if (enabledProviders.length === 0) {
     return (
       <GlassCard>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Database size={14} className="text-[#9d4edd]" />
-            <span className="text-white text-xs font-bold uppercase tracking-wider">Memory Growth</span>
+            <Server size={14} className="text-[#00ffff]" />
+            <span className="text-white text-xs font-bold uppercase tracking-wider">Providers</span>
           </div>
         </div>
-        <div className="flex items-center justify-center h-20 text-[#8888aa] text-xs">
-          No memory data yet
-        </div>
-      </GlassCard>
-    );
-  }
-
-  const width = 240;
-  const height = 60;
-  const max = Math.max(...memoryGrowthData);
-  const min = Math.min(...memoryGrowthData);
-  const range = max - min || 1;
-
-  const points = memoryGrowthData.map((v, i) => {
-    const x = (i / (memoryGrowthData.length - 1)) * width;
-    const y = height - ((v - min) / range) * (height - 8) - 4;
-    return `${x},${y}`;
-  }).join(' ');
-
-  const areaPoints = `0,${height} ${points} ${width},${height}`;
-
-  return (
-    <GlassCard>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Database size={14} className="text-[#9d4edd]" />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">Memory Growth</span>
-        </div>
-        <span className="text-[9px] text-[#8888aa]">30 days</span>
-      </div>
-
-      <svg width={width} height={height} className="overflow-visible w-full" viewBox={`0 0 ${width} ${height}`}>
-        <defs>
-          <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#9d4edd" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#9d4edd" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon points={areaPoints} fill="url(#memGrad)" />
-        <polyline points={points} fill="none" stroke="#9d4edd" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={width} cy={height - ((memoryGrowthData[memoryGrowthData.length - 1] - min) / range) * (height - 8) - 4}
-          r="3" fill="#9d4edd" stroke="#0a0a1a" strokeWidth="1.5" />
-      </svg>
-
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        <div>
-          <div className="text-[8px] text-[#8888aa] uppercase">Total</div>
-          <div className="text-white font-mono font-bold text-sm">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</div>
-        </div>
-        <div>
-          <div className="text-[8px] text-[#8888aa] uppercase">Growth</div>
-          <div className="text-[#00ff88] font-mono font-bold text-sm flex items-center gap-0.5">
-            <ArrowUpRight size={10} /> +12%
-          </div>
-        </div>
-        <div>
-          <div className="text-[8px] text-[#8888aa] uppercase">Top Type</div>
-          <div className="text-[#ccccdd] font-bold text-sm">Chat</div>
-        </div>
-      </div>
-    </GlassCard>
-  );
-}
-
-// ─── Knowledge Graph Preview ───
-
-function KnowledgeGraphPreview() {
-  const { setActiveView } = useOSStore();
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-
-  if (knowledgeNodes.length === 0) {
-    return (
-      <GlassCard>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Network size={14} className="text-[#00ffff]" />
-            <span className="text-white text-xs font-bold uppercase tracking-wider">Knowledge Graph</span>
-          </div>
-        </div>
-        <div className="flex items-center justify-center h-44 text-[#8888aa] text-xs">
-          No knowledge graph data yet
+        <div className="flex items-center justify-center py-6 text-[#8888aa] text-xs">
+          No providers enabled. Configure providers in Settings.
         </div>
       </GlassCard>
     );
@@ -302,87 +251,127 @@ function KnowledgeGraphPreview() {
     <GlassCard>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Network size={14} className="text-[#00ffff]" />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">Knowledge Graph</span>
+          <Server size={14} className="text-[#00ffff]" />
+          <span className="text-white text-xs font-bold uppercase tracking-wider">Providers</span>
         </div>
+        <span className="text-[9px] text-[#8888aa]">{enabledProviders.length} enabled</span>
       </div>
 
-      <div className="relative bg-[rgba(10,10,26,0.5)] rounded-lg overflow-hidden" style={{ height: 180 }}>
-        <svg width="100%" height="100%" viewBox="0 0 100 100" className="overflow-visible">
-          {/* Edges */}
-          {knowledgeEdges.map(([from, to], i) => {
-            const fromNode = knowledgeNodes.find(n => n.id === from);
-            const toNode = knowledgeNodes.find(n => n.id === to);
-            if (!fromNode || !toNode) return null;
-            return (
-              <motion.line key={i}
-                x1={fromNode.x} y1={fromNode.y} x2={toNode.x} y2={toNode.y}
-                stroke={hoveredNode === from || hoveredNode === to ? '#00ffff' : 'rgba(157,78,221,0.25)'}
-                strokeWidth={hoveredNode === from || hoveredNode === to ? 0.4 : 0.2}
-                animate={{
-                  strokeDashoffset: [0, 10],
-                }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                strokeDasharray="2 2"
-              />
-            );
-          })}
-
-          {/* Nodes */}
-          {knowledgeNodes.map(node => (
-            <g key={node.id}
-              onMouseEnter={() => setHoveredNode(node.id)}
-              onMouseLeave={() => setHoveredNode(null)}>
-              <motion.circle
-                cx={node.x} cy={node.y}
-                r={hoveredNode === node.id ? node.size / 100 * 4 : node.size / 100 * 2.5}
-                fill={`${node.color}40`}
-                stroke={node.color}
-                strokeWidth={0.3}
-                animate={{ r: hoveredNode === node.id ? node.size / 100 * 4 : node.size / 100 * 2.5 }}
-                transition={{ duration: 0.3 }}
-              />
-              <text x={node.x} y={node.y + node.size / 100 * 4 + 3}
-                textAnchor="middle" fill={hoveredNode === node.id ? '#ffffff' : '#8888aa'}
-                fontSize="2.5" fontFamily="monospace" className="pointer-events-none">
-                {node.label}
-              </text>
-            </g>
-          ))}
-        </svg>
+      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+        {enabledProviders.map((provider, i) => {
+          const healthColor = HEALTH_COLORS[provider.healthStatus] || '#8888aa';
+          const TypeIcon = provider.type === 'local' ? HardDrive : provider.type === 'cli' ? Zap : Server;
+          return (
+            <motion.div key={provider.id}
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="flex items-center gap-3 p-2 rounded-lg hover:bg-[rgba(10,10,26,0.4)] transition-colors">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                style={{ backgroundColor: `${provider.color}15`, border: `1px solid ${provider.color}25` }}>
+                {provider.icon || '🔌'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-white">{provider.name}</span>
+                  <TypeIcon size={8} style={{ color: provider.color }} />
+                  <span className="text-[8px] text-[#8888aa] font-mono truncate">{provider.defaultModel}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: healthColor }} />
+                <span className="text-[8px] font-mono uppercase" style={{ color: healthColor }}>
+                  {provider.healthStatus}
+                </span>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
-
-      <button onClick={() => setActiveView('memory-graph')}
-        className="mt-3 w-full text-center text-[10px] py-2 rounded-lg border border-[rgba(0,255,255,0.2)] text-[#00ffff] bg-[rgba(0,255,255,0.05)] hover:bg-[rgba(0,255,255,0.1)] transition-colors flex items-center justify-center gap-1">
-        <Network size={11} /> Open Full Graph
-      </button>
     </GlassCard>
   );
 }
 
-// ─── Recent Activities ───
+// ─── Gemini CLI Status ───
+
+function GeminiCLIStatus() {
+  const { geminiCLI } = useOSStore();
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Gem size={14} className="text-[#4285F4]" />
+          <span className="text-white text-xs font-bold uppercase tracking-wider">Gemini CLI</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className={`w-1.5 h-1.5 rounded-full ${geminiCLI.running ? 'animate-pulse' : ''}`}
+            style={{ backgroundColor: geminiCLI.installed ? (geminiCLI.running ? '#00ff88' : '#FFB627') : '#ff4444' }} />
+          <span className="text-[8px] font-mono uppercase" style={{
+            color: geminiCLI.installed ? (geminiCLI.running ? '#00ff88' : '#FFB627') : '#ff4444'
+          }}>
+            {geminiCLI.installed ? (geminiCLI.running ? 'Running' : 'Installed') : 'Not Installed'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Model</div>
+          <div className="text-[11px] font-mono text-[#ccccdd]">{geminiCLI.model || '—'}</div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Version</div>
+          <div className="text-[11px] font-mono text-[#ccccdd]">{geminiCLI.version || '—'}</div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Auto-Detect</div>
+          <div className="text-[11px] font-mono" style={{ color: geminiCLI.autoDetect ? '#00ff88' : '#ff4444' }}>
+            {geminiCLI.autoDetect ? 'Yes' : 'No'}
+          </div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Auto-Start</div>
+          <div className="text-[11px] font-mono" style={{ color: geminiCLI.autoStart ? '#00ff88' : '#ff4444' }}>
+            {geminiCLI.autoStart ? 'Yes' : 'No'}
+          </div>
+        </div>
+      </div>
+
+      {geminiCLI.projects.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-[rgba(157,78,221,0.1)]">
+          <div className="text-[8px] text-[#8888aa] uppercase tracking-wider mb-2">Projects</div>
+          <div className="space-y-1">
+            {geminiCLI.projects.slice(0, 3).map(p => (
+              <div key={p.id} className="flex items-center gap-2 text-[9px]">
+                <FolderKanban size={9} className="text-[#4285F4] flex-shrink-0" />
+                <span className="text-[#ccccdd] truncate">{p.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
+// ─── Recent Activity (from executionLogs) ───
 
 function RecentActivities() {
-  const { logs, agents } = useOSStore();
-  const agentIcons: {[key: string]: string} = {
-    Claude: '🧠',
-    Hermes: '🔍',
-    'Self Vault': '💾',
-    OpenClaw: '👥',
-    Gemini: '✨',
-  };
-  const agentColorMap: {[key: string]: string} = {};
-  agents.forEach(a => { agentColorMap[a.name] = a.color; });
+  const { executionLogs } = useOSStore();
 
-  // Use live logs from store, fallback to recentActivities
-  const displayLogs = logs.length > 0 ? logs.slice(0, 12).map((log, i) => ({
-    id: log.id,
-    agent: log.agent,
-    action: log.message,
-    time: log.timestamp,
-    type: log.level,
-    color: agentColorMap[log.agent] || '#8888aa',
-  })) : recentActivities;
+  const LOG_ICONS: {[key: string]: string} = {
+    info: 'ℹ️',
+    warn: '⚠️',
+    error: '❌',
+    success: '✅',
+  };
+
+  const LOG_COLORS: {[key: string]: string} = {
+    info: '#00ffff',
+    warn: '#FFB627',
+    error: '#E63946',
+    success: '#00ff88',
+  };
 
   return (
     <GlassCard>
@@ -391,255 +380,158 @@ function RecentActivities() {
           <Activity size={14} className="text-[#00ff88]" />
           <span className="text-white text-xs font-bold uppercase tracking-wider">Recent Activity</span>
         </div>
-        <span className="text-[9px] text-[#8888aa]">{displayLogs.length} events</span>
+        <span className="text-[9px] text-[#8888aa]">{executionLogs.length} events</span>
       </div>
 
       <div className="space-y-1 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-        {displayLogs.length === 0 && (
+        {executionLogs.length === 0 && (
           <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
             No recent activity yet
           </div>
         )}
-        {displayLogs.map((activity, i) => (
-          <motion.div key={activity.id}
-            initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-[rgba(10,10,26,0.4)] transition-colors">
-            <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm mt-0.5"
-              style={{ backgroundColor: `${activity.color}15`, border: `1px solid ${activity.color}25` }}>
-              {agentIcons[activity.agent] || '🤖'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-[10px] font-semibold" style={{ color: activity.color }}>{activity.agent}</span>
-                <span className="text-[8px] text-[#8888aa]">{activity.time}</span>
+        {executionLogs.slice(0, 12).map((log, i) => {
+          const levelColor = LOG_COLORS[log.level] || '#8888aa';
+          const timeStr = log.timestamp
+            ? new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : '';
+          return (
+            <motion.div key={log.id}
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-[rgba(10,10,26,0.4)] transition-colors">
+              <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm mt-0.5"
+                style={{ backgroundColor: `${levelColor}15`, border: `1px solid ${levelColor}25` }}>
+                {LOG_ICONS[log.level] || '📋'}
               </div>
-              <p className="text-[10px] text-[#ccccdd] leading-relaxed line-clamp-2">{activity.action}</p>
-            </div>
-          </motion.div>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[10px] font-semibold" style={{ color: levelColor }}>{log.source}</span>
+                  {log.model && <span className="text-[8px] text-[#8888aa] font-mono">{log.model}</span>}
+                  <span className="text-[8px] text-[#8888aa]">{timeStr}</span>
+                </div>
+                <p className="text-[10px] text-[#ccccdd] leading-relaxed line-clamp-2">{log.message}</p>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </GlassCard>
   );
 }
 
-// ─── Active Projects ───
+// ─── System Resource Metrics ───
 
-function ActiveProjects() {
-  return (
-    <GlassCard>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <FolderKanban size={14} className="text-[#FFB627]" />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">Active Projects</span>
-        </div>
-      </div>
+function SystemResourceMetrics() {
+  const { systemMetrics } = useOSStore();
 
-      <div className="space-y-2">
-        {projectsData.length === 0 && (
-          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
-            No active projects yet
-          </div>
-        )}
-        {projectsData.map((project, i) => (
-          <motion.div key={project.id}
-            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="bg-[rgba(10,10,26,0.4)] rounded-lg p-3 hover:bg-[rgba(10,10,26,0.6)] transition-colors cursor-pointer group">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] text-white font-medium">{project.name}</span>
-              <span className="text-[9px] font-mono" style={{ color: project.color }}>{project.progress}%</span>
-            </div>
-            <div className="h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden mb-2">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${project.progress}%` }}
-                transition={{ duration: 1, ease: 'easeOut', delay: i * 0.1 }}
-                className="h-full rounded-full" style={{ backgroundColor: project.color }} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <CheckSquare size={9} className="text-[#8888aa]" />
-                <span className="text-[9px] text-[#8888aa]">{project.tasks} tasks</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {project.team.slice(0, 3).map((member, mi) => (
-                  <div key={mi} className="w-5 h-5 rounded-full border border-[#0a0a1a] flex items-center justify-center text-[8px]"
-                    style={{ backgroundColor: `${member === 'Claude' ? '#E63946' : member === 'Hermes' ? '#FFB627' : member === 'OpenClaw' ? '#E8751A' : member === 'Gemini' ? '#4285F4' : '#2E86AB'}30`, marginLeft: mi > 0 ? '-4px' : '0' }}>
-                    {member[0]}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </GlassCard>
-  );
-}
-
-// ─── Tasks Overview ───
-
-function TasksOverview() {
-  const { kanbanTasks } = useOSStore();
-  const todo = kanbanTasks.filter(t => t.status === 'todo');
-  const inProgress = kanbanTasks.filter(t => t.status === 'in_progress');
-  const done = kanbanTasks.filter(t => t.status === 'done');
-
-  const columns = [
-    { label: 'To Do', count: todo.length, color: '#8888aa', tasks: todo },
-    { label: 'In Progress', count: inProgress.length, color: '#FFB627', tasks: inProgress },
-    { label: 'Done', count: done.length, color: '#00ff88', tasks: done },
-  ];
-
-  const urgentTasks = kanbanTasks
-    .filter(t => t.priority === 'high')
-    .slice(0, 3);
-
-  return (
-    <GlassCard>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <CheckSquare size={14} className="text-[#00ff88]" />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">Tasks</span>
-        </div>
-        <span className="text-[9px] text-[#8888aa]">{kanbanTasks.length} total</span>
-      </div>
-
-      {/* Kanban mini columns */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {columns.map(col => (
-          <div key={col.label} className="bg-[rgba(10,10,26,0.4)] rounded-lg p-2.5 text-center">
-            <div className="text-[8px] text-[#8888aa] uppercase tracking-wider mb-1">{col.label}</div>
-            <div className="text-xl font-mono font-bold" style={{ color: col.color }}>{col.count}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Urgent tasks */}
-      <div>
-        <div className="text-[9px] text-[#8888aa] uppercase tracking-wider mb-2">Top Urgent</div>
-        <div className="space-y-1.5">
-          {urgentTasks.map((task, i) => {
-            const agentColors: {[key: string]: string} = { claude: '#E63946', hermes: '#FFB627', openclaw: '#E8751A', vault: '#2E86AB', gemini: '#4285F4' };
-            return (
-              <motion.div key={task.id}
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-2 bg-[rgba(10,10,26,0.4)] rounded-lg p-2">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: agentColors[task.assignedTo] || '#8888aa' }} />
-                <span className="text-[10px] text-[#ccccdd] truncate flex-1">{task.title}</span>
-                <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#E63946]/15 text-[#E63946] font-bold">HIGH</span>
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
-    </GlassCard>
-  );
-}
-
-// ─── Analytics Summary ───
-
-function AnalyticsSummary() {
-  const { agentAnalytics, totalTokensUsed } = useOSStore();
-
-  const agentValues = Object.values(agentAnalytics);
-  const totalSessions = agentValues.reduce((s, a) => s + a.totalSessions, 0);
-  const avgResponseTime = agentValues.length > 0 ? agentValues.reduce((s, a) => s + a.avgResponseTime, 0) / agentValues.length : 0;
-  const totalTokens = Object.values(agentAnalytics).reduce((s, a) => s + a.totalTokens, 0) + totalTokensUsed;
-
-  const stats = [
-    { label: 'Sessions', value: (totalSessions ?? 0).toLocaleString('en-US'), change: '+12%', up: true, icon: Activity, color: '#00ffff' },
-    { label: 'Avg Response', value: `${(avgResponseTime / 1000).toFixed(1)}s`, change: '-8%', up: false, icon: Clock, color: '#00ff88' },
-    { label: 'Tokens Used', value: `${(totalTokens / 1_000_000).toFixed(1)}M`, change: '+23%', up: true, icon: Cpu, color: '#9d4edd' },
-    { label: 'Cost', value: '$50.80', change: '+5%', up: true, icon: DollarSign, color: '#FFB627' },
+  const metrics = [
+    { label: 'CPU', value: systemMetrics.cpu, color: '#00ff88' },
+    { label: 'Memory', value: systemMetrics.memory, color: '#4285F4' },
+    { label: 'Network', value: systemMetrics.network, color: '#FFB627' },
+    { label: 'Disk', value: systemMetrics.disk, color: '#9d4edd' },
   ];
 
   return (
     <GlassCard>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <TrendingUp size={14} className="text-[#00ffff]" />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">Analytics</span>
+          <Cpu size={14} className="text-[#00ff88]" />
+          <span className="text-white text-xs font-bold uppercase tracking-wider">System Resources</span>
         </div>
-        <span className="text-[9px] text-[#8888aa]">vs last period</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {stats.map((stat, i) => (
-          <motion.div key={stat.label}
-            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3">
-            <div className="flex items-center gap-1.5 mb-1">
-              <stat.icon size={11} style={{ color: stat.color }} />
-              <span className="text-[8px] text-[#8888aa] uppercase tracking-wider">{stat.label}</span>
-            </div>
-            <div className="flex items-end gap-2">
-              <span className="text-white font-mono font-bold text-base">{stat.value}</span>
-              <span className={`text-[9px] font-mono font-bold flex items-center gap-0.5 ${stat.up ? 'text-[#00ff88]' : 'text-[#ff5555]'}`}>
-                {stat.up ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
-                {stat.change}
-              </span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </GlassCard>
-  );
-}
-
-// ─── Automations Widget ───
-
-function AutomationsWidget() {
-  const [automations, setAutomations] = useState(automationsData);
-
-  const toggleAutomation = (id: string) => {
-    setAutomations(prev => prev.map(a => a.id === id ? { ...a, status: !a.status } : a));
-  };
-
-  return (
-    <GlassCard>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Zap size={14} className="text-[#FFB627]" />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">Automations</span>
-        </div>
-        <span className="text-[9px] text-[#8888aa]">{automations.filter(a => a.status).length} active</span>
-      </div>
-
-      <div className="space-y-2">
-        {automations.length === 0 && (
-          <div className="flex items-center justify-center py-8 text-[#8888aa] text-xs">
-            No automations configured yet
-          </div>
-        )}
-        {automations.map((auto, i) => (
-          <motion.div key={auto.id}
-            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="bg-[rgba(10,10,26,0.4)] rounded-lg p-3">
+      <div className="space-y-3">
+        {metrics.map(m => (
+          <div key={m.label}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] text-white font-medium">{auto.name}</span>
-              <button
-                onClick={() => toggleAutomation(auto.id)}
-                className={`w-8 h-4 rounded-full transition-all duration-200 flex items-center px-0.5 ${
-                  auto.status ? 'bg-[#00ff88]' : 'bg-[rgba(136,136,170,0.3)]'
-                }`}>
-                <motion.div
-                  className="w-3 h-3 rounded-full bg-white"
-                  animate={{ x: auto.status ? 16 : 0 }}
-                  transition={{ duration: 0.2 }}
-                />
-              </button>
+              <span className="text-[9px] text-[#8888aa] uppercase">{m.label}</span>
+              <span className="text-[10px] font-mono font-bold" style={{ color: m.color }}>{m.value}%</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] text-[#8888aa]">{auto.trigger}</span>
-              <span className="text-[8px] text-[#8888aa]">•</span>
-              <span className="text-[9px] text-[#8888aa]">Last: {auto.lastRun}</span>
+            <div className="h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(m.value, 100)}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
+                className="h-full rounded-full"
+                style={{ backgroundColor: m.color }}
+              />
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
+
+      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-[rgba(157,78,221,0.1)]">
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Avg Latency</div>
+          <div className="text-[11px] font-mono font-bold text-[#ccccdd]">{systemMetrics.avgLatency}ms</div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Total Requests</div>
+          <div className="text-[11px] font-mono font-bold text-[#ccccdd]">{systemMetrics.totalRequests.toLocaleString()}</div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ─── Brain Layer Status ───
+
+function BrainLayerStatus() {
+  const { brainConfig, brainTasks, setActiveView } = useOSStore();
+  const runningTasks = brainTasks.filter(t => t.status === 'running');
+  const recentCompleted = brainTasks.filter(t => t.status === 'completed').slice(0, 3);
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Brain size={14} className="text-[#9d4edd]" />
+          <span className="text-white text-xs font-bold uppercase tracking-wider">Brain Layer</span>
+        </div>
+        <button
+          onClick={() => setActiveView('settings')}
+          className="flex items-center gap-1 text-[9px] text-[#9d4edd] hover:text-white transition-colors"
+        >
+          Configure <ChevronRight size={8} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Config</div>
+          <div className="text-[11px] font-mono font-bold text-[#9d4edd]">{brainConfig.name}</div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Reasoning</div>
+          <div className="text-[11px] font-mono text-[#ccccdd] capitalize">{brainConfig.reasoningStyle.replace(/-/g, ' ')}</div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Temperature</div>
+          <div className="text-[11px] font-mono text-[#FFB627]">{brainConfig.temperature}</div>
+        </div>
+        <div>
+          <div className="text-[8px] text-[#8888aa] uppercase">Active Tasks</div>
+          <div className="text-[11px] font-mono font-bold" style={{ color: runningTasks.length > 0 ? '#00ff88' : '#8888aa' }}>
+            {runningTasks.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent brain tasks */}
+      {recentCompleted.length > 0 && (
+        <div className="pt-2 border-t border-[rgba(157,78,221,0.1)]">
+          <div className="text-[8px] text-[#8888aa] uppercase tracking-wider mb-1.5">Recent Tasks</div>
+          <div className="space-y-1">
+            {recentCompleted.map(task => (
+              <div key={task.id} className="flex items-center gap-2 text-[9px]">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88]" />
+                <span className="text-[#ccccdd] truncate">{task.type.replace(/-/g, ' ')}</span>
+                <span className="text-[#8888aa] ml-auto font-mono">{task.tokensUsed} tok</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 }
@@ -652,29 +544,24 @@ export function HomeDashboard() {
       {/* Welcome Banner */}
       <WelcomeBanner />
 
+      {/* System Overview Cards */}
+      <SystemOverviewCards />
+
       {/* Agent Status Row */}
       <AgentStatusRow />
 
-      {/* Memory Growth + Knowledge Graph */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MemoryGrowthWidget />
-        <KnowledgeGraphPreview />
+      {/* Brain Layer + Provider Status + Gemini CLI */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <BrainLayerStatus />
+        <ProviderStatusCards />
+        <GeminiCLIStatus />
       </div>
 
-      {/* Recent Activities + Active Projects */}
+      {/* Recent Activities + System Resources */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RecentActivities />
-        <ActiveProjects />
+        <SystemResourceMetrics />
       </div>
-
-      {/* Tasks + Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TasksOverview />
-        <AnalyticsSummary />
-      </div>
-
-      {/* Automations */}
-      <AutomationsWidget />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
@@ -500,12 +500,13 @@ function MemoryGraph() {
     return null;
   }, [graphNodes]);
 
-  // Apply initialized nodes once
+  // Apply initialized nodes once (useTransition to avoid cascading renders)
+  const [, startTransition] = useTransition();
   useEffect(() => {
     if (initializedNodes && nodes.length === 0) {
-      setNodes(initializedNodes);
+      startTransition(() => setNodes(initializedNodes));
     }
-  }, [initializedNodes, nodes.length]);
+  }, [initializedNodes, nodes.length, startTransition]);
 
   // Simple force-directed simulation
   useEffect(() => {

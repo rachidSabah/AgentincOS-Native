@@ -5,14 +5,16 @@ import {
   Sidebar, TopBar,
   SystemMonitor, LogStream, LatencyGraph, ControlRoom,
   CommandPalette, GoalsView, JournalView, MemoryView,
-  HermesFeatureGrid, CompoundVisualizer, SelfLayerExplanation,
-  OmiObsidianStatus, NetworkTopology, QuickStats,
+  BrainFeatureGrid, CompoundVisualizer, BrainLayerExplanation,
+  KnowledgeSystemStatus, NetworkTopology, QuickStats,
   LayerCard, StackOverview, AgentHeroCards,
-  HermesConnectionBanner, HermesQuickActions, useHermesDetection,
+  SystemStatusBanner, BrainQuickActions, useSystemDetection,
   Stack3DVisualization, LayerFlowDiagram, LayerFlowView,
+  SEOSilo,
 } from '@/components/dashboard';
+import type { StackLayer } from '@/components/dashboard';
 import { AgentRail, LiveWorkspace, BrainPanel } from '@/components/mission-control';
-import { HermesSEOSilo } from '@/components/hermes-seo-silo';
+// HermesSEOSilo removed — using SEOSilo from dashboard instead
 import { SwarmIntelligence } from '@/components/swarm-intelligence';
 import { CostTracker, AgentMessageBus } from '@/components/cost-tracker';
 import { WorkflowBuilder, PluginManager, PromptLibrary } from '@/components/workflow-plugin-prompt';
@@ -45,6 +47,8 @@ import { ProductivityHeatmap } from '@/components/productivity-heatmap';
 import { WorkspaceManager } from '@/components/workspace-manager';
 import { AgentMarketplace } from '@/components/agent-marketplace';
 import { SettingsPanel } from '@/components/settings-panel';
+import { BrainLayerDashboard, BrainTaskPanel as BrainTaskPanelDetail, BrainReasoningView } from '@/components/brain-layer';
+import { ProviderSettingsPage, ProviderHealthCard, ActiveProviderBadge, GeminiCLISetup } from '@/components/provider-settings';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, Component } from 'react';
 
@@ -108,11 +112,22 @@ function HydrationGuard({ children }: { children: React.ReactNode }) {
 
 export default function HomePage() {
   const {
-    activeView, agents, stackLayers, controlRoomAgent,
+    activeView, agents, controlRoomAgent,
     setControlRoomAgent, commandPaletteOpen, setCommandPaletteOpen,
   } = useOSStore();
 
-  useHermesDetection();
+  useSystemDetection();
+
+  // Stack layers are defined locally in dashboard.tsx
+  const layerData: {[key: string]: StackLayer} = {
+    brain: { id: 'brain', number: 1, name: 'Brain Layer', color: '#9d4edd', flowLabel: 'Intelligence', flowIcon: '🧠', agent: 'Brain', whatItDoes: 'The native intelligence of Agentic OS. Plans, reasons, delegates, coordinates. Provider-independent.', keyCapabilities: ['Planning', 'Reasoning', 'Delegation', 'Coordination', 'Memory Retrieval', 'Tool Selection'], description: 'The Brain Layer is the primary intelligence.' },
+    providers: { id: 'providers', number: 2, name: 'Provider Layer', color: '#00ffff', flowLabel: 'Providers', flowIcon: '🔌', agent: 'Router', whatItDoes: 'Manages connections to LLM providers. Providers are interchangeable execution engines.', keyCapabilities: ['API Management', 'Health Monitoring', 'Rate Limiting'], description: 'Provider Layer manages connections.' },
+    agents: { id: 'agents', number: 3, name: 'Agent Layer', color: '#00ff88', flowLabel: 'Agents', flowIcon: '🤖', agent: 'Agents', whatItDoes: 'Specialized agents for code, research, tasks, and more.', keyCapabilities: ['Code Generation', 'Research', 'Task Execution', 'Swarm Intelligence'], description: 'Agent Layer handles specialized workers.' },
+    knowledge: { id: 'knowledge', number: 4, name: 'Knowledge Layer', color: '#FFB627', flowLabel: 'Knowledge', flowIcon: '📚', agent: 'Knowledge', whatItDoes: 'Knowledge base, memory engine, knowledge graph, and RAG engine.', keyCapabilities: ['Knowledge Base', 'Memory Engine', 'Knowledge Graph', 'RAG Engine'], description: 'Knowledge Layer provides persistent intelligence.' },
+    execution: { id: 'execution', number: 5, name: 'Execution Layer', color: '#E8751A', flowLabel: 'Execution', flowIcon: '⚡', agent: 'Runner', whatItDoes: 'Workflows, automations, plugins, and prompts.', keyCapabilities: ['Workflows', 'Automations', 'Plugins', 'Prompts'], description: 'Execution Layer handles automation.' },
+    memory: { id: 'memory', number: 6, name: 'Memory Layer', color: '#2E86AB', flowLabel: 'Memory', flowIcon: '💾', agent: 'Memory', whatItDoes: 'Short-term, long-term, episodic, and semantic memory.', keyCapabilities: ['Short-term', 'Long-term', 'Episodic', 'Semantic'], description: 'Memory Layer provides multi-tier memory.' },
+    governance: { id: 'governance', number: 7, name: 'Governance Layer', color: '#1B998B', flowLabel: 'Governance', flowIcon: '🛡️', agent: 'Governor', whatItDoes: 'Observability, cost tracking, security, audit trail.', keyCapabilities: ['Observability', 'Cost Tracker', 'Security', 'Audit Trail'], description: 'Governance Layer ensures production readiness.' },
+  };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -150,7 +165,7 @@ export default function HomePage() {
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <StackOverview />
-            <HermesSEOSilo />
+            <SEOSilo />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
               <LatencyGraph />
@@ -162,7 +177,7 @@ export default function HomePage() {
       case 'seo-silo':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <HermesSEOSilo />
+            <SEOSilo />
           </motion.div>
         );
 
@@ -233,8 +248,37 @@ export default function HomePage() {
         );
 
       // ─── 7 Layer detail views ───
-      case 'layer-interaction': {
-        const layer = stackLayers.find(l => l.id === 'interaction');
+      case 'layer-brain': {
+        const layer = layerData['brain'];
+        if (!layer) return null;
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <LayerCard layer={layer} />
+            <BrainLayerExplanation />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <SystemMonitor />
+              <LogStream />
+            </div>
+          </motion.div>
+        );
+      }
+
+      case 'layer-providers': {
+        const layer = layerData['providers'];
+        if (!layer) return null;
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <LayerCard layer={layer} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <SystemMonitor />
+              <LatencyGraph />
+            </div>
+          </motion.div>
+        );
+      }
+
+      case 'layer-agents': {
+        const layer = layerData['agents'];
         if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -248,39 +292,12 @@ export default function HomePage() {
       }
 
       case 'layer-knowledge': {
-        const layer = stackLayers.find(l => l.id === 'knowledge');
+        const layer = layerData['knowledge'];
         if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <SystemMonitor />
-              <LogStream />
-            </div>
-          </motion.div>
-        );
-      }
-
-      case 'layer-orchestration': {
-        const layer = stackLayers.find(l => l.id === 'orchestration');
-        if (!layer) return null;
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <LayerCard layer={layer} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <SystemMonitor />
-              <LogStream />
-            </div>
-          </motion.div>
-        );
-      }
-
-      case 'layer-cognition': {
-        const layer = stackLayers.find(l => l.id === 'cognition');
-        if (!layer) return null;
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <LayerCard layer={layer} />
+            <KnowledgeSystemStatus />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <SystemMonitor />
               <LogStream />
@@ -290,14 +307,14 @@ export default function HomePage() {
       }
 
       case 'layer-execution': {
-        const layer = stackLayers.find(l => l.id === 'execution');
+        const layer = layerData['execution'];
         if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
             <div>
-              <div className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-3">Hermes Feature Registry</div>
-              <HermesFeatureGrid />
+              <div className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-3">Brain Capabilities</div>
+              <BrainFeatureGrid />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <LogStream />
@@ -308,14 +325,14 @@ export default function HomePage() {
       }
 
       case 'layer-memory': {
-        const layer = stackLayers.find(l => l.id === 'memory');
+        const layer = layerData['memory'];
         if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <LayerCard layer={layer} />
-            <SelfLayerExplanation />
+            <BrainLayerExplanation />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <OmiObsidianStatus />
+              <KnowledgeSystemStatus />
               <CompoundVisualizer />
             </div>
           </motion.div>
@@ -323,7 +340,7 @@ export default function HomePage() {
       }
 
       case 'layer-governance': {
-        const layer = stackLayers.find(l => l.id === 'governance');
+        const layer = layerData['governance'];
         if (!layer) return null;
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -335,6 +352,125 @@ export default function HomePage() {
           </motion.div>
         );
       }
+
+      // ─── Brain Layer ───
+      case 'brain-layer':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <BrainLayerDashboard />
+          </motion.div>
+        );
+
+      // ─── Providers ───
+      case 'providers':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <ProviderSettingsPage />
+          </motion.div>
+        );
+
+      // ─── Models (Provider Settings) ───
+      case 'models':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <ProviderSettingsPage />
+          </motion.div>
+        );
+
+      // ─── Gemini CLI Setup ───
+      case 'gemini-cli':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <GeminiCLISetup />
+          </motion.div>
+        );
+
+      // ─── Knowledge Base ───
+      case 'knowledge':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryEngineDashboard />
+          </motion.div>
+        );
+
+      // ─── Knowledge Graph ───
+      case 'knowledge-graph':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <MemoryGraph />
+          </motion.div>
+        );
+
+      // ─── RAG Engine ───
+      case 'rag-engine':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <RAGEngine />
+          </motion.div>
+        );
+
+      // ─── Agent Builder ───
+      case 'agents':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentHeroCards />
+          </motion.div>
+        );
+
+      // ─── Agent Marketplace ───
+      case 'agent-marketplace':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentMarketplace />
+          </motion.div>
+        );
+
+      // ─── Files & Attachments ───
+      case 'files':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <WorkspaceManager />
+          </motion.div>
+        );
+
+      case 'attachments':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <WorkspaceManager />
+          </motion.div>
+        );
+
+      // ─── Projects ───
+      case 'projects':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <WorkspaceManager />
+          </motion.div>
+        );
+
+      // ─── Automations ───
+      case 'automations':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <WorkflowBuilder />
+          </motion.div>
+        );
+
+      // ─── Security ───
+      case 'security':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <SecurityScanner />
+          </motion.div>
+        );
+
+      // ─── Audit Trail ───
+      case 'audit-trail':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AuditTrail />
+          </motion.div>
+        );
 
       // ─── Power Features ───
       case 'swarm-intelligence':
@@ -460,7 +596,7 @@ export default function HomePage() {
         );
 
       // ─── Gemini CLI Panel ───
-      case 'gemini-panel':
+      case 'gemini-cli':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <GeminiPowerPanel />
@@ -533,7 +669,7 @@ export default function HomePage() {
         );
 
       // ─── Workspace Manager ───
-      case 'workspace-manager':
+      case 'workspaces':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <WorkspaceManager />
@@ -620,7 +756,7 @@ export default function HomePage() {
                   style={{ backgroundColor: agent.status === 'live' ? agent.color : '#8888aa' }} />
                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
                   <div className="bg-[#1a1a3e] border border-[rgba(157,78,221,0.2)] rounded-lg px-2 py-1 text-xs text-white shadow-lg flex items-center gap-1.5">
-                    <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded" style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>L{agent.layers.join(',L')}</span>
+                    <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded" style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>{agent.tags[0]}</span>
                     {agent.name}
                   </div>
                 </div>

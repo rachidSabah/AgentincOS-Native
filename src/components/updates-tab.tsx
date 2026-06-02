@@ -587,7 +587,14 @@ export function UpdatesTab() {
   const [isConnected, setIsConnected] = useState(true);
 
   // Particles state — generated only on client to avoid hydration mismatch
-  const [particles, setParticles] = useState<Array<{id: number; x: number; y: number; size: number; duration: number; delay: number}>>([]);
+  const [particles] = useState(() => Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 2 + 1,
+    duration: Math.random() * 8 + 6,
+    delay: Math.random() * 4,
+  })));
   // Current time for formatLastChecked — client-only to avoid hydration mismatch
   const [now, setNow] = useState<number | null>(null);
 
@@ -619,15 +626,8 @@ export function UpdatesTab() {
   }, []);
 
   useEffect(() => {
-    setParticles(Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 2 + 1,
-      duration: Math.random() * 8 + 6,
-      delay: Math.random() * 4,
-    })));
-    setNow(Date.now());
+    // Timer-based setState is intentional for clock updates
+    setNow(Date.now()); // eslint-disable-line react-hooks/set-state-in-effect
     const timer = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(timer);
   }, []);
@@ -672,10 +672,12 @@ export function UpdatesTab() {
     }, 4000);
   }, []);
 
-  // Notify on new updates
+  // Notify on new updates (using useEffect to avoid render-phase side effects)
+  const prevUpdateCountRef = useRef(0);
   useEffect(() => {
-    if (availableUpdates.length > 0 && !isChecking) {
-      addToast(`${availableUpdates.length} update${availableUpdates.length > 1 ? 's' : ''} available`, 'info');
+    if (availableUpdates.length > 0 && availableUpdates.length !== prevUpdateCountRef.current && !isChecking) {
+      prevUpdateCountRef.current = availableUpdates.length;
+      addToast(`${availableUpdates.length} update${availableUpdates.length > 1 ? 's' : ''} available`, 'info'); // eslint-disable-line react-hooks/set-state-in-effect
     }
   }, [availableUpdates.length, isChecking, addToast]);
 

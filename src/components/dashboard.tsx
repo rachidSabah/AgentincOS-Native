@@ -1,42 +1,1269 @@
 'use client';
 
-import { useOSStore, type StackLayer, type Goal, type JournalEntry, type MemoryEntry } from '@/lib/store';
+import { useOSStore, useHydration } from '@/lib/store';
+import type { Agent, MemoryEntry, ExecutionLog, ProviderConfig } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain, Cpu, Network, HardDrive, Activity, Radio, Zap, ChevronDown,
   Menu, Command, Shield, Search, Target, BookOpen, Database, Mic,
-  FileText, TrendingUp, Eye, Headphones, PenLine, Sparkles, Crown,
-  Route, FlaskConical, Gem, ArrowRight, MessageSquare, Terminal,
-  Globe, Layers, Clock, Users, Wrench, Eye as EyeIcon, Lock, Lightbulb,
+  FileText, TrendingUp, Eye, PenLine, Sparkles, Crown,
+  Route, ArrowRight, MessageSquare, Terminal,
+  Globe, Layers, Clock, Users, Wrench, Lock, Lightbulb,
   BarChart3, Moon, Scale, ArrowRightLeft, AlertTriangle, Server,
-  Link2, Flame, Bot, Plus, X, Check, Trash2,
-  FolderOpen, Store, Paperclip, X as XIcon,
-  Settings2, Briefcase,
+  Link2, Bot, Plus, X, Check, Trash2,
+  FolderOpen, Store, Paperclip,
+  Settings2, Briefcase, Cog, FileCode2, Play, Pause,
+  CircleDot, Workflow, Gauge, ShieldAlert, ScrollText,
+  Gem, Hexagon, Webhook, Plug, Type, GitBranch,
+  LayoutDashboard, BrainCircuit, Box, Boxes, Share2,
+  Atom, Fingerprint, Scan, CircuitBoard, Cable,
+  MonitorSmartphone, Siren,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
-const layerIconMap: Record<string, typeof Crown> = {
-  interaction: EyeIcon,
+// ═══════════════════════════════════════════════════════════
+// LOCAL TYPES (no external agent framework dependencies)
+// ═══════════════════════════════════════════════════════════
+
+export interface StackLayer {
+  id: string;
+  number: number;
+  name: string;
+  color: string;
+  flowLabel: string;
+  flowIcon: string;
+  agent: string;
+  whatItDoes: string;
+  keyCapabilities: string[];
+  description: string;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  description: string;
+  progress: number;
+  status: 'active' | 'completed' | 'paused' | 'archived';
+  category: string;
+  createdAt: number;
+  updatedAt: number;
+  deadline?: number;
+  subtasks: { id: string; title: string; completed: boolean }[];
+}
+
+export interface JournalEntry {
+  id: string;
+  title: string;
+  content: string;
+  mood: 'inspired' | 'focused' | 'reflective' | 'energized' | 'calm';
+  tags: string[];
+  createdAt: number;
+  agent: string;
+  type: 'reflection' | 'insight' | 'decision' | 'milestone';
+}
+
+// ─── Static layer data (Brain Layer is primary) ───
+const stackLayers: StackLayer[] = [
+  {
+    id: 'brain', number: 1, name: 'Brain Layer', color: '#9d4edd',
+    flowLabel: 'Intelligence', flowIcon: '🧠', agent: 'Brain',
+    whatItDoes: 'The native intelligence of Agentic OS. Plans, reasons, delegates, coordinates. Provider-independent.',
+    keyCapabilities: ['Planning', 'Reasoning', 'Delegation', 'Coordination', 'Memory Retrieval', 'Tool Selection'],
+    description: 'The Brain Layer is the primary intelligence. It orchestrates all operations regardless of which LLM provider is active.',
+  },
+  {
+    id: 'providers', number: 2, name: 'Provider Layer', color: '#00ffff',
+    flowLabel: 'Providers', flowIcon: '🔌', agent: 'Router',
+    whatItDoes: 'Manages connections to LLM providers. Providers are interchangeable execution engines.',
+    keyCapabilities: ['API Management', 'Health Monitoring', 'Rate Limiting', 'Cost Tracking', 'Failover', 'Load Balancing'],
+    description: 'External models are interchangeable execution engines. The Provider Layer manages connections and routing.',
+  },
+  {
+    id: 'agents', number: 3, name: 'Agent Layer', color: '#00ff88',
+    flowLabel: 'Agents', flowIcon: '🤖', agent: 'Agents',
+    whatItDoes: 'Specialized agents for code, research, tasks, and more. Each agent uses the Brain for orchestration.',
+    keyCapabilities: ['Code Generation', 'Research', 'Task Execution', 'Swarm Intelligence', 'Agent Builder', 'Marketplace'],
+    description: 'Agents are specialized workers that execute tasks using the Brain Layer for planning and reasoning.',
+  },
+  {
+    id: 'knowledge', number: 4, name: 'Knowledge Layer', color: '#FFB627',
+    flowLabel: 'Knowledge', flowIcon: '📚', agent: 'Knowledge',
+    whatItDoes: 'Knowledge base, memory engine, knowledge graph, and RAG engine for persistent intelligence.',
+    keyCapabilities: ['Knowledge Base', 'Memory Engine', 'Knowledge Graph', 'RAG Engine', 'Embeddings', 'Semantic Search'],
+    description: 'The Knowledge Layer provides persistent intelligence through structured knowledge, memory, and retrieval.',
+  },
+  {
+    id: 'execution', number: 5, name: 'Execution Layer', color: '#E8751A',
+    flowLabel: 'Execution', flowIcon: '⚡', agent: 'Runner',
+    whatItDoes: 'Workflows, automations, plugins, and prompts for task execution and automation.',
+    keyCapabilities: ['Workflows', 'Automations', 'Plugins', 'Prompts', 'Webhooks', 'Sandbox Execution'],
+    description: 'The Execution Layer handles workflow automation, plugin management, and task execution pipelines.',
+  },
+  {
+    id: 'memory', number: 6, name: 'Memory Layer', color: '#2E86AB',
+    flowLabel: 'Memory', flowIcon: '💾', agent: 'Memory',
+    whatItDoes: 'Short-term, long-term, episodic, and semantic memory with decay and importance scoring.',
+    keyCapabilities: ['Short-term Memory', 'Long-term Memory', 'Episodic Memory', 'Semantic Memory', 'Decay', 'Consolidation'],
+    description: 'The Memory Layer provides multi-tier memory with intelligent decay and importance scoring.',
+  },
+  {
+    id: 'governance', number: 7, name: 'Governance Layer', color: '#1B998B',
+    flowLabel: 'Governance', flowIcon: '🛡️', agent: 'Governor',
+    whatItDoes: 'Observability, cost tracking, security, audit trail, and compliance for production readiness.',
+    keyCapabilities: ['Observability', 'Cost Tracker', 'Security', 'Audit Trail', 'Permissions', 'Compliance'],
+    description: 'The Governance Layer ensures production readiness through observability, security, and compliance.',
+  },
+];
+
+const layerIconMap: {[key: string]: typeof Crown} = {
+  brain: Brain,
+  providers: Cpu,
+  agents: Bot,
   knowledge: Search,
-  orchestration: Users,
-  cognition: Brain,
-  execution: Wrench,
+  execution: Zap,
   memory: Database,
-  governance: Lock,
+  governance: Shield,
 };
 
-/* ───────── 7-LAYER 3D STACK VISUALIZATION ───────── */
+// ═══════════════════════════════════════════════════════════
+// useSystemDetection Hook
+// ═══════════════════════════════════════════════════════════
+
+export function useSystemDetection() {
+  const { geminiCLI, updateGeminiCLI, providers, updateProvider } = useOSStore();
+
+  useEffect(() => {
+    let mounted = true;
+
+    // Check Gemini CLI health
+    const checkGeminiCLI = async () => {
+      try {
+        const res = await fetch('/api/gemini/health');
+        if (res.ok && mounted) {
+          const data = await res.json();
+          updateGeminiCLI({
+            installed: true,
+            running: data.running ?? true,
+            version: data.version ?? '',
+            lastHealthCheck: Date.now(),
+          });
+          // Also update the gemini-cli provider
+          updateProvider('gemini-cli', {
+            enabled: true,
+            healthStatus: data.running ? 'healthy' : 'degraded',
+            lastHealthCheck: Date.now(),
+          });
+        }
+      } catch {
+        // Gemini CLI not available - this is fine
+        if (mounted) {
+          updateGeminiCLI({ installed: false, running: false, lastHealthCheck: Date.now() });
+          updateProvider('gemini-cli', { healthStatus: 'offline', lastHealthCheck: Date.now() });
+        }
+      }
+    };
+
+    // Check enabled providers health
+    const checkProviders = async () => {
+      for (const p of providers) {
+        if (!p.enabled || !p.apiKey) continue;
+        try {
+          const res = await fetch(`/api/providers/health?id=${p.id}`);
+          if (res.ok && mounted) {
+            const data = await res.json();
+            updateProvider(p.id, {
+              healthStatus: data.healthy ? 'healthy' : 'degraded',
+              lastHealthCheck: Date.now(),
+            });
+          }
+        } catch {
+          if (mounted) {
+            updateProvider(p.id, { healthStatus: 'offline', lastHealthCheck: Date.now() });
+          }
+        }
+      }
+    };
+
+    checkGeminiCLI();
+    checkProviders();
+
+    const interval = setInterval(() => {
+      checkGeminiCLI();
+      checkProviders();
+    }, 30000);
+
+    return () => { mounted = false; clearInterval(interval); };
+  }, []);
+
+  const activeProvider = providers.find(p => p.enabled && p.apiKey);
+  const hasAnyProvider = providers.some(p => p.enabled && p.apiKey);
+
+  return {
+    geminiInstalled: geminiCLI.installed,
+    geminiRunning: geminiCLI.running,
+    geminiVersion: geminiCLI.version,
+    activeProvider: activeProvider ?? null,
+    hasAnyProvider,
+    providerCount: providers.filter(p => p.enabled && p.apiKey).length,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════════════════
+
+export function Sidebar() {
+  const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, agents } = useOSStore();
+  const liveCount = agents.filter((a) => a.status === 'live').length;
+
+  type NavItem = { id: string; label: string; icon: typeof Sparkles };
+  type NavSection = { label: string; color: string; icon: typeof Sparkles; items: NavItem[] };
+
+  const sections: NavSection[] = [
+    {
+      label: 'Main', color: '#9d4edd', icon: Sparkles,
+      items: [
+        { id: 'home', label: 'Home', icon: LayoutDashboard },
+        { id: 'mission-control', label: 'Mission Control', icon: Radio },
+        { id: 'brain-layer', label: 'Brain Layer', icon: Brain },
+      ],
+    },
+    {
+      label: 'Intelligence', color: '#00ffff', icon: Cpu,
+      items: [
+        { id: 'providers', label: 'Providers', icon: Cpu },
+        { id: 'models', label: 'Models', icon: Boxes },
+        { id: 'model-router', label: 'Model Router', icon: Route },
+        { id: 'gemini-cli', label: 'Gemini CLI', icon: Gem },
+      ],
+    },
+    {
+      label: 'Workspace', color: '#FFB627', icon: Briefcase,
+      items: [
+        { id: 'workspaces', label: 'Workspaces', icon: Briefcase },
+        { id: 'projects', label: 'Projects', icon: FolderOpen },
+        { id: 'files', label: 'Files', icon: FileText },
+        { id: 'attachments', label: 'Attachments', icon: Paperclip },
+      ],
+    },
+    {
+      label: 'Knowledge', color: '#FFB627', icon: Search,
+      items: [
+        { id: 'knowledge', label: 'Knowledge Base', icon: Search },
+        { id: 'memory-engine', label: 'Memory Engine', icon: Database },
+        { id: 'knowledge-graph', label: 'Knowledge Graph', icon: Network },
+        { id: 'rag-engine', label: 'RAG Engine', icon: Zap },
+      ],
+    },
+    {
+      label: 'Agents', color: '#00ff88', icon: Bot,
+      items: [
+        { id: 'agents', label: 'Agents', icon: Bot },
+        { id: 'agent-builder', label: 'Agent Builder', icon: Wrench },
+        { id: 'agent-marketplace', label: 'Agent Marketplace', icon: Store },
+        { id: 'swarm-intelligence', label: 'Swarm Intelligence', icon: BrainCircuit },
+      ],
+    },
+    {
+      label: 'Automation', color: '#E8751A', icon: Workflow,
+      items: [
+        { id: 'workflows', label: 'Workflows', icon: Workflow },
+        { id: 'automations', label: 'Automations', icon: Play },
+        { id: 'plugins', label: 'Plugins', icon: Plug },
+        { id: 'prompts', label: 'Prompts', icon: Type },
+      ],
+    },
+    {
+      label: 'Monitoring', color: '#E63946', icon: Gauge,
+      items: [
+        { id: 'observability', label: 'Observability', icon: Eye },
+        { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap },
+        { id: 'security', label: 'Security', icon: Shield },
+        { id: 'audit-trail', label: 'Audit Trail', icon: ScrollText },
+      ],
+    },
+    {
+      label: 'Settings', color: '#8888aa', icon: Settings2,
+      items: [
+        { id: 'settings', label: 'Provider Settings', icon: Settings2 },
+        { id: 'updates', label: 'System Settings', icon: Cog },
+      ],
+    },
+  ];
+
+  const selfItems: NavItem[] = [
+    { id: 'self-goals', label: 'Goals', icon: Target },
+    { id: 'self-journal', label: 'Journal', icon: BookOpen },
+    { id: 'self-memory', label: 'Memory', icon: Database },
+  ];
+
+  return (
+    <motion.aside
+      initial={false}
+      animate={{ width: sidebarCollapsed ? 64 : 240 }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="h-screen flex flex-col bg-[#0d0d20] border-r border-[rgba(157,78,221,0.15)] relative z-20"
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-[rgba(157,78,221,0.1)]">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#9d4edd] to-[#E8751A] flex items-center justify-center flex-shrink-0">
+          <span className="text-white font-bold text-sm">A</span>
+        </div>
+        <AnimatePresence>
+          {!sidebarCollapsed && (
+            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="overflow-hidden">
+              <div className="text-white font-bold text-sm tracking-wider">AGENTIC OS</div>
+              <div className="text-[9px] text-[#8888aa] tracking-widest uppercase">Brain-First AI Stack</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto" role="navigation" aria-label="Main navigation">
+        {sections.map((section) => (
+          <div key={section.label} className="pt-2">
+            {!sidebarCollapsed && (
+              <div className="px-3 mb-1 text-[9px] uppercase tracking-widest flex items-center gap-1" style={{ color: section.color }}>
+                <section.icon size={9} /> {section.label}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const isActive = activeView === item.id;
+              return (
+                <button key={item.id} onClick={() => setActiveView(item.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group relative ${
+                    isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.06)]'
+                  }`}
+                  style={isActive ? { background: `${section.color}15` } : {}}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {isActive && (
+                    <motion.div layoutId={`sidebar-${section.label}`} className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: section.color }} />
+                  )}
+                  <item.icon size={14} className="flex-shrink-0 transition-colors" style={isActive ? { color: section.color } : {}} />
+                  <AnimatePresence>
+                    {!sidebarCollapsed && (
+                      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">
+                        {item.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                  {item.id === 'mission-control' && !sidebarCollapsed && (
+                    <span className="ml-auto text-[9px] bg-[#00ffff]/20 text-[#00ffff] px-1.5 py-0.5 rounded-full font-mono">{liveCount}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* Self section */}
+        <div className="pt-3 border-t border-[rgba(157,78,221,0.08)]">
+          {!sidebarCollapsed && <div className="px-3 mb-1 text-[9px] text-[#2E86AB] uppercase tracking-widest flex items-center gap-1"><Fingerprint size={9} /> Self</div>}
+          {selfItems.map((item) => {
+            const isActive = activeView === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group ${
+                  isActive ? 'bg-[rgba(46,134,171,0.12)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(46,134,171,0.06)]'
+                }`}
+              >
+                <item.icon size={14} className={`flex-shrink-0 ${isActive ? 'text-[#2E86AB]' : 'text-[#8888aa] group-hover:text-[#2E86AB]'}`} />
+                <AnimatePresence>
+                  {!sidebarCollapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">{item.label}</motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Layer quick nav */}
+        <div className="pt-3 border-t border-[rgba(157,78,221,0.08)]">
+          {!sidebarCollapsed && <div className="px-3 mb-1 text-[9px] text-[#9d4edd] uppercase tracking-widest flex items-center gap-1"><Layers size={9} /> Layers</div>}
+          {stackLayers.map((layer) => {
+            const isActive = activeView === `layer-${layer.id}`;
+            const IconComp = layerIconMap[layer.id] || Sparkles;
+            return (
+              <button key={layer.id} onClick={() => setActiveView(`layer-${layer.id}`)}
+                className={`w-full flex items-center gap-2.5 px-3 py-1 rounded-lg transition-all duration-200 group relative ${
+                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white'
+                }`}
+                style={isActive ? { background: `${layer.color}12` } : {}}
+              >
+                {isActive && <motion.div layoutId="sidebar-layer" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-r" style={{ backgroundColor: layer.color }} />}
+                <IconComp size={13} className="flex-shrink-0" style={isActive ? { color: layer.color } : {}} />
+                <AnimatePresence>
+                  {!sidebarCollapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[10px] font-medium truncate">
+                      L{layer.number} {layer.flowLabel}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                {!sidebarCollapsed && <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: layer.color }} />}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Collapse toggle */}
+      <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        className="flex items-center justify-center py-3 border-t border-[rgba(157,78,221,0.1)] text-[#8888aa] hover:text-white transition-colors"
+        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+        <Menu size={16} />
+      </button>
+    </motion.aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOP BAR
+// ═══════════════════════════════════════════════════════════
+
+export function TopBar() {
+  const { setCommandPaletteOpen, activeView, providers, geminiCLI } = useOSStore();
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const update = () => setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
+    update();
+    const i = setInterval(update, 1000);
+    return () => clearInterval(i);
+  }, []);
+
+  const viewLabels: {[key: string]: string} = {
+    'home': 'Home',
+    'mission-control': 'Mission Control',
+    'brain-layer': 'Brain Layer — Native Intelligence',
+    'providers': 'Providers — Execution Engines',
+    'models': 'Models — Available Models',
+    'model-router': 'Model Router — Intelligent Routing',
+    'gemini-cli': 'Gemini CLI — Local Agent',
+    'workspaces': 'Workspaces',
+    'projects': 'Projects',
+    'files': 'Files',
+    'attachments': 'Attachments',
+    'knowledge': 'Knowledge Base',
+    'memory-engine': 'Memory Engine',
+    'knowledge-graph': 'Knowledge Graph',
+    'rag-engine': 'RAG Engine',
+    'agents': 'Agents',
+    'agent-builder': 'Agent Builder',
+    'agent-marketplace': 'Agent Marketplace',
+    'swarm-intelligence': 'Swarm Intelligence',
+    'workflows': 'Workflows',
+    'automations': 'Automations',
+    'plugins': 'Plugins',
+    'prompts': 'Prompts',
+    'observability': 'Observability',
+    'cost-tracker': 'Cost Tracker',
+    'security': 'Security',
+    'audit-trail': 'Audit Trail',
+    'settings': 'Provider Settings',
+    'updates': 'System Settings',
+    'layer-brain': 'Layer 1 — Brain Layer',
+    'layer-providers': 'Layer 2 — Provider Layer',
+    'layer-agents': 'Layer 3 — Agent Layer',
+    'layer-knowledge': 'Layer 4 — Knowledge Layer',
+    'layer-execution': 'Layer 5 — Execution Layer',
+    'layer-memory': 'Layer 6 — Memory Layer',
+    'layer-governance': 'Layer 7 — Governance Layer',
+    'self-goals': 'Self — Goals',
+    'self-journal': 'Self — Journal',
+    'self-memory': 'Self — Memory',
+  };
+
+  const activeProvider = providers.find(p => p.enabled && p.apiKey);
+
+  return (
+    <header className="h-14 flex items-center justify-between px-6 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.8)] backdrop-blur-md z-10" role="banner">
+      <div className="flex items-center gap-4">
+        <h1 className="text-white font-bold text-lg tracking-wide">{viewLabels[activeView] || 'Agentic OS'}</h1>
+        <span className="text-[#8888aa] text-sm hidden lg:block">
+          {activeView === 'home' ? 'Brain-first AI operating system.' : ''}
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-[#8888aa] font-mono text-sm">{time} <span className="text-[10px]">LOCAL</span></div>
+        <button onClick={() => setCommandPaletteOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[rgba(157,78,221,0.2)] text-[#8888aa] hover:text-white hover:border-[rgba(157,78,221,0.4)] transition-all text-sm"
+          aria-label="Open command palette">
+          <Command size={14} /><span className="hidden sm:inline">Command</span>
+        </button>
+        {/* Active provider badge */}
+        {activeProvider && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium"
+            style={{ borderColor: `${activeProvider.color}30`, color: activeProvider.color, background: `${activeProvider.color}10` }}>
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: activeProvider.color }} />
+            {activeProvider.name}
+          </div>
+        )}
+        {/* Gemini CLI status */}
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium ${
+          geminiCLI.running ? 'border-[rgba(66,133,244,0.3)] text-[#4285f4] bg-[rgba(66,133,244,0.1)]' :
+          geminiCLI.installed ? 'border-[rgba(255,182,39,0.3)] text-[#FFB627] bg-[rgba(255,182,39,0.1)]' :
+          'border-[rgba(136,136,170,0.2)] text-[#8888aa] bg-[rgba(136,136,170,0.05)]'
+        }`}>
+          <Gem size={12} />
+          <span className="hidden sm:inline">{geminiCLI.running ? 'Running' : geminiCLI.installed ? 'Installed' : 'Offline'}</span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// SYSTEM MONITOR
+// ═══════════════════════════════════════════════════════════
+
+export function SystemMonitor() {
+  const { systemMetrics } = useOSStore();
+  const metrics = [
+    { label: 'CPU', value: systemMetrics.cpu, icon: Cpu, color: '#9d4edd' },
+    { label: 'Memory', value: systemMetrics.memory, icon: HardDrive, color: '#00ffff' },
+    { label: 'Network', value: systemMetrics.network, icon: Network, color: '#00ff88' },
+    { label: 'Disk', value: systemMetrics.disk, icon: Database, color: '#FFB627' },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Activity size={16} className="text-[#9d4edd]" /> System Monitor
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">LIVE</span>
+      </div>
+      <div className="space-y-4">
+        {metrics.map((m) => (
+          <div key={m.label} className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <m.icon size={14} style={{ color: m.color }} />
+                <span className="text-[#ccccdd] text-xs font-medium">{m.label}</span>
+              </div>
+              <span className="text-white text-xs font-mono font-bold">{m.value}%</span>
+            </div>
+            <div className="w-full h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: `linear-gradient(90deg, ${m.color}80, ${m.color})` }}
+                initial={{ width: 0 }}
+                animate={{ width: `${m.value}%` }}
+                transition={{ duration: 1, ease: 'easeOut' }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOG STREAM
+// ═══════════════════════════════════════════════════════════
+
+export function LogStream() {
+  const { executionLogs } = useOSStore();
+  const levelColors: {[key: string]: string} = {
+    info: '#00ffff', warn: '#FFB627', error: '#E63946', success: '#00ff88',
+  };
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Terminal size={16} className="text-[#00ff88]" /> Execution Log
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">{executionLogs.length} ENTRIES</span>
+      </div>
+      <div className="max-h-64 overflow-y-auto space-y-1.5 custom-scrollbar">
+        {executionLogs.length === 0 ? (
+          <div className="text-[#8888aa] text-xs text-center py-8">No execution logs yet. Start an agent to see logs.</div>
+        ) : (
+          executionLogs.slice(0, 30).map((log: ExecutionLog) => (
+            <div key={log.id} className="flex items-start gap-2 py-1 px-2 rounded-md hover:bg-[rgba(157,78,221,0.05)] transition-colors">
+              <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: levelColors[log.level] || '#8888aa' }} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono uppercase tracking-wider" style={{ color: levelColors[log.level] }}>{log.level}</span>
+                  <span className="text-[9px] text-[#8888aa] font-mono">{log.source}</span>
+                  {log.providerId && <span className="text-[8px] text-[#9d4edd] font-mono">{log.providerId}</span>}
+                </div>
+                <p className="text-[#ccccdd] text-[11px] leading-tight truncate">{log.message}</p>
+              </div>
+              <span className="text-[8px] text-[#8888aa] font-mono flex-shrink-0">{new Date(log.timestamp).toLocaleTimeString()}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// LATENCY GRAPH
+// ═══════════════════════════════════════════════════════════
+
+export function LatencyGraph() {
+  const { providers } = useOSStore();
+  const enabledProviders = providers.filter(p => p.enabled);
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Gauge size={16} className="text-[#FFB627]" /> Provider Latency
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">MS</span>
+      </div>
+      {enabledProviders.length === 0 ? (
+        <div className="text-[#8888aa] text-xs text-center py-8">Enable a provider to see latency data.</div>
+      ) : (
+        <div className="space-y-3">
+          {enabledProviders.map((p: ProviderConfig) => {
+            const latency = p.healthStatus === 'healthy' ? Math.floor(Math.random() * 400 + 100) : 0;
+            return (
+              <div key={p.id} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{p.icon}</span>
+                    <span className="text-[#ccccdd] text-xs font-medium">{p.name}</span>
+                  </div>
+                  <span className="text-xs font-mono font-bold" style={{ color: latency > 500 ? '#E63946' : latency > 300 ? '#FFB627' : '#00ff88' }}>
+                    {latency}ms
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: `linear-gradient(90deg, ${p.color}60, ${p.color})` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((latency / 1000) * 100, 100)}%` }}
+                    transition={{ duration: 1.5, ease: 'easeOut' }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTROL ROOM
+// ═══════════════════════════════════════════════════════════
+
+export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: () => void }) {
+  const { agents, updateAgent, chatHistories, addChatMessage, providers, brainConfig } = useOSStore();
+  const agent = agents.find(a => a.id === agentId);
+  const [input, setInput] = useState('');
+  const messages = chatHistories[agentId] || [];
+  const activeProvider = providers.find(p => p.enabled && p.apiKey);
+
+  if (!agent) return null;
+
+  const handleSend = () => {
+    if (!input.trim()) return;
+    addChatMessage(agentId, {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: input,
+      timestamp: Date.now(),
+    });
+    // Simulate brain response
+    setTimeout(() => {
+      addChatMessage(agentId, {
+        id: `msg-${Date.now()}-r`,
+        role: 'brain',
+        content: `[Brain Layer] Processing via ${activeProvider?.name || 'no provider'}... The Brain Layer coordinates all intelligence. This agent uses the configured execution engine.`,
+        timestamp: Date.now(),
+        providerId: activeProvider?.id,
+        model: activeProvider?.defaultModel,
+      });
+    }, 800);
+    setInput('');
+  };
+
+  return (
+    <motion.div
+      initial={{ x: 400, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 400, opacity: 0 }}
+      transition={{ type: 'spring', damping: 25 }}
+      className="fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-[#0d0d20] border-l border-[rgba(157,78,221,0.2)] z-50 flex flex-col"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-[rgba(157,78,221,0.1)]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
+            style={{ background: `linear-gradient(135deg, ${agent.color}25, ${agent.color}10)`, border: `1px solid ${agent.color}30` }}>
+            {agent.icon}
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-sm">{agent.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full ${agent.status === 'live' ? 'animate-pulse' : ''}`}
+                style={{ backgroundColor: agent.status === 'live' ? '#00ff88' : '#8888aa' }} />
+              <span className="text-[9px] font-mono uppercase" style={{ color: agent.status === 'live' ? '#00ff88' : '#8888aa' }}>{agent.status}</span>
+              {activeProvider && <span className="text-[8px] text-[#8888aa]">via {activeProvider.name}</span>}
+            </div>
+          </div>
+        </div>
+        <button onClick={onClose} className="text-[#8888aa] hover:text-white transition-colors p-1" aria-label="Close control room">
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Status metrics */}
+      <div className="grid grid-cols-3 gap-2 p-3 border-b border-[rgba(157,78,221,0.08)]">
+        <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2 text-center">
+          <div className="text-[8px] text-[#8888aa] uppercase">Uptime</div>
+          <div className="text-white text-[11px] font-mono font-bold">{agent.uptime}</div>
+        </div>
+        <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2 text-center">
+          <div className="text-[8px] text-[#8888aa] uppercase">Latency</div>
+          <div className="text-[11px] font-mono font-bold" style={{ color: agent.latency > 300 ? '#FFB627' : '#00ff88' }}>{agent.latency}ms</div>
+        </div>
+        <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2 text-center">
+          <div className="text-[8px] text-[#8888aa] uppercase">Requests</div>
+          <div className="text-white text-[11px] font-mono font-bold">{agent.requests}</div>
+        </div>
+      </div>
+
+      {/* Chat messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        <div className="text-center text-[9px] text-[#8888aa] font-mono py-2">
+          Brain Layer: {brainConfig.reasoningStyle} | Context: {brainConfig.contextStrategy}
+        </div>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] rounded-xl px-3 py-2 text-[12px] ${
+              msg.role === 'user' ? 'bg-[rgba(157,78,221,0.15)] text-white' :
+              msg.role === 'brain' ? 'bg-[rgba(0,255,255,0.08)] text-[#00ffff]' :
+              'bg-[rgba(18,18,42,0.8)] text-[#ccccdd]'
+            }`}>
+              <p className="leading-relaxed">{msg.content}</p>
+              {msg.providerId && <div className="text-[8px] text-[#8888aa] mt-1 font-mono">via {msg.providerId} · {msg.model}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="p-3 border-t border-[rgba(157,78,221,0.1)]">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Send to Brain Layer..."
+            className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]"
+          />
+          <button onClick={handleSend} className="px-3 py-2 rounded-lg bg-[#9d4edd] text-white hover:bg-[#7B2CBF] transition-colors" aria-label="Send message">
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// COMMAND PALETTE
+// ═══════════════════════════════════════════════════════════
+
+export function CommandPalette() {
+  const { setActiveView, setCommandPaletteOpen } = useOSStore();
+  const [query, setQuery] = useState('');
+
+  const commands = [
+    { id: 'home', label: 'Home', icon: LayoutDashboard, category: 'Main' },
+    { id: 'mission-control', label: 'Mission Control', icon: Radio, category: 'Main' },
+    { id: 'brain-layer', label: 'Brain Layer', icon: Brain, category: 'Intelligence' },
+    { id: 'providers', label: 'Providers', icon: Cpu, category: 'Intelligence' },
+    { id: 'models', label: 'Models', icon: Boxes, category: 'Intelligence' },
+    { id: 'model-router', label: 'Model Router', icon: Route, category: 'Intelligence' },
+    { id: 'gemini-cli', label: 'Gemini CLI', icon: Gem, category: 'Intelligence' },
+    { id: 'workspaces', label: 'Workspaces', icon: Briefcase, category: 'Workspace' },
+    { id: 'projects', label: 'Projects', icon: FolderOpen, category: 'Workspace' },
+    { id: 'files', label: 'Files', icon: FileText, category: 'Workspace' },
+    { id: 'attachments', label: 'Attachments', icon: Paperclip, category: 'Workspace' },
+    { id: 'knowledge', label: 'Knowledge Base', icon: Search, category: 'Knowledge' },
+    { id: 'memory-engine', label: 'Memory Engine', icon: Database, category: 'Knowledge' },
+    { id: 'knowledge-graph', label: 'Knowledge Graph', icon: Network, category: 'Knowledge' },
+    { id: 'rag-engine', label: 'RAG Engine', icon: Zap, category: 'Knowledge' },
+    { id: 'agents', label: 'Agents', icon: Bot, category: 'Agents' },
+    { id: 'agent-builder', label: 'Agent Builder', icon: Wrench, category: 'Agents' },
+    { id: 'agent-marketplace', label: 'Agent Marketplace', icon: Store, category: 'Agents' },
+    { id: 'swarm-intelligence', label: 'Swarm Intelligence', icon: BrainCircuit, category: 'Agents' },
+    { id: 'workflows', label: 'Workflows', icon: Workflow, category: 'Automation' },
+    { id: 'automations', label: 'Automations', icon: Play, category: 'Automation' },
+    { id: 'plugins', label: 'Plugins', icon: Plug, category: 'Automation' },
+    { id: 'prompts', label: 'Prompts', icon: Type, category: 'Automation' },
+    { id: 'observability', label: 'Observability', icon: Eye, category: 'Monitoring' },
+    { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap, category: 'Monitoring' },
+    { id: 'security', label: 'Security', icon: Shield, category: 'Monitoring' },
+    { id: 'audit-trail', label: 'Audit Trail', icon: ScrollText, category: 'Monitoring' },
+    { id: 'settings', label: 'Provider Settings', icon: Settings2, category: 'Settings' },
+    { id: 'updates', label: 'System Settings', icon: Cog, category: 'Settings' },
+    ...stackLayers.map(l => ({
+      id: `layer-${l.id}`,
+      label: `L${l.number} ${l.name}`,
+      icon: layerIconMap[l.id] || Sparkles,
+      category: 'Layers',
+    })),
+  ];
+
+  const filtered = commands.filter(c =>
+    c.label.toLowerCase().includes(query.toLowerCase()) ||
+    c.category.toLowerCase().includes(query.toLowerCase())
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh] bg-black/60 backdrop-blur-sm"
+      onClick={() => setCommandPaletteOpen(false)}
+    >
+      <motion.div
+        initial={{ y: -20, opacity: 0, scale: 0.95 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        exit={{ y: -20, opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-lg bg-[#0d0d20] border border-[rgba(157,78,221,0.2)] rounded-xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgba(157,78,221,0.1)]">
+          <Search size={16} className="text-[#9d4edd]" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search commands..."
+            className="flex-1 bg-transparent text-white text-sm placeholder-[#8888aa] focus:outline-none"
+            autoFocus
+          />
+          <kbd className="text-[9px] text-[#8888aa] border border-[rgba(157,78,221,0.2)] rounded px-1.5 py-0.5 font-mono">ESC</kbd>
+        </div>
+        <div className="max-h-72 overflow-y-auto p-2 custom-scrollbar">
+          {filtered.length === 0 ? (
+            <div className="text-[#8888aa] text-xs text-center py-6">No commands found.</div>
+          ) : (
+            filtered.map((cmd) => (
+              <button key={cmd.id}
+                onClick={() => { setActiveView(cmd.id); setCommandPaletteOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[#ccccdd] hover:text-white hover:bg-[rgba(157,78,221,0.1)] transition-all text-sm"
+              >
+                <cmd.icon size={14} className="text-[#9d4edd]" />
+                <span className="flex-1 text-left">{cmd.label}</span>
+                <span className="text-[9px] text-[#8888aa] font-mono">{cmd.category}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// STACK OVERVIEW
+// ═══════════════════════════════════════════════════════════
+
+export function StackOverview() {
+  const { setActiveView, systemMetrics } = useOSStore();
+
+  const layers = [
+    { id: 'brain', name: 'Brain Layer', color: '#9d4edd', icon: Brain, desc: 'Native intelligence — planning, reasoning, delegation, coordination' },
+    { id: 'providers', name: 'Provider Layer', color: '#00ffff', icon: Cpu, desc: 'Interchangeable execution engines — OpenAI, Anthropic, Google, Ollama, etc.' },
+    { id: 'agents', name: 'Agent Layer', color: '#00ff88', icon: Bot, desc: 'Specialized workers — Code Agent, Research Agent, Task Agent' },
+    { id: 'knowledge', name: 'Knowledge Layer', color: '#FFB627', icon: Search, desc: 'Persistent intelligence — knowledge base, memory, RAG, graph' },
+    { id: 'execution', name: 'Execution Layer', color: '#E8751A', icon: Zap, desc: 'Automation — workflows, plugins, prompts, webhooks' },
+    { id: 'memory', name: 'Memory Layer', color: '#2E86AB', icon: Database, desc: 'Multi-tier memory — short-term, long-term, episodic, semantic' },
+    { id: 'governance', name: 'Governance Layer', color: '#1B998B', icon: Shield, desc: 'Production readiness — observability, security, audit, compliance' },
+  ];
+
+  return (
+    <section aria-label="Stack Overview" className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-white font-bold text-lg tracking-wider uppercase flex items-center gap-2">
+          <Layers size={20} className="text-[#9d4edd]" /> Agentic OS Architecture
+        </h2>
+        <span className="text-[10px] text-[#8888aa] font-mono">7 LAYERS · BRAIN-FIRST</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {layers.map((layer, i) => (
+          <motion.div
+            key={layer.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.06 }}
+            className="rounded-xl border overflow-hidden cursor-pointer group card-hover"
+            style={{ borderColor: `${layer.color}20`, background: `linear-gradient(135deg, ${layer.color}06, ${layer.color}02)` }}
+            onClick={() => setActiveView(`layer-${layer.id}`)}
+          >
+            <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${layer.color}, transparent)` }} />
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${layer.color}20, ${layer.color}08)`, border: `1px solid ${layer.color}25` }}>
+                  <layer.icon size={18} style={{ color: layer.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
+                      L{i + 1}
+                    </span>
+                    <h3 className="text-white font-semibold text-sm">{layer.name}</h3>
+                  </div>
+                  <p className="text-[#aaaacc] text-[11px] leading-relaxed mt-1">{layer.desc}</p>
+                </div>
+                <ArrowRight size={14} className="text-[#8888aa] group-hover:text-white transition-colors flex-shrink-0 mt-2" />
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Stats */}
+      <div className="rounded-xl border border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Active Agents</div>
+            <div className="text-[#00ff88] font-mono text-lg font-bold">{systemMetrics.activeAgents}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Providers</div>
+            <div className="text-[#00ffff] font-mono text-lg font-bold">{systemMetrics.activeProviders}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Knowledge</div>
+            <div className="text-[#FFB627] font-mono text-lg font-bold">{systemMetrics.knowledgeEntries}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Memory</div>
+            <div className="text-[#2E86AB] font-mono text-lg font-bold">{systemMetrics.memoryEntries}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// LAYER CARD
+// ═══════════════════════════════════════════════════════════
+
+export function LayerCard({ layer }: { layer: StackLayer }) {
+  const IconComp = layerIconMap[layer.id] || Sparkles;
+  return (
+    <div className="rounded-2xl border overflow-hidden"
+      style={{ borderColor: `${layer.color}20`, background: `linear-gradient(135deg, ${layer.color}08, rgba(18,18,42,0.6))` }}>
+      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${layer.color}, ${layer.color}40, transparent)` }} />
+      <div className="p-6">
+        <div className="flex items-start gap-4 mb-4">
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${layer.color}25, ${layer.color}10)`, border: `1px solid ${layer.color}30` }}>
+            <IconComp size={24} style={{ color: layer.color }} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
+                L{layer.number}
+              </span>
+              <h2 className="text-white font-bold text-xl">{layer.name}</h2>
+            </div>
+            <p className="text-[#aaaacc] text-sm leading-relaxed">{layer.whatItDoes}</p>
+          </div>
+        </div>
+        <div className="mt-4">
+          <h4 className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-2">Key Capabilities</h4>
+          <div className="flex flex-wrap gap-2">
+            {layer.keyCapabilities.map(cap => (
+              <span key={cap} className="text-[10px] px-2 py-1 rounded-full border font-medium"
+                style={{ borderColor: `${layer.color}25`, color: `${layer.color}cc`, background: `${layer.color}08` }}>
+                {cap}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-[rgba(157,78,221,0.08)]">
+          <p className="text-[#ccccdd] text-sm leading-relaxed">{layer.description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUICK STATS
+// ═══════════════════════════════════════════════════════════
+
+export function QuickStats() {
+  const { systemMetrics, agents, providers, knowledgeEntries, memories, totalCost, totalTokensUsed } = useOSStore();
+  const liveAgents = agents.filter(a => a.status === 'live').length;
+  const enabledProviders = providers.filter(p => p.enabled && p.apiKey).length;
+
+  const stats = [
+    { label: 'Active Agents', value: liveAgents, total: agents.length, color: '#00ff88', icon: Bot },
+    { label: 'Providers', value: enabledProviders, total: providers.length, color: '#00ffff', icon: Cpu },
+    { label: 'Knowledge', value: knowledgeEntries.length, total: null, color: '#FFB627', icon: Search },
+    { label: 'Memories', value: memories.length, total: null, color: '#2E86AB', icon: Database },
+    { label: 'Tokens Used', value: totalTokensUsed, total: null, color: '#9d4edd', icon: Zap },
+    { label: 'Total Cost', value: `$${totalCost.toFixed(2)}`, total: null, color: '#E8751A', icon: Gauge },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {stats.map((stat, i) => (
+        <motion.div
+          key={stat.label}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.05 }}
+          className="rounded-xl border p-3"
+          style={{ borderColor: `${stat.color}15`, background: `linear-gradient(135deg, ${stat.color}06, ${stat.color}02)` }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <stat.icon size={12} style={{ color: stat.color }} />
+            <span className="text-[9px] text-[#8888aa] uppercase tracking-wider">{stat.label}</span>
+          </div>
+          <div className="text-white font-mono text-lg font-bold">{stat.value}</div>
+          {stat.total !== null && <div className="text-[9px] text-[#8888aa]">of {stat.total}</div>}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// NETWORK TOPOLOGY
+// ═══════════════════════════════════════════════════════════
+
+export function NetworkTopology() {
+  const { agents, providers } = useOSStore();
+  const enabledProviders = providers.filter(p => p.enabled);
+  const liveAgents = agents.filter(a => a.status === 'live');
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Network size={16} className="text-[#00ffff]" /> Network Topology
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">{liveAgents.length}A · {enabledProviders.length}P</span>
+      </div>
+
+      {/* Central Brain node with connections */}
+      <div className="relative flex items-center justify-center min-h-[200px]">
+        {/* Brain center */}
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#9d4edd] to-[#7B2CBF] flex items-center justify-center z-10 shadow-lg shadow-[#9d4edd]/20">
+          <Brain size={28} className="text-white" />
+        </div>
+        <div className="absolute text-[8px] text-[#9d4edd] font-mono font-bold top-[calc(50%+44px)]">BRAIN</div>
+
+        {/* Provider nodes */}
+        {enabledProviders.slice(0, 5).map((p, i) => {
+          const angle = (i / Math.max(enabledProviders.length, 1)) * Math.PI * 2 - Math.PI / 2;
+          const radius = 80;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
+          return (
+            <div key={p.id} className="absolute" style={{ transform: `translate(${x}px, ${y}px)` }}>
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs border"
+                style={{ background: `${p.color}15`, borderColor: `${p.color}30` }}>
+                {p.icon}
+              </motion.div>
+              {/* Connection line would be SVG */}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-[rgba(157,78,221,0.08)] flex items-center gap-3 text-[9px] text-[#8888aa]">
+        <span className="font-mono" style={{ color: '#9d4edd' }}>Brain = Primary Intelligence</span>
+        <span>·</span>
+        <span className="font-mono" style={{ color: '#00ffff' }}>Providers = Execution Engines</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// SYSTEM STATUS BANNER (was HermesConnectionBanner)
+// ═══════════════════════════════════════════════════════════
+
+export function SystemStatusBanner() {
+  const { geminiCLI, providers, systemMetrics } = useOSStore();
+  const activeProvider = providers.find(p => p.enabled && p.apiKey);
+
+  return (
+    <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+          <Siren size={16} className="text-[#FFB627]" /> System Status
+        </h3>
+        <span className="text-[9px] font-mono text-[#00ff88]">● OPERATIONAL</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Brain status */}
+        <div className="rounded-lg border border-[rgba(157,78,221,0.15)] p-3"
+          style={{ background: 'rgba(157,78,221,0.05)' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Brain size={14} className="text-[#9d4edd]" />
+            <span className="text-[10px] text-[#8888aa] uppercase">Brain Layer</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-[#00ff88] animate-pulse" />
+            <span className="text-white text-sm font-bold">Active</span>
+          </div>
+          <div className="text-[9px] text-[#8888aa] mt-1">Native intelligence running</div>
+        </div>
+
+        {/* Provider status */}
+        <div className="rounded-lg border border-[rgba(0,255,255,0.15)] p-3"
+          style={{ background: 'rgba(0,255,255,0.03)' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Cpu size={14} className="text-[#00ffff]" />
+            <span className="text-[10px] text-[#8888aa] uppercase">Active Provider</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${activeProvider ? 'bg-[#00ff88] animate-pulse' : 'bg-[#8888aa]'}`} />
+            <span className="text-white text-sm font-bold">{activeProvider?.name || 'None'}</span>
+          </div>
+          <div className="text-[9px] text-[#8888aa] mt-1">{activeProvider ? `${activeProvider.defaultModel}` : 'Configure in Settings'}</div>
+        </div>
+
+        {/* Gemini CLI status */}
+        <div className="rounded-lg border border-[rgba(66,133,244,0.15)] p-3"
+          style={{ background: 'rgba(66,133,244,0.03)' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Gem size={14} className="text-[#4285f4]" />
+            <span className="text-[10px] text-[#8888aa] uppercase">Gemini CLI</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${geminiCLI.running ? 'bg-[#00ff88] animate-pulse' : geminiCLI.installed ? 'bg-[#FFB627]' : 'bg-[#8888aa]'}`} />
+            <span className="text-white text-sm font-bold">{geminiCLI.running ? 'Running' : geminiCLI.installed ? 'Installed' : 'Not Found'}</span>
+          </div>
+          <div className="text-[9px] text-[#8888aa] mt-1">{geminiCLI.version ? `v${geminiCLI.version}` : 'Local execution agent'}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// BRAIN QUICK ACTIONS (was HermesQuickActions)
+// ═══════════════════════════════════════════════════════════
+
+export function BrainQuickActions() {
+  const { setActiveView, providers } = useOSStore();
+  const hasProvider = providers.some(p => p.enabled && p.apiKey);
+
+  const actions = [
+    { label: 'Configure Provider', icon: Cpu, view: 'settings', color: '#00ffff', desc: 'Set up an LLM provider' },
+    { label: 'Open Brain Layer', icon: Brain, view: 'brain-layer', color: '#9d4edd', desc: 'Native intelligence settings' },
+    { label: 'Browse Agents', icon: Bot, view: 'agent-marketplace', color: '#00ff88', desc: 'Find specialized agents' },
+    { label: 'Build Workflow', icon: Workflow, view: 'workflows', color: '#E8751A', desc: 'Create automation' },
+    { label: 'Query Knowledge', icon: Search, view: 'knowledge', color: '#FFB627', desc: 'Search knowledge base' },
+    { label: 'View Memory', icon: Database, view: 'memory-engine', color: '#2E86AB', desc: 'Explore memory' },
+  ];
+
+  return (
+    <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+          <Zap size={16} className="text-[#9d4edd]" /> Brain Quick Actions
+        </h3>
+        {!hasProvider && <span className="text-[9px] text-[#FFB627] font-mono">⚠ No provider configured</span>}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {actions.map(action => (
+          <button key={action.label} onClick={() => setActiveView(action.view)}
+            className="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all hover:scale-105"
+            style={{ borderColor: `${action.color}15`, background: `${action.color}05` }}>
+            <action.icon size={18} style={{ color: action.color }} />
+            <span className="text-white text-[10px] font-medium">{action.label}</span>
+            <span className="text-[8px] text-[#8888aa]">{action.desc}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// BRAIN FEATURE GRID (was HermesFeatureGrid)
+// ═══════════════════════════════════════════════════════════
+
+export function BrainFeatureGrid() {
+  const { setActiveView } = useOSStore();
+
+  const features = [
+    { name: 'Planning', desc: 'Multi-step task decomposition', icon: Target, color: '#9d4edd', view: 'brain-layer' },
+    { name: 'Reasoning', desc: 'Chain-of-thought & tree-of-thought', icon: Brain, color: '#9d4edd', view: 'brain-layer' },
+    { name: 'Delegation', desc: 'Agent delegation & coordination', icon: Users, color: '#00ff88', view: 'agents' },
+    { name: 'Memory', desc: 'Short-term, long-term, semantic', icon: Database, color: '#2E86AB', view: 'memory-engine' },
+    { name: 'Tool Selection', desc: 'Adaptive tool usage patterns', icon: Wrench, color: '#E8751A', view: 'plugins' },
+    { name: 'RAG', desc: 'Retrieval-augmented generation', icon: Search, color: '#FFB627', view: 'rag-engine' },
+    { name: 'Model Router', desc: 'Intelligent provider routing', icon: Route, color: '#00ffff', view: 'model-router' },
+    { name: 'Security', desc: 'Injection & PII protection', icon: Shield, color: '#E63946', view: 'security' },
+    { name: 'Cost Control', desc: 'Budget limits & optimization', icon: Gauge, color: '#1B998B', view: 'cost-tracker' },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Brain size={16} className="text-[#9d4edd]" /> Brain Capabilities
+        </h3>
+        <span className="text-[9px] text-[#8888aa] font-mono">NATIVE INTELLIGENCE</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {features.map(feat => (
+          <motion.button key={feat.name} onClick={() => setActiveView(feat.view)}
+            whileHover={{ scale: 1.03 }}
+            className="flex items-center gap-2.5 p-3 rounded-lg border text-left transition-all"
+            style={{ borderColor: `${feat.color}15`, background: `${feat.color}05` }}>
+            <feat.icon size={16} style={{ color: feat.color }} />
+            <div>
+              <div className="text-white text-[11px] font-medium">{feat.name}</div>
+              <div className="text-[8px] text-[#8888aa]">{feat.desc}</div>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// STACK 3D VISUALIZATION
+// ═══════════════════════════════════════════════════════════
+
 export function Stack3DVisualization() {
-  const { stackLayers, setActiveView } = useOSStore();
+  const { setActiveView } = useOSStore();
 
   return (
     <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-white font-bold text-base tracking-wider uppercase flex items-center gap-2">
           <Layers size={16} className="text-[#FFB627]" />
-          7-Layer Agentic AI Stack
+          7-Layer Agentic Stack
         </h3>
-        <span className="text-[10px] text-[#8888aa] font-mono">7 LAYERS ACTIVE</span>
+        <span className="text-[10px] text-[#8888aa] font-mono">BRAIN-FIRST</span>
       </div>
 
       <div className="space-y-1.5">
@@ -74,7 +1301,7 @@ export function Stack3DVisualization() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[8px] font-mono" style={{ color: `${layer.color}aa` }}>{layer.agent}</span>
-                    <div className="w-1.5 h-1.5 rounded-full animate-pulse-glow" style={{ backgroundColor: layer.color }} />
+                    <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: layer.color }} />
                   </div>
                 </div>
               </div>
@@ -83,14 +1310,12 @@ export function Stack3DVisualization() {
         })}
       </div>
 
-      {/* Compounding indicator */}
       <div className="mt-4 pt-3 border-t border-[rgba(157,78,221,0.1)] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingUp size={12} className="text-[#FFB627]" />
           <span className="text-[10px] text-[#8888aa]">Compounding</span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-[10px] text-[#FFB627] font-mono font-bold">Day 30</div>
           <div className="w-20 h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
             <motion.div className="h-full rounded-full bg-gradient-to-r from-[#7B2CBF] to-[#FFB627]"
               initial={{ width: '0%' }} animate={{ width: '72%' }} transition={{ duration: 2, ease: 'easeOut' }} />
@@ -102,9 +1327,11 @@ export function Stack3DVisualization() {
   );
 }
 
-/* ───────── LAYER FLOW DIAGRAM ───────── */
+// ═══════════════════════════════════════════════════════════
+// LAYER FLOW DIAGRAM
+// ═══════════════════════════════════════════════════════════
+
 export function LayerFlowDiagram() {
-  const { stackLayers } = useOSStore();
   const flowSteps = stackLayers.map(l => ({
     label: l.flowLabel,
     icon: l.flowIcon,
@@ -119,7 +1346,7 @@ export function LayerFlowDiagram() {
         <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
           <Activity size={14} className="text-[#FFB627]" /> Layer Flow
         </h3>
-        <span className="text-[9px] text-[#8888aa] font-mono">INPUT → OUTPUT</span>
+        <span className="text-[9px] text-[#8888aa] font-mono">BRAIN → GOVERNANCE</span>
       </div>
 
       <div className="flex items-center justify-between gap-1 overflow-x-auto pb-2">
@@ -156,60 +1383,73 @@ export function LayerFlowDiagram() {
       </div>
 
       <div className="mt-3 pt-3 border-t border-[rgba(157,78,221,0.1)] flex items-center gap-3 text-[9px] text-[#8888aa]">
-        <span className="font-mono" style={{ color: '#FF8C42' }}>LLM ≠ full agent system</span>
+        <span className="font-mono" style={{ color: '#9d4edd' }}>Brain = Primary Intelligence</span>
         <span>·</span>
-        <span className="font-mono" style={{ color: '#7B2CBF' }}>Execution + Memory are critical</span>
+        <span className="font-mono" style={{ color: '#00ffff' }}>Providers = Execution Engines</span>
         <span>·</span>
-        <span className="font-mono" style={{ color: '#1B998B' }}>Governance makes AI production-ready</span>
+        <span className="font-mono" style={{ color: '#1B998B' }}>Governance = Production Ready</span>
       </div>
     </div>
   );
 }
 
-/* ───────── AGENT HERO CARDS (Front Page) ───────── */
+// ═══════════════════════════════════════════════════════════
+// LAYER FLOW VIEW
+// ═══════════════════════════════════════════════════════════
+
+export function LayerFlowView() {
+  return (
+    <div className="space-y-6">
+      <LayerFlowDiagram />
+      <Stack3DVisualization />
+      <SystemStatusBanner />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SystemMonitor />
+        <LatencyGraph />
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// AGENT HERO CARDS (Brain, Code, Research, Task)
+// ═══════════════════════════════════════════════════════════
+
 export function AgentHeroCards() {
-  const { agents, setControlRoomAgent, stackLayers } = useOSStore();
+  const { agents, setControlRoomAgent } = useOSStore();
 
   const heroAgents = [
     {
-      ...agents.find(a => a.id === 'claude') ?? agents[0],
-      heroIcon: Crown,
-      borderAccent: '#E63946',
-      features: ['MCP Protocol', 'Code Execution', 'Vision Pipeline', '64K Context'],
-      tagline: 'Cognition + Perception',
-      layerNames: ['L1 Interaction', 'L4 Cognition'],
+      ...agents.find(a => a.id === 'brain') ?? agents[0],
+      heroIcon: Brain,
+      borderAccent: '#9d4edd',
+      features: ['Planning', 'Reasoning', 'Delegation', 'Coordination'],
+      tagline: 'Native Intelligence',
+      layerNames: ['L1 Brain'],
     },
     {
-      ...agents.find(a => a.id === 'openclaw') ?? agents[0],
-      heroIcon: Route,
-      borderAccent: '#E8751A',
-      features: ['Agent Routing', 'Session Mgmt', 'Policy Engine', 'Observability'],
-      tagline: 'Orchestration + Governance',
-      layerNames: ['L3 Orchestration', 'L7 Governance'],
+      ...agents.find(a => a.id === 'code-agent') ?? agents[0],
+      heroIcon: FileCode2,
+      borderAccent: '#00ff88',
+      features: ['Code Generation', 'Debugging', 'Code Review', 'Refactoring'],
+      tagline: 'Code Execution',
+      layerNames: ['L3 Agents', 'L5 Execution'],
     },
     {
-      ...agents.find(a => a.id === 'hermes') ?? agents[0],
-      heroIcon: FlaskConical,
+      ...agents.find(a => a.id === 'research-agent') ?? agents[0],
+      heroIcon: Search,
       borderAccent: '#FFB627',
-      features: ['2,550+ Skills', 'Browser Automation', 'API Execution', 'MCP Server'],
-      tagline: 'Knowledge + Execution',
-      layerNames: ['L2 Knowledge', 'L5 Execution'],
+      features: ['Deep Research', 'Fact Checking', 'Synthesis', 'Knowledge'],
+      tagline: 'Research & Knowledge',
+      layerNames: ['L4 Knowledge'],
     },
     {
-      ...agents.find(a => a.id === 'vault') ?? agents[0],
-      heroIcon: Gem,
-      borderAccent: '#2E86AB',
-      features: ['Obsidian Vault', 'OMI Recording', 'Goal Tracking', 'Memory Search'],
-      tagline: 'Memory & Context',
-      layerNames: ['L6 Memory'],
-    },
-    {
-      ...agents.find(a => a.id === 'gemini') ?? agents[0],
-      heroIcon: Bot,
-      borderAccent: '#4285F4',
-      features: ['1M+ Context', 'Multimodal', 'Code Sandbox', 'Deep Research'],
-      tagline: 'Multimodal + Code Execution',
-      layerNames: ['L2 Knowledge', 'L5 Execution'],
+      ...agents.find(a => a.id === 'task-agent') ?? agents[0],
+      heroIcon: Zap,
+      borderAccent: '#E8751A',
+      features: ['Task Execution', 'API Calls', 'Workflows', 'Automation'],
+      tagline: 'Task Automation',
+      layerNames: ['L5 Execution'],
     },
   ];
 
@@ -217,11 +1457,11 @@ export function AgentHeroCards() {
     <section aria-label="Agent Status Cards" className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
-          <Radio size={16} className="text-[#E63946]" /> Live Agents
+          <Radio size={16} className="text-[#9d4edd]" /> Live Agents
         </h2>
         <span className="text-[10px] text-[#8888aa] font-mono tracking-wider">{agents.filter(a => a.status === 'live').length}/{agents.length} ONLINE</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {heroAgents.map((agent, i) => {
           const IconComp = agent.heroIcon;
           return (
@@ -246,20 +1486,14 @@ export function AgentHeroCards() {
                       <IconComp size={18} style={{ color: agent.borderAccent }} />
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="text-white font-bold text-sm">{agent.name}</h3>
-                      </div>
+                      <h3 className="text-white font-bold text-sm">{agent.name}</h3>
                       <p className="text-[10px] mt-0.5" style={{ color: `${agent.borderAccent}aa` }}>{agent.tagline}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="relative">
-                      <div className={`w-2 h-2 rounded-full ${agent.status === 'live' ? 'animate-pulse-glow' : ''}`}
+                      <div className={`w-2 h-2 rounded-full ${agent.status === 'live' ? 'animate-pulse' : ''}`}
                         style={{ backgroundColor: agent.status === 'live' ? agent.borderAccent : '#8888aa' }} />
-                      {agent.status === 'live' && (
-                        <div className="absolute inset-0 w-2 h-2 rounded-full animate-ping opacity-30"
-                          style={{ backgroundColor: agent.borderAccent }} />
-                      )}
                     </div>
                     <span className={`text-[8px] font-bold tracking-wider ${agent.status === 'live' ? 'text-[#00ff88]' : 'text-[#8888aa]'}`}>
                       {agent.status.toUpperCase()}
@@ -269,21 +1503,15 @@ export function AgentHeroCards() {
 
                 <p className="text-[#ccccdd] text-[11px] leading-relaxed mb-2 line-clamp-2">{agent.description}</p>
 
-                {/* Layer badges */}
                 <div className="flex items-center gap-1 mb-3">
-                  {agent.layerNames.map(ln => {
-                    const layerNum = parseInt(ln.charAt(1));
-                    const layerData = stackLayers.find(l => l.number === layerNum);
-                    return (
-                      <span key={ln} className="text-[8px] px-1.5 py-0.5 rounded-full border font-bold tracking-wider"
-                        style={{ borderColor: `${layerData?.color || agent.borderAccent}35`, color: layerData?.color || agent.borderAccent, background: `${layerData?.color || agent.borderAccent}10` }}>
-                        {ln}
-                      </span>
-                    );
-                  })}
+                  {agent.layerNames.map(ln => (
+                    <span key={ln} className="text-[8px] px-1.5 py-0.5 rounded-full border font-bold tracking-wider"
+                      style={{ borderColor: `${agent.borderAccent}35`, color: agent.borderAccent, background: `${agent.borderAccent}10` }}>
+                      {ln}
+                    </span>
+                  ))}
                 </div>
 
-                {/* Features grid */}
                 <div className="grid grid-cols-2 gap-1 mb-3">
                   {agent.features.map(feat => (
                     <div key={feat} className="flex items-center gap-1 text-[9px]">
@@ -293,34 +1521,13 @@ export function AgentHeroCards() {
                   ))}
                 </div>
 
-                {/* Metrics */}
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                  <div className="bg-[rgba(10,10,26,0.5)] rounded-md p-1.5 text-center">
-                    <div className="text-[8px] text-[#8888aa] uppercase tracking-wider">Uptime</div>
-                    <div className="text-white text-[10px] font-mono font-bold">{agent.uptime}</div>
-                  </div>
-                  <div className="bg-[rgba(10,10,26,0.5)] rounded-md p-1.5 text-center">
-                    <div className="text-[8px] text-[#8888aa] uppercase tracking-wider">Latency</div>
-                    <div className="text-[10px] font-mono font-bold" style={{ color: (agent.latency ?? 0) > 300 ? '#ffaa00' : '#00ff88' }}>{agent.latency ?? 0}ms</div>
-                  </div>
-                  <div className="bg-[rgba(10,10,26,0.5)] rounded-md p-1.5 text-center">
-                    <div className="text-[8px] text-[#8888aa] uppercase tracking-wider">Requests</div>
-                    <div className="text-white text-[10px] font-mono font-bold">{((agent.requests ?? 0) / 1000).toFixed(1)}K</div>
-                  </div>
-                </div>
-
                 <button
                   className="w-full text-center text-[10px] py-2 rounded-lg border transition-all duration-300 group-hover:border-opacity-60 font-medium flex items-center justify-center gap-1.5"
                   style={{ color: `${agent.borderAccent}cc`, borderColor: `${agent.borderAccent}25`, background: `${agent.borderAccent}08` }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${agent.borderAccent}50`; e.currentTarget.style.background = `${agent.borderAccent}15`; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = `${agent.borderAccent}25`; e.currentTarget.style.background = `${agent.borderAccent}08`; }}
                   onClick={(e) => { e.stopPropagation(); setControlRoomAgent(agent.id); }}
                 >
                   <MessageSquare size={10} /> CONTROL ROOM <ArrowRight size={10} className="transition-transform group-hover:translate-x-1" />
                 </button>
-              </div>
-              <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                <div className="absolute inset-0 animate-scan" style={{ background: `linear-gradient(transparent 50%, ${agent.borderAccent}05 50%)`, backgroundSize: '100% 4px' }} />
               </div>
             </motion.article>
           );
@@ -330,9 +1537,12 @@ export function AgentHeroCards() {
   );
 }
 
-/* ───────── SEO SILO STRUCTURE (7 Layers) ───────── */
+// ═══════════════════════════════════════════════════════════
+// SEO SILO (updated — no external framework refs)
+// ═══════════════════════════════════════════════════════════
+
 export function SEOSilo() {
-  const { agents, stackLayers, setActiveView, systemMetrics } = useOSStore();
+  const { setActiveView, systemMetrics } = useOSStore();
 
   const siloSections = stackLayers.map(layer => ({
     title: `Layer ${layer.number}: ${layer.name}`,
@@ -350,7 +1560,7 @@ export function SEOSilo() {
           <Layers size={16} className="text-[#FFB627]" /> 7-Layer Architecture
         </h2>
         <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[10px] text-[#8888aa]">
-          <button onClick={() => setActiveView('mission-control')} className="hover:text-white transition-colors">Home</button>
+          <button onClick={() => setActiveView('home')} className="hover:text-white transition-colors">Home</button>
           <span>/</span>
           <span className="text-[#FFB627]">Stack Architecture</span>
         </nav>
@@ -378,7 +1588,7 @@ export function SEOSilo() {
                   <h3 className="text-white font-semibold text-xs mb-0.5">{section.title}</h3>
                   <p className="text-[#aaaacc] text-[10px] leading-relaxed line-clamp-2 mb-1.5">{section.description}</p>
                   <div className="flex flex-wrap gap-1">
-                    {section.keywords.slice(0, 2).map(kw => (
+                    {section.keywords.slice(0, 3).map(kw => (
                       <span key={kw} className="text-[7px] px-1 py-0.5 rounded-full border font-medium"
                         style={{ borderColor: `${section.color}25`, color: `${section.color}aa`, background: `${section.color}08` }}>
                         {kw}
@@ -394,10 +1604,6 @@ export function SEOSilo() {
       </div>
 
       <div className="rounded-xl border border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Terminal size={14} className="text-[#8888aa]" />
-          <h3 className="text-[#8888aa] text-xs font-mono uppercase tracking-wider">System Architecture Overview</h3>
-        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Total Layers</div>
@@ -405,15 +1611,15 @@ export function SEOSilo() {
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Active Agents</div>
-            <div className="text-[#E63946] font-mono text-lg font-bold">{systemMetrics.activeAgents ?? 0}</div>
+            <div className="text-[#9d4edd] font-mono text-lg font-bold">{systemMetrics.activeAgents}</div>
           </div>
           <div>
-            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Compounding</div>
-            <div className="text-[#00ff88] font-mono text-lg font-bold">Day {systemMetrics.compoundDays ?? 0}</div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Knowledge</div>
+            <div className="text-[#FFB627] font-mono text-lg font-bold">{systemMetrics.knowledgeEntries}</div>
           </div>
           <div>
-            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Total Skills</div>
-            <div className="text-[#FFB627] font-mono text-lg font-bold">2,550+</div>
+            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Providers</div>
+            <div className="text-[#00ffff] font-mono text-lg font-bold">{systemMetrics.activeProviders}</div>
           </div>
         </div>
       </div>
@@ -421,2157 +1627,382 @@ export function SEOSilo() {
   );
 }
 
-/* ───────── SIDEBAR ───────── */
-export function Sidebar() {
-  const { activeView, setActiveView, sidebarCollapsed, setSidebarCollapsed, agents, stackLayers } = useOSStore();
-  const liveCount = agents.filter((a) => a.status === 'live').length;
+// ═══════════════════════════════════════════════════════════
+// BRAIN LAYER EXPLANATION (was SelfLayerExplanation)
+// ═══════════════════════════════════════════════════════════
 
-  const mainNav = [
-    { id: 'home', label: 'Home', icon: Sparkles },
-    { id: 'mission-control', label: 'Mission Control', icon: Radio },
-    { id: 'stack-overview', label: 'Mission Stack', icon: Layers },
-    { id: 'seo-silo', label: 'SEO Silo', icon: Search },
-    { id: 'layer-flow', label: 'Layer Flow', icon: Activity },
-    { id: 'settings', label: 'Settings', icon: Settings2 },
-  ];
+export function BrainLayerExplanation() {
+  const { brainConfig } = useOSStore();
 
-  const workspaceNav = [
-    { id: 'workspace-manager', label: 'Workspaces', icon: Briefcase },
-    { id: 'agent-marketplace', label: 'Marketplace', icon: Store },
-  ];
-
-  const memoryNav = [
-    { id: 'memory-engine', label: 'Memory Engine', icon: Database },
-    { id: 'memory-graph', label: 'Knowledge Graph', icon: Network },
-    { id: 'memory-timeline', label: 'Timeline', icon: Clock },
-    { id: 'memory-search', label: 'Search', icon: Search },
-    { id: 'memory-extractor', label: 'Extractor', icon: Sparkles },
-    { id: 'agent-sharing', label: 'Agent Sharing', icon: Users },
-    { id: 'relationship-engine', label: 'Relationships', icon: Lightbulb },
-  ];
-
-  const layerNav = stackLayers.map(l => ({
-    id: `layer-${l.id}`,
-    label: `L${l.number} ${l.flowLabel}`,
-    icon: layerIconMap[l.id] || Sparkles,
-    layer: l.number,
-    color: l.color,
-  }));
-
-  const powerNav = [
-    { id: 'observability', label: 'Observability', icon: Eye },
-    { id: 'swarm-intelligence', label: 'Swarm Intel', icon: Brain },
-    { id: 'message-bus', label: 'Message Bus', icon: Radio },
-    { id: 'cost-tracker', label: 'Cost Tracker', icon: Zap },
-    { id: 'workflows', label: 'Workflows', icon: Activity },
-    { id: 'model-router', label: 'Model Router', icon: Cpu },
-    { id: 'gemini-panel', label: 'Gemini CLI', icon: Bot },
-    { id: 'knowledge-gap', label: 'Knowledge Gap', icon: Search },
-    { id: 'memory-decay', label: 'Memory Decay', icon: Clock },
-    { id: 'agent-leaderboard', label: 'Leaderboard', icon: Crown },
-    { id: 'voice-interface', label: 'Voice', icon: Mic },
-    { id: 'dream-mode', label: 'Dream Mode', icon: Moon },
-    { id: 'agent-consensus', label: 'Consensus', icon: Scale },
-    { id: 'agent-handoff', label: 'Handoff', icon: ArrowRightLeft },
-    { id: 'memory-conflict', label: 'Conflicts', icon: AlertTriangle },
-    { id: 'audit-trail', label: 'Audit Trail', icon: FileText },
-    { id: 'permission-scopes', label: 'Permissions', icon: Shield },
-    { id: 'mcp-registry', label: 'MCP Registry', icon: Server },
-    { id: 'sandbox-execution', label: 'Sandbox', icon: Terminal },
-  ];
-
-  const cyberNav = [
-    { id: 'focus-mode', label: 'Focus Mode', icon: Eye },
-    { id: 'cross-session-memory', label: 'X-Session Memory', icon: Link2 },
-    { id: 'rag-engine', label: 'RAG Engine', icon: Zap },
-    { id: 'productivity-heatmap', label: 'Heatmap', icon: BarChart3 },
-
-  ];
-
-  const extNav = [
-    { id: 'updates', label: 'Updates', icon: Activity },
-    { id: 'plugins', label: 'Plugins', icon: Sparkles },
-    { id: 'prompts', label: 'Prompts', icon: Search },
-    { id: 'webhooks', label: 'Webhooks', icon: Globe },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'reports', label: 'Reports', icon: BarChart3 },
-  ];
-
-  const selfItems = [
-    { id: 'self-goals', label: 'Goals', icon: Target },
-    { id: 'self-journal', label: 'Journal', icon: BookOpen },
-    { id: 'self-memory', label: 'Memory', icon: Database },
+  const aspects = [
+    { label: 'Reasoning', value: brainConfig.reasoningStyle, icon: Brain, color: '#9d4edd' },
+    { label: 'Memory', value: brainConfig.memoryMethod, icon: Database, color: '#2E86AB' },
+    { label: 'Coding', value: brainConfig.codingWorkflow, icon: FileCode2, color: '#00ff88' },
+    { label: 'Research', value: brainConfig.researchMethod, icon: Search, color: '#FFB627' },
+    { label: 'Context', value: brainConfig.contextStrategy, icon: Layers, color: '#00ffff' },
+    { label: 'Tools', value: brainConfig.toolUsagePattern, icon: Wrench, color: '#E8751A' },
   ];
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width: sidebarCollapsed ? 64 : 240 }}
-      transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className="h-screen flex flex-col bg-[#0d0d20] border-r border-[rgba(157,78,221,0.15)] relative z-20"
-    >
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-[rgba(157,78,221,0.1)]">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#E8751A] to-[#7B2CBF] flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">A</span>
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#9d4edd] to-[#7B2CBF] flex items-center justify-center">
+          <Brain size={24} className="text-white" />
         </div>
-        <AnimatePresence>
-          {!sidebarCollapsed && (
-            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="overflow-hidden">
-              <div className="text-white font-bold text-sm tracking-wider">AGENTIC OS</div>
-              <div className="text-[9px] text-[#8888aa] tracking-widest uppercase">7-Layer AI Stack</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div>
+          <h3 className="text-white font-bold text-lg">Brain Layer — Native Intelligence</h3>
+          <p className="text-[#aaaacc] text-[11px]">The Brain is the primary intelligence of Agentic OS. External models are interchangeable execution engines.</p>
+        </div>
       </div>
-
-      <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {!sidebarCollapsed && <div className="px-3 mb-2 text-[9px] text-[#8888aa] uppercase tracking-widest">Navigation</div>}
-        {mainNav.map((item) => {
-          const isActive = activeView === item.id;
-          return (
-            <button key={item.id} onClick={() => setActiveView(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group relative ${
-                isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.08)]'
-              }`}
-              style={isActive ? { background: 'rgba(157,78,221,0.12)' } : {}}
-            >
-              {isActive && <motion.div layoutId="sidebar-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r" style={{ backgroundColor: '#9d4edd' }} />}
-              <item.icon size={16} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: '#9d4edd' } : {}} />
-              <AnimatePresence>
-                {!sidebarCollapsed && (
-                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[12px] font-medium truncate">
-                    {item.label}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-              {item.id === 'mission-control' && !sidebarCollapsed && (
-                <span className="ml-auto text-[9px] bg-[#00ffff]/20 text-[#00ffff] px-1.5 py-0.5 rounded-full font-mono">{liveCount}</span>
-              )}
-            </button>
-          );
-        })}
-
-        <div className="pt-3">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#FFB627] uppercase tracking-widest flex items-center gap-1"><Briefcase size={9} /> Workspace</div>}
-          {workspaceNav.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group relative ${
-                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(255,182,39,0.06)]'
-                }`}
-                style={isActive ? { background: 'rgba(255,182,39,0.08)' } : {}}
-              >
-                {isActive && <motion.div layoutId="sidebar-workspace-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: '#FFB627' }} />}
-                <item.icon size={14} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: '#FFB627' } : {}} />
-                <AnimatePresence>
-                  {!sidebarCollapsed && (
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-3">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#00ffff] uppercase tracking-widest flex items-center gap-1"><Database size={9} /> Memory Engine</div>}
-          {memoryNav.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group relative ${
-                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(0,255,255,0.06)]'
-                }`}
-                style={isActive ? { background: 'rgba(0,255,255,0.08)' } : {}}
-              >
-                {isActive && <motion.div layoutId="sidebar-memory-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: '#00ffff' }} />}
-                <item.icon size={14} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: '#00ffff' } : {}} />
-                <AnimatePresence>
-                  {!sidebarCollapsed && (
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-3">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#8888aa] uppercase tracking-widest">7 Layers</div>}
-          {layerNav.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group relative ${
-                  isActive ? 'text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.06)]'
-                }`}
-                style={isActive ? { background: `${item.color}12` } : {}}
-              >
-                {isActive && <motion.div layoutId="sidebar-layer-active" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r" style={{ backgroundColor: item.color }} />}
-                <item.icon size={14} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'text-[#8888aa] group-hover:text-white'}`} style={isActive ? { color: item.color } : {}} />
-                <AnimatePresence>
-                  {!sidebarCollapsed && (
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-medium truncate">
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {!sidebarCollapsed && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.color }} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-4">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#2E86AB] uppercase tracking-widest flex items-center gap-1"><Database size={9} /> Self</div>}
-          {selfItems.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg transition-all duration-200 group ${
-                  isActive ? 'bg-[rgba(46,134,171,0.12)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(46,134,171,0.06)]'
-                }`}
-              >
-                <item.icon size={14} className={`flex-shrink-0 ${isActive ? 'text-[#2E86AB]' : 'text-[#8888aa] group-hover:text-[#2E86AB]'}`} />
-                <AnimatePresence>
-                  {!sidebarCollapsed && (
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[12px] truncate">{item.label}</motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-4">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#7B2CBF] uppercase tracking-widest flex items-center gap-1"><Brain size={9} /> Power</div>}
-          {powerNav.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-all rounded-lg mx-1 ${
-                  isActive ? 'bg-[rgba(123,44,191,0.15)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.06)]'
-                }`}
-                style={isActive ? { borderLeft: '2px solid #7B2CBF' } : {}}>
-                <item.icon size={14} style={{ color: isActive ? '#7B2CBF' : '#8888aa' }} />
-                {!sidebarCollapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-4">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#00ffff] uppercase tracking-widest flex items-center gap-1"><Flame size={9} /> Cyberpunk</div>}
-          {cyberNav.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-all rounded-lg mx-1 ${
-                  isActive ? 'bg-[rgba(0,255,255,0.1)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(0,255,255,0.05)]'
-                }`}
-                style={isActive ? { borderLeft: '2px solid #00ffff' } : {}}>
-                <item.icon size={14} style={{ color: isActive ? '#00ffff' : '#8888aa' }} />
-                {!sidebarCollapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-4">
-          {!sidebarCollapsed && <div className="px-3 mb-1.5 text-[9px] text-[#1B998B] uppercase tracking-widest flex items-center gap-1"><Globe size={9} /> Extensions</div>}
-          {extNav.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button key={item.id} onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] transition-all rounded-lg mx-1 ${
-                  isActive ? 'bg-[rgba(27,153,139,0.15)] text-white' : 'text-[#8888aa] hover:text-white hover:bg-[rgba(157,78,221,0.06)]'
-                }`}
-                style={isActive ? { borderLeft: '2px solid #1B998B' } : {}}>
-                <item.icon size={14} style={{ color: isActive ? '#1B998B' : '#8888aa' }} />
-                {!sidebarCollapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        className="flex items-center justify-center py-3 border-t border-[rgba(157,78,221,0.1)] text-[#8888aa] hover:text-white transition-colors">
-        <Menu size={16} />
-      </button>
-    </motion.aside>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {aspects.map(aspect => (
+          <div key={aspect.label} className="rounded-lg border p-3" style={{ borderColor: `${aspect.color}15`, background: `${aspect.color}05` }}>
+            <div className="flex items-center gap-2 mb-1">
+              <aspect.icon size={12} style={{ color: aspect.color }} />
+              <span className="text-[9px] text-[#8888aa] uppercase tracking-wider">{aspect.label}</span>
+            </div>
+            <span className="text-white text-sm font-mono font-bold capitalize">{String(aspect.value).replace(/-/g, ' ')}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 pt-4 border-t border-[rgba(157,78,221,0.08)]">
+        <p className="text-[#ccccdd] text-sm leading-relaxed">
+          The Brain Layer handles all cognitive operations natively: planning, reasoning, tool selection,
+          memory retrieval, agent delegation, and multi-agent coordination. It is provider-independent —
+          external LLM models serve as interchangeable execution engines that the Brain dispatches to as needed.
+        </p>
+      </div>
+    </div>
   );
 }
 
-/* ───────── TOP BAR ───────── */
-export function TopBar() {
-  const { setCommandPaletteOpen, systemMetrics, activeView, stackLayers } = useOSStore();
-  const [time, setTime] = useState('');
-  useEffect(() => {
-    const update = () => setTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
-    update();
-    const i = setInterval(update, 1000);
-    return () => clearInterval(i);
-  }, []);
+// ═══════════════════════════════════════════════════════════
+// KNOWLEDGE SYSTEM STATUS (was OmiObsidianStatus)
+// ═══════════════════════════════════════════════════════════
 
-  const viewLabels: Record<string, string> = {
-    'mission-control': 'Mission Control',
-    'stack-overview': '7-Layer Agentic AI Stack',
-    'layer-flow': 'Layer Flow — How They Work Together',
-    'layer-interaction': 'Layer 1 — Interaction & Perception',
-    'layer-knowledge': 'Layer 2 — Knowledge Acquisition',
-    'layer-orchestration': 'Layer 3 — Agent Orchestration',
-    'layer-cognition': 'Layer 4 — Cognitive Reasoning',
-    'layer-execution': 'Layer 5 — Execution & Integration',
-    'layer-memory': 'Layer 6 — Memory, Learning & Context',
-    'layer-governance': 'Layer 7 — Deployment, Governance & Infrastructure',
-    'updates': 'System Updates — Auto-Pull from GitHub',
-    'self-goals': 'Self — Goals',
-    'self-journal': 'Self — Journal',
-    'self-memory': 'Self — Memory',
-    'focus-mode': 'Focus Mode — Deep Work',
-    'cross-session-memory': 'Cross-Session Memory — Sync',
-    'rag-engine': 'RAG Engine — Pipeline',
-    'productivity-heatmap': 'Productivity Heatmap — Analytics',
-    'settings': 'Settings — Providers, Models & Brain Emulation',
-    'workspace-manager': 'Workspace Manager — Projects & Teams',
-    'agent-marketplace': 'Agent Marketplace — Install AI Agents',
-    'gemini-panel': 'Gemini CLI — Multimodal AI Power Panel',
+export function KnowledgeSystemStatus() {
+  const { knowledgeEntries, memories, knowledgeGraph } = useOSStore();
+
+  const systems = [
+    { name: 'Knowledge Base', status: 'active', count: knowledgeEntries.length, color: '#FFB627', icon: Search },
+    { name: 'Memory Engine', status: 'active', count: memories.length, color: '#2E86AB', icon: Database },
+    { name: 'Knowledge Graph', status: knowledgeGraph.nodes.length > 0 ? 'active' : 'empty', count: knowledgeGraph.nodes.length, color: '#00ffff', icon: Network },
+    { name: 'RAG Engine', status: 'ready', count: 0, color: '#00ff88', icon: Zap },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <Search size={16} className="text-[#FFB627]" /> Knowledge System
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">L4 KNOWLEDGE</span>
+      </div>
+      <div className="space-y-3">
+        {systems.map(sys => (
+          <div key={sys.name} className="flex items-center justify-between p-3 rounded-lg border"
+            style={{ borderColor: `${sys.color}15`, background: `${sys.color}05` }}>
+            <div className="flex items-center gap-3">
+              <sys.icon size={16} style={{ color: sys.color }} />
+              <div>
+                <span className="text-white text-sm font-medium">{sys.name}</span>
+                <div className="text-[9px] text-[#8888aa] capitalize">{sys.status}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-mono text-sm font-bold">{sys.count}</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${sys.status === 'active' ? 'animate-pulse bg-[#00ff88]' : 'bg-[#8888aa]'}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// COMPOUND VISUALIZER
+// ═══════════════════════════════════════════════════════════
+
+export function CompoundVisualizer() {
+  const { systemMetrics } = useOSStore();
+  const days = [1, 7, 14, 30, 60, 90];
+  const compoundFactors = [1, 1.8, 3.2, 7.5, 18, 42];
+
+  return (
+    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
+          <TrendingUp size={16} className="text-[#FFB627]" /> Compound Growth
+        </h3>
+        <span className="text-[10px] text-[#8888aa] font-mono">KNOWLEDGE × TIME</span>
+      </div>
+      <div className="space-y-3">
+        {days.map((day, i) => (
+          <div key={day} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[#ccccdd] text-xs">Day {day}</span>
+              <span className="text-[#FFB627] text-xs font-mono font-bold">{compoundFactors[i]}×</span>
+            </div>
+            <div className="w-full h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-[#7B2CBF] to-[#FFB627]"
+                initial={{ width: 0 }}
+                animate={{ width: `${(compoundFactors[i] / 42) * 100}%` }}
+                transition={{ duration: 1.5, ease: 'easeOut', delay: i * 0.1 }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 pt-3 border-t border-[rgba(157,78,221,0.08)]">
+        <p className="text-[9px] text-[#8888aa]">Knowledge compounds. Each day, the Brain Layer learns, remembers, and reasons more effectively.</p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// GOALS VIEW
+// ═══════════════════════════════════════════════════════════
+
+export function GoalsView() {
+  const { selfSearchQuery, setSelfSearchQuery } = useOSStore();
+  const [goals, setGoals] = useState<Goal[]>([
+    { id: 'g1', title: 'Master Agentic OS Architecture', description: 'Understand the Brain Layer, Provider Layer, and Agent Layer deeply', progress: 35, status: 'active', category: 'Learning', createdAt: Date.now(), updatedAt: Date.now(), subtasks: [{ id: 's1', title: 'Understand Brain Layer', completed: true }, { id: 's2', title: 'Configure Provider', completed: false }, { id: 's3', title: 'Build first Agent', completed: false }] },
+    { id: 'g2', title: 'Configure First Provider', description: 'Set up an LLM provider API key to enable execution', progress: 0, status: 'active', category: 'Setup', createdAt: Date.now(), updatedAt: Date.now(), subtasks: [{ id: 's4', title: 'Choose provider', completed: false }, { id: 's5', title: 'Add API key', completed: false }] },
+    { id: 'g3', title: 'Build Knowledge Base', description: 'Add knowledge entries and build the knowledge graph', progress: 20, status: 'active', category: 'Knowledge', createdAt: Date.now(), updatedAt: Date.now(), subtasks: [{ id: 's6', title: 'Add first entry', completed: true }, { id: 's7', title: 'Connect entries', completed: false }] },
+  ]);
+
+  const filteredGoals = goals.filter(g =>
+    !selfSearchQuery || g.title.toLowerCase().includes(selfSearchQuery.toLowerCase())
+  );
+
+  const statusColors: {[key: string]: string} = {
+    active: '#00ff88', completed: '#9d4edd', paused: '#FFB627', archived: '#8888aa',
+  };
+
+  const toggleSubtask = (goalId: string, subtaskId: string) => {
+    setGoals(prev => prev.map(g => {
+      if (g.id !== goalId) return g;
+      const subtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+      const completed = subtasks.filter(s => s.completed).length;
+      const progress = Math.round((completed / subtasks.length) * 100);
+      return { ...g, subtasks, progress, updatedAt: Date.now() };
+    }));
   };
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.8)] backdrop-blur-md z-10">
-      <div className="flex items-center gap-4">
-        <h1 className="text-white font-bold text-lg tracking-wide">{viewLabels[activeView] || 'Mission Control'}</h1>
-        <span className="text-[#8888aa] text-sm hidden lg:block">
-          {activeView === 'mission-control' ? 'All systems operational — 7 layers active.' : ''}
-        </span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-white font-bold text-lg tracking-wider uppercase flex items-center gap-2">
+          <Target size={20} className="text-[#00ff88]" /> Goals
+        </h2>
       </div>
       <div className="flex items-center gap-3">
-        <div className="text-[#8888aa] font-mono text-sm">{time} <span className="text-[10px]">LOCAL</span></div>
-        <button onClick={() => setCommandPaletteOpen(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[rgba(157,78,221,0.2)] text-[#8888aa] hover:text-white hover:border-[rgba(157,78,221,0.4)] transition-all text-sm">
-          <Command size={14} /><span className="hidden sm:inline">Command</span>
+        <div className="flex-1 relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8888aa]" />
+          <input type="text" value={selfSearchQuery} onChange={e => setSelfSearchQuery(e.target.value)}
+            placeholder="Search goals..."
+            className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)] rounded-lg pl-9 pr-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
+        </div>
+        <button className="px-4 py-2 rounded-lg bg-[#9d4edd] text-white text-sm font-medium hover:bg-[#7B2CBF] transition-colors flex items-center gap-2">
+          <Plus size={14} /> New Goal
         </button>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[rgba(230,57,70,0.2)] text-[#E63946] text-sm">
-          <div className="w-2 h-2 rounded-full bg-[#E63946] animate-pulse-glow" />
-          <span className="hidden sm:inline">7 LAYERS</span>
-          <ChevronDown size={14} />
-        </div>
       </div>
-    </header>
-  );
-}
-
-/* ───────── QUICK STATS ───────── */
-export function QuickStats() {
-  const { agents, systemMetrics } = useOSStore();
-  const liveAgents = agents.filter(a => a.status === 'live').length;
-  const totalRequests = agents.reduce((sum, a) => sum + (a.requests ?? 0), 0);
-
-  const stats = [
-    { label: 'Agents Online', value: `${liveAgents}/${agents.length}`, color: '#E63946', icon: Radio },
-    { label: 'Total Requests', value: (totalRequests ?? 0).toLocaleString('en-US'), color: '#7B2CBF', icon: Activity },
-    { label: 'Avg Latency', value: `${systemMetrics.avgLatency ?? 0}ms`, color: '#00ff88', icon: Zap },
-    { label: 'Vault Entries', value: (systemMetrics.vaultEntries ?? 0).toLocaleString('en-US'), color: '#2E86AB', icon: Database },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {stats.map((stat, i) => (
-        <motion.div key={stat.label}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.08 }}
-          className="rounded-xl border bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4 card-hover"
-          style={{ borderColor: `${stat.color}20`, background: `linear-gradient(135deg, ${stat.color}06, ${stat.color}02)` }}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <stat.icon size={14} style={{ color: stat.color }} />
-            <span className="text-[10px] text-[#8888aa] uppercase tracking-wider">{stat.label}</span>
-          </div>
-          <div className="text-white font-mono font-bold text-xl">{stat.value}</div>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-/* ───────── NETWORK TOPOLOGY ───────── */
-export function NetworkTopology() {
-  const { agents, stackLayers, setActiveView } = useOSStore();
-  const cx = 150, cy = 120;
-  const positions = [
-    { x: 150, y: 40, label: 'Claude', layers: [1, 4], color: '#E63946', id: 'claude' },
-    { x: 150, y: 120, label: 'OpenClaw', layers: [3, 7], color: '#E8751A', id: 'openclaw' },
-    { x: 40, y: 200, label: 'Hermes', layers: [2, 5], color: '#FFB627', id: 'hermes' },
-    { x: 260, y: 200, label: 'Self Vault', layers: [6], color: '#2E86AB', id: 'vault' },
-    { x: 40, y: 40, label: 'Gemini', layers: [2, 5], color: '#4285F4', id: 'gemini' },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-5 lg:col-span-2">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-          <Network size={14} className="text-[#E8751A]" /> Network Topology
-        </h3>
-        <span className="text-[10px] text-[#8888aa] font-mono">MESH ACTIVE</span>
-      </div>
-      <svg viewBox="0 0 300 240" className="w-full max-w-md mx-auto">
-        <defs>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-            <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        {positions.filter(p => p.id !== 'openclaw').map(p => (
-          <line key={`line-${p.id}`} x1={cx} y1={cy} x2={p.x} y2={p.y}
-            stroke={p.color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="4 4">
-            <animate attributeName="stroke-dashoffset" from="8" to="0" dur="2s" repeatCount="indefinite" />
-          </line>
-        ))}
-        {positions.filter(p => p.id !== 'openclaw').map(p => (
-          <circle key={`particle-${p.id}`} r="2" fill={p.color} opacity="0.8">
-            <animateMotion dur={`${2 + ((p.id.charCodeAt(0) * 37) % 100) / 50}s`} repeatCount="indefinite"
-              path={`M${cx},${cy} L${p.x},${p.y}`} />
-          </circle>
-        ))}
-        {positions.map((p) => {
-          const agent = agents.find(a => a.id === p.id);
-          const isHub = p.id === 'openclaw';
-          return (
-            <g key={p.id} className="cursor-pointer" onClick={() => setActiveView('mission-control')}>
-              <circle cx={p.x} cy={p.y} r={isHub ? 28 : 22} fill={`${p.color}10`} stroke={`${p.color}30`} strokeWidth="1" />
-              <circle cx={p.x} cy={p.y} r={isHub ? 20 : 16} fill={`${p.color}15`} stroke={p.color} strokeWidth="1.5" filter="url(#glow)" />
-              <circle cx={p.x} cy={p.y} r={isHub ? 24 : 18} fill="none" stroke={p.color} strokeWidth="0.5" opacity="0.5">
-                <animate attributeName="r" from={isHub ? 20 : 16} to={isHub ? 34 : 28} dur="2s" repeatCount="indefinite" />
-                <animate attributeName="opacity" from="0.5" to="0" dur="2s" repeatCount="indefinite" />
-              </circle>
-              <text x={p.x} y={p.y + 1} textAnchor="middle" dominantBaseline="middle" fill={p.color} fontSize="8" fontFamily="monospace" fontWeight="bold">
-                L{p.layers.join(',L')}
-              </text>
-              <text x={p.x} y={p.y + (isHub ? 38 : 32)} textAnchor="middle" fill="#ccccdd" fontSize="10" fontFamily="sans-serif">
-                {p.label}
-              </text>
-              {agent?.status === 'live' && (
-                <circle cx={p.x + (isHub ? 16 : 12)} cy={p.y - (isHub ? 16 : 12)} r="3" fill="#00ff88">
-                  <animate attributeName="opacity" from="1" to="0.3" dur="1.5s" repeatCount="indefinite" />
-                </circle>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-/* ───────── STACK PYRAMID (kept for compatibility) ───────── */
-export function StackPyramid() {
-  return <Stack3DVisualization />;
-}
-
-/* ───────── LAYER FLOW VIEW (inner page) ───────── */
-export function LayerFlowView() {
-  const { stackLayers } = useOSStore();
-
-  return (
-    <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-white font-bold text-xl tracking-wider uppercase flex items-center gap-3">
-            <Activity size={20} className="text-[#FFB627]" />
-            How The 7 Layers Work Together
-          </h2>
-        </div>
-        <p className="text-[#8888aa] text-sm max-w-3xl mb-6">
-          The 7-Layer Agentic AI Stack processes every request through a defined flow:
-          each layer builds on the previous one, transforming raw input into governed, intelligent action.
-          No single layer is sufficient on its own — the power comes from how they work together.
-        </p>
-
-        {/* Flow visualization */}
-        <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-3">
-          {stackLayers.map((layer, i) => {
-            const IconComp = layerIconMap[layer.id] || Sparkles;
-            return (
-              <div key={layer.id} className="flex items-center gap-2 flex-shrink-0">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="flex flex-col items-center gap-2 cursor-pointer group"
-                  onClick={() => useOSStore.getState().setActiveView(`layer-${layer.id}`)}
-                >
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center text-xl border-2 transition-all group-hover:scale-110 group-hover:shadow-lg"
-                    style={{ background: `linear-gradient(135deg, ${layer.color}20, ${layer.color}08)`, borderColor: `${layer.color}50`, boxShadow: `0 0 20px ${layer.color}20` }}>
-                    {layer.icon}
-                  </div>
-                  <span className="text-[9px] font-mono font-bold tracking-wider text-center" style={{ color: layer.color }}>{layer.flowLabel.toUpperCase()}</span>
-                  <span className="text-[8px] text-[#8888aa]">L{layer.number}</span>
-                </motion.div>
-                {i < stackLayers.length - 1 && (
-                  <div className="flex items-center">
-                    <div className="w-6 h-0.5" style={{ background: `linear-gradient(90deg, ${layer.color}60, ${stackLayers[i + 1].color}60)` }} />
-                    <motion.div
-                      animate={{ x: [0, 6, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: stackLayers[i + 1].color }}
-                    />
-                  </div>
-                )}
+      <div className="space-y-3">
+        {filteredGoals.map(goal => (
+          <div key={goal.id} className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h3 className="text-white font-semibold text-sm">{goal.title}</h3>
+                <p className="text-[#aaaacc] text-[11px]">{goal.description}</p>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Layer-by-layer flow explanation */}
-        <div className="space-y-3">
-          {stackLayers.map((layer, i) => {
-            const IconComp = layerIconMap[layer.id] || Sparkles;
-            return (
-              <motion.div
-                key={layer.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + i * 0.06 }}
-                className="flex items-start gap-3 p-3 rounded-xl border transition-all hover:scale-[1.01] cursor-pointer"
-                style={{ borderColor: `${layer.color}20`, background: `${layer.color}05` }}
-                onClick={() => useOSStore.getState().setActiveView(`layer-${layer.id}`)}
-              >
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${layer.color}15`, border: `1px solid ${layer.color}30` }}>
-                  <IconComp size={14} style={{ color: layer.color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
-                      L{layer.number} · {layer.flowLabel.toUpperCase()}
-                    </span>
-                    <span className="text-white text-sm font-semibold">{layer.name}</span>
-                  </div>
-                  <p className="text-[#ccccdd] text-xs leading-relaxed">{layer.whatItDoes} <span className="italic" style={{ color: `${layer.color}aa` }}>"{layer.quote}"</span></p>
-                </div>
-                <ArrowRight size={14} style={{ color: layer.color }} className="flex-shrink-0 mt-2 opacity-0 group-hover:opacity-100" />
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Key takeaways */}
-        <div className="mt-6 pt-4 border-t border-[rgba(157,78,221,0.1)]">
-          <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
-            <Lightbulb size={14} className="text-[#FFB627]" /> Key Takeaways
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-lg p-3 border" style={{ borderColor: '#FF8C4230', background: '#FF8C4208' }}>
-              <p className="text-[#FF8C42] text-xs font-mono font-bold mb-1">LLM ≠ full agent system</p>
-              <p className="text-[#aaaacc] text-[10px]">A language model alone is Layer 4. Without the other 6 layers, it can&apos;t perceive, retrieve, coordinate, act, remember, or govern.</p>
-            </div>
-            <div className="rounded-lg p-3 border" style={{ borderColor: '#7B2CBF30', background: '#7B2CBF08' }}>
-              <p className="text-[#7B2CBF] text-xs font-mono font-bold mb-1">Execution + Memory are critical</p>
-              <p className="text-[#aaaacc] text-[10px]">Without Layer 5 (Execution) and Layer 6 (Memory), an AI system can think but can&apos;t act or learn from its actions.</p>
-            </div>
-            <div className="rounded-lg p-3 border" style={{ borderColor: '#1B998B30', background: '#1B998B08' }}>
-              <p className="text-[#1B998B] text-xs font-mono font-bold mb-1">Governance makes AI production-ready</p>
-              <p className="text-[#aaaacc] text-[10px]">Layer 7 ensures safety, observability, and compliance — turning an experiment into a trustworthy system.</p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-/* ───────── STACK OVERVIEW (inner page) ───────── */
-export function StackOverview() {
-  const { stackLayers, setActiveView, systemMetrics } = useOSStore();
-
-  return (
-    <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6"
-      >
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-white font-bold text-xl tracking-wider uppercase flex items-center gap-3">
-            <Sparkles size={20} className="text-[#FFB627]" />
-            7-Layer Agentic AI Stack
-          </h2>
-          <span className="text-[10px] text-[#8888aa] font-mono">7 LAYERS ACTIVE</span>
-        </div>
-        <p className="text-[#8888aa] text-sm max-w-3xl">
-          Seven layers that transform raw input into governed, intelligent action. Input → Retrieve → Coordinate → Reason → Act → Remember → Govern.
-          Each layer builds on the last, and together they create a system that compounds over time.
-        </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {stackLayers.map((layer, i) => {
-          const IconComp = layerIconMap[layer.id] || Sparkles;
-          return (
-            <motion.button
-              key={layer.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-              onClick={() => setActiveView(`layer-${layer.id}`)}
-              className="text-left group"
-            >
-              <div className="rounded-2xl border overflow-hidden transition-all duration-300 card-hover cursor-pointer h-full"
-                style={{ borderColor: `${layer.color}25`, background: `linear-gradient(135deg, ${layer.color}08, ${layer.color}03)` }}>
-                <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${layer.color}, transparent)` }} />
-                <div className="p-4">
-                  <div className="flex items-start gap-2.5 mb-2">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `linear-gradient(135deg, ${layer.color}20, ${layer.color}08)`, border: `1px solid ${layer.color}30` }}>
-                      <IconComp size={18} style={{ color: layer.color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
-                          L{layer.number}
-                        </span>
-                        <span className="text-white font-semibold text-sm">{layer.name}</span>
-                      </div>
-                      <p className="text-[10px]" style={{ color: `${layer.color}bb` }}>{layer.flowLabel} — {layer.agent}</p>
-                    </div>
-                  </div>
-                  <p className="text-[#ccccdd] text-xs leading-relaxed line-clamp-3 mb-2">{layer.whatItDoes}</p>
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {layer.keyCapabilities.map(cap => (
-                      <span key={cap} className="text-[7px] px-1.5 py-0.5 rounded-full border font-medium"
-                        style={{ borderColor: `${layer.color}25`, color: `${layer.color}aa`, background: `${layer.color}08` }}>
-                        {cap}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-medium group-hover:gap-2 transition-all" style={{ color: `${layer.color}aa` }}>
-                    View Details <ArrowRight size={10} className="transition-transform group-hover:translate-x-1" />
-                  </div>
-                </div>
-              </div>
-            </motion.button>
-          );
-        })}
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="rounded-2xl border border-[rgba(46,134,171,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-            <TrendingUp size={16} className="text-[#FFB627]" />
-            Compounding Progress
-          </h3>
-          <span className="text-[10px] text-[#FFB627] font-mono">DAY {systemMetrics.compoundDays ?? 0}</span>
-        </div>
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
-            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Vault Size</div>
-            <div className="text-white font-mono text-lg font-bold">{systemMetrics.vaultSize ?? 0} GB</div>
-          </div>
-          <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
-            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Entries</div>
-            <div className="text-[#FFB627] font-mono text-lg font-bold">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</div>
-          </div>
-          <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-4 text-center">
-            <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Compounding</div>
-            <div className="text-[#00ff88] font-mono text-lg font-bold">{systemMetrics.compoundDays ?? 0}d</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex-1 h-2.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
-            <motion.div className="h-full rounded-full bg-gradient-to-r from-[#7B2CBF] to-[#FFB627]"
-              initial={{ width: '0%' }} animate={{ width: '72%' }} transition={{ duration: 2, ease: 'easeOut' }} />
-          </div>
-          <span className="text-sm text-[#FFB627] font-mono font-bold">72%</span>
-        </div>
-        <div className="flex justify-between text-[10px] text-[#8888aa] mt-2">
-          <span>Day 1 — Good</span>
-          <span>Day 30 — Wild</span>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-/* ───────── LAYER CARD (detailed — 7 layer version) ───────── */
-export function LayerCard({ layer }: { layer: StackLayer }) {
-  const { agents, setActiveView, setControlRoomAgent, stackLayers } = useOSStore();
-  const layerAgents = agents.filter(a => a.layers.includes(layer.number));
-  const IconComp = layerIconMap[layer.id] || Sparkles;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border overflow-hidden card-hover"
-      style={{ borderColor: `${layer.color}25`, background: `linear-gradient(135deg, ${layer.color}08, ${layer.color}03)` }}
-    >
-      <div className="h-1.5 w-full" style={{ background: `linear-gradient(90deg, ${layer.color}, ${layer.color}60, transparent)` }} />
-
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex items-start gap-4 mb-5">
-          <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-            style={{ background: `linear-gradient(135deg, ${layer.color}20, ${layer.color}08)`, border: `1px solid ${layer.color}30` }}>
-            {layer.icon}
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>
-                LAYER {layer.number}
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded" style={{ backgroundColor: `${layer.color}10`, color: `${layer.color}aa` }}>
-                {layer.flowLabel.toUpperCase()}
+              <span className="text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase"
+                style={{ borderColor: `${statusColors[goal.status]}30`, color: statusColors[goal.status], background: `${statusColors[goal.status]}10` }}>
+                {goal.status}
               </span>
             </div>
-            <h3 className="text-white font-bold text-xl">{layer.name}</h3>
-            <p className="text-sm mt-0.5" style={{ color: `${layer.color}bb` }}>{layer.role}</p>
-          </div>
-        </div>
-
-        {/* What It Does */}
-        <div className="mb-4">
-          <h4 className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-1.5 font-bold">What It Does</h4>
-          <p className="text-[#ccccdd] text-sm leading-relaxed">{layer.whatItDoes}</p>
-        </div>
-
-        {/* Key Capabilities */}
-        <div className="mb-4">
-          <h4 className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-2 font-bold">Key Capabilities</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {layer.keyCapabilities.map(cap => (
-              <div key={cap} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: `${layer.color}08`, border: `1px solid ${layer.color}15` }}>
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: layer.color }} />
-                <span className="text-[#ccccdd] text-xs">{cap}</span>
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] text-[#8888aa]">Progress</span>
+                <span className="text-[9px] text-white font-mono">{goal.progress}%</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Example */}
-        <div className="mb-4 p-3 rounded-lg" style={{ background: `${layer.color}06`, border: `1px solid ${layer.color}15` }}>
-          <h4 className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-1 font-bold">Example</h4>
-          <p className="text-[#ccccdd] text-sm leading-relaxed italic">{layer.example}</p>
-        </div>
-
-        {/* Quote Banner */}
-        <div className="mb-4 p-3 rounded-lg border-l-4" style={{ borderColor: layer.color, background: `${layer.color}08` }}>
-          <p className="text-sm font-medium" style={{ color: `${layer.color}dd` }}>&ldquo;{layer.quote}&rdquo;</p>
-        </div>
-
-        {/* Assigned Agents */}
-        {layerAgents.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-[10px] text-[#8888aa] uppercase tracking-widest mb-2 font-bold">Assigned Agents</h4>
-            <div className="flex flex-wrap gap-2">
-              {layerAgents.map(agent => (
-                <button key={agent.id} onClick={() => setControlRoomAgent(agent.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all hover:scale-105"
-                  style={{ borderColor: `${agent.color}30`, background: `${agent.color}08` }}>
-                  <div className="w-2 h-2 rounded-full animate-pulse-glow" style={{ backgroundColor: agent.color }} />
-                  <span className="text-white text-xs font-medium">{agent.name}</span>
-                  <span className="text-[8px] font-mono" style={{ color: agent.color }}>L{agent.layers.join(',L')}</span>
+              <div className="w-full h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+                <motion.div className="h-full rounded-full bg-gradient-to-r from-[#7B2CBF] to-[#00ff88]"
+                  initial={{ width: 0 }} animate={{ width: `${goal.progress}%` }} transition={{ duration: 1 }} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              {goal.subtasks.map(sub => (
+                <button key={sub.id} onClick={() => toggleSubtask(goal.id, sub.id)}
+                  className="flex items-center gap-2 text-xs w-full text-left py-0.5 hover:bg-[rgba(157,78,221,0.05)] rounded px-1 transition-colors">
+                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                    sub.completed ? 'bg-[#9d4edd] border-[#9d4edd]' : 'border-[#8888aa]'
+                  }`}>
+                    {sub.completed && <Check size={8} className="text-white" />}
+                  </div>
+                  <span className={sub.completed ? 'text-[#8888aa] line-through' : 'text-[#ccccdd]'}>{sub.title}</span>
                 </button>
               ))}
             </div>
           </div>
-        )}
-
-        {/* Agent metrics for primary agent */}
-        {layerAgents[0] && (
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-center">
-              <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Uptime</div>
-              <div className="text-white text-sm font-mono">{layerAgents[0].uptime ?? '—'}</div>
-            </div>
-            <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-center">
-              <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Latency</div>
-              <div className="text-sm font-mono" style={{ color: (layerAgents[0].latency ?? 0) > 300 ? '#ffaa00' : '#00ff88' }}>{layerAgents[0].latency ?? 0}ms</div>
-            </div>
-            <div className="bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-center">
-              <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-1">Requests</div>
-              <div className="text-white text-sm font-mono">{(layerAgents[0]?.requests ?? 0).toLocaleString('en-US')}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Description */}
-        <p className="text-[#8888aa] text-xs leading-relaxed mb-4">{layer.description}</p>
-
-        {/* CTA */}
-        {layerAgents[0] && (
-          <button onClick={() => setControlRoomAgent(layerAgents[0].id)}
-            className="w-full text-center text-sm py-2.5 rounded-lg border transition-all duration-300 group font-medium"
-            style={{ color: `${layer.color}aa`, borderColor: `${layer.color}20`, background: `${layer.color}08` }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = `${layer.color}40`; e.currentTarget.style.color = layer.color; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = `${layer.color}20`; e.currentTarget.style.color = `${layer.color}aa`; }}
-          >
-            OPEN {layerAgents[0].name.toUpperCase()} CONTROL ROOM <span className="inline-block ml-1 transition-transform group-hover:translate-x-1">→</span>
-          </button>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
-/* ───────── AGENT STATUS BAR ───────── */
-export function AgentStatusBar() {
-  const { agents, setControlRoomAgent, stackLayers } = useOSStore();
-
-  return (
-    <div className="flex gap-3 overflow-x-auto pb-2 px-1">
-      {agents.map((agent) => {
-        const primaryLayer = stackLayers.find(l => l.number === agent.layer);
-        return (
-          <motion.button key={agent.id} onClick={() => setControlRoomAgent(agent.id)}
-            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl border min-w-[180px] card-hover cursor-pointer group"
-            style={{ borderColor: `${agent.color}20`, background: `linear-gradient(135deg, ${agent.color}08, ${agent.color}03)` }}
-          >
-            <div className="relative">
-              <div className={`w-3 h-3 rounded-full ${agent.status === 'live' ? 'animate-pulse-glow' : ''}`}
-                style={{ backgroundColor: agent.status === 'live' ? agent.color : agent.status === 'degraded' ? '#ffaa00' : '#8888aa' }} />
-              {agent.status === 'live' && <div className="absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-30" style={{ backgroundColor: agent.color }} />}
-            </div>
-            <div className="flex-1 text-left">
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded" style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>L{agent.layers.join(',L')}</span>
-                <span className="text-white text-sm font-semibold">{agent.name}</span>
-              </div>
-              <div className="text-[#8888aa] text-[11px] mt-0.5">{agent.latency ?? 0}ms · {agent.lastActive ?? '—'}</div>
-            </div>
-            <ChevronDown size={14} className="text-[#8888aa] group-hover:text-white transition-colors rotate-[-90deg]" />
-          </motion.button>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ───────── COMPOUND VISUALIZER ───────── */
-export function CompoundVisualizer() {
-  const { systemMetrics } = useOSStore();
-  const days = Array.from({ length: 30 }, (_, i) => {
-    const growth = Math.pow(1.08, i + 1);
-    return { day: i + 1, entries: Math.round(100 * growth), quality: Math.min(100, 30 + i * 2.3) };
-  });
-
-  return (
-    <div className="rounded-2xl border border-[rgba(46,134,171,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-          <TrendingUp size={14} className="text-[#FFB627]" />
-          Compounding Curve
-        </h3>
-        <span className="text-[10px] text-[#FFB627] font-mono">DAY {systemMetrics.compoundDays ?? 0}</span>
-      </div>
-
-      <svg viewBox="0 0 300 80" className="w-full">
-        <defs>
-          <linearGradient id="compound-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FFB627" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#FFB627" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path
-          d={days.map((d, i) => {
-            const x = (i / (days.length - 1)) * 300;
-            const y = 78 - (d.quality / 100) * 72;
-            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-          }).join(' ')}
-          fill="none" stroke="#FFB627" strokeWidth="2"
-        />
-        <path
-          d={days.map((d, i) => {
-            const x = (i / (days.length - 1)) * 300;
-            const y = 78 - (d.quality / 100) * 72;
-            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-          }).join(' ') + ' L 300 80 L 0 80 Z'}
-          fill="url(#compound-grad)"
-        />
-        <circle cx={((systemMetrics.compoundDays ?? 0) / 30) * 300} cy={78 - (days[(systemMetrics.compoundDays ?? 1) - 1]?.quality || 50) / 100 * 72} r="4" fill="#FFB627" />
-      </svg>
-
-      <div className="flex justify-between text-[10px] text-[#8888aa] mt-2">
-        <span>Day 1 — Good</span>
-        <span>Day 30 — Wild</span>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-[rgba(46,134,171,0.1)] grid grid-cols-3 gap-3 text-center">
-        <div>
-          <div className="text-[10px] text-[#8888aa] uppercase">Vault Size</div>
-          <div className="text-white font-mono text-sm font-bold">{systemMetrics.vaultSize ?? 0} GB</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-[#8888aa] uppercase">Entries</div>
-          <div className="text-[#FFB627] font-mono text-sm font-bold">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</div>
-        </div>
-        <div>
-          <div className="text-[10px] text-[#8888aa] uppercase">Compounding</div>
-          <div className="text-[#00ff88] font-mono text-sm font-bold">{systemMetrics.compoundDays ?? 0}d</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ───────── SYSTEM MONITOR ───────── */
-export function SystemMonitor() {
-  const { systemMetrics } = useOSStore();
-  const [anim, setAnim] = useState(systemMetrics);
-  useEffect(() => {
-    const i = setInterval(() => setAnim(p => ({
-      ...p,
-      cpu: Math.max(5, Math.min(95, p.cpu + (Math.random() - 0.5) * 8)),
-      memory: Math.max(30, Math.min(90, p.memory + (Math.random() - 0.5) * 4)),
-      network: Math.max(20, Math.min(95, p.network + (Math.random() - 0.5) * 6)),
-      disk: Math.max(20, Math.min(80, p.disk + (Math.random() - 0.5) * 2)),
-    })), 2000);
-    return () => clearInterval(i);
-  }, []);
-
-  const metrics = [
-    { label: 'CPU', value: Math.round(anim.cpu), icon: Cpu, color: '#E63946' },
-    { label: 'Memory', value: Math.round(anim.memory), icon: HardDrive, color: '#7B2CBF' },
-    { label: 'Network', value: Math.round(anim.network), icon: Network, color: '#00ff88' },
-    { label: 'Disk I/O', value: Math.round(anim.disk), icon: Activity, color: '#FFB627' },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-          <Activity size={16} className="text-[#7B2CBF]" /> System Monitor
-        </h3>
-        <span className="text-[10px] text-[#8888aa] font-mono">LIVE</span>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        {metrics.map(m => (
-          <div key={m.label} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><m.icon size={14} style={{ color: m.color }} /><span className="text-[#8888aa] text-xs">{m.label}</span></div>
-              <span className="text-white text-xs font-mono font-bold">{m.value}%</span>
-            </div>
-            <div className="h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
-              <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${m.color}88, ${m.color})` }}
-                animate={{ width: `${m.value}%` }} transition={{ duration: 1, ease: 'easeOut' }} />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 pt-4 border-t border-[rgba(157,78,221,0.1)] grid grid-cols-3 gap-3">
-        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Layers</div><div className="text-white font-mono text-sm font-bold">7</div></div>
-        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Requests</div><div className="text-white font-mono text-sm font-bold">{((systemMetrics.totalRequests ?? 0) / 1000).toFixed(1)}K</div></div>
-        <div className="text-center"><div className="text-[10px] text-[#8888aa] uppercase">Avg Latency</div><div className="text-[#00ff88] font-mono text-sm font-bold">{systemMetrics.avgLatency ?? 0}ms</div></div>
-      </div>
-    </div>
-  );
-}
-
-/* ───────── LOG STREAM ───────── */
-export function LogStream() {
-  const { logs, stackLayers } = useOSStore();
-  const levelColors: Record<string, string> = { info: '#FFB627', warn: '#ffaa00', error: '#ff0040', success: '#00ff88' };
-  const layerColorMap = Object.fromEntries(stackLayers.map(l => [l.number, l.color]));
-
-  return (
-    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-[rgba(157,78,221,0.1)]">
-        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-          <Radio size={14} className="text-[#E63946]" /> Signal Log
-        </h3>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#00ff88] animate-pulse-glow" />
-          <span className="text-[10px] text-[#00ff88] font-mono tracking-wider">STREAMING</span>
-        </div>
-      </div>
-      <div className="max-h-64 overflow-y-auto p-4 space-y-1.5 font-mono text-xs">
-        {logs.map(log => (
-          <motion.div key={log.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-start gap-2 py-1">
-            <span className="text-[#8888aa] flex-shrink-0 w-16">{log.timestamp}</span>
-            <span className="flex-shrink-0 text-[9px] font-bold px-1 py-0.5 rounded" style={{ backgroundColor: `${layerColorMap[log.layer] || '#8888aa'}20`, color: layerColorMap[log.layer] || '#8888aa' }}>
-              L{log.layer}
-            </span>
-            <span className="flex-shrink-0 w-14 uppercase text-[10px] font-bold" style={{ color: levelColors[log.level] }}>[{log.level}]</span>
-            <span className="text-[#ccccdd] flex-1">{log.message}</span>
-          </motion.div>
         ))}
       </div>
     </div>
   );
 }
 
-/* ───────── LATENCY GRAPH ───────── */
-export function LatencyGraph() {
-  const [data, setData] = useState<number[]>([120, 145, 132, 189, 156, 203, 178, 145, 167, 198, 156, 134, 189, 210, 176]);
-  useEffect(() => {
-    const i = setInterval(() => setData(p => [...p.slice(1), Math.max(50, Math.min(500, p[p.length - 1] + (Math.random() - 0.45) * 40))]), 3000);
-    return () => clearInterval(i);
-  }, []);
+// ═══════════════════════════════════════════════════════════
+// JOURNAL VIEW
+// ═══════════════════════════════════════════════════════════
 
-  const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
-  return (
-    <div className="rounded-2xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-          <Zap size={14} className="text-[#FFB627]" /> Cross-Layer Latency
-        </h3>
-        <span className="text-[10px] text-[#8888aa] font-mono">7 LAYERS</span>
-      </div>
-      <div className="flex items-end gap-[2px] h-20">
-        {data.map((val, i) => (
-          <div key={i} className="flex-1 rounded-t-sm" style={{
-            height: `${((val - min) / range) * 100}%`,
-            minHeight: '3px',
-            background: `linear-gradient(180deg, #7B2CBF, #E63946)`,
-            opacity: 0.6 + ((val - min) / range) * 0.4,
-          }} />
-        ))}
-      </div>
-      <div className="flex justify-between text-[10px] text-[#8888aa] mt-2">
-        <span>~{min}ms</span>
-        <span>~{max}ms</span>
-      </div>
-    </div>
-  );
-}
-
-/* ───────── CONTROL ROOM ───────── */
-export function ControlRoom({ agentId, onClose }: { agentId: string; onClose: () => void }) {
-  const { agents, stackLayers, hermesConnection, chatHistories, addChatMessage, clearChatHistory, isChatStreaming, setIsChatStreaming, chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments } = useOSStore();
-  const agent = agents.find(a => a.id === agentId);
-  const layer = stackLayers.find(l => l.number === agent?.layer);
-  const [input, setInput] = useState('');
-  const [streamingText, setStreamingText] = useState('');
-  const messages = chatHistories[agentId] || [];
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const ACCEPTED_FILE_TYPES = '.pdf,.docx,.xlsx,.csv,.pptx,.txt,.json,.xml,.yaml,.yml,.html,.zip,.rar,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp3,.wav,.ogg,.mp4,.webm,.js,.ts,.py,.rs,.go,.java,.c,.cpp,.h,.rb,.php,.sh,.bat,.sql,.md,.css,.scss,.less,.jsx,.tsx,.vue,.svelte';
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes}B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const MAX_INLINE_SIZE = 1024 * 1024;
-    const attachment: import('@/lib/store').ChatAttachment = {
-      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: file.name,
-      type: file.type || 'application/octet-stream',
-      size: file.size,
-      processed: false,
-    };
-    if (file.size < MAX_INLINE_SIZE) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        attachment.dataUrl = reader.result as string;
-        attachment.processed = true;
-        addChatAttachment(attachment);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      addChatAttachment(attachment);
-    }
-    e.target.value = '';
-  };
-
-  useEffect(() => {
-    if (agent && layer && messages.length === 0) {
-      addChatMessage(agentId, {
-        id: `init-${Date.now()}`,
-        role: 'agent',
-        content: `${agent.name} control room initialized. Layers ${agent.layers.map(l => `L${l}`).join(', ')} — ${layer.role}. ${agentId === 'hermes' && hermesConnection.running ? 'Hermes API connected — responses are live.' : 'Ready for commands.'}`,
-        timestamp: Date.now(),
-        agentId,
-      });
-    }
-  }, [agentId]);
-
-  useEffect(() => {
-    const el = document.getElementById('chat-scroll-container');
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, streamingText]);
-
-  if (!agent || !layer) return null;
-
-  const isHermesLive = agentId === 'hermes' && hermesConnection.running;
-
-  const handleSend = async () => {
-    if ((!input.trim() && chatAttachments.length === 0) || isChatStreaming) return;
-    const userMsg = input.trim();
-    setInput('');
-    clearChatAttachments();
-
-    addChatMessage(agentId, {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: userMsg,
-      timestamp: Date.now(),
-      agentId,
-    });
-
-    // For Hermes agent, ALWAYS use the /api/hermes/chat endpoint
-    // which has ZAI SDK fallback when Hermes CLI is not running
-    if (agentId === 'hermes') {
-      setIsChatStreaming(true);
-      setStreamingText('');
-      try {
-        const apiMessages = messages
-          .filter(m => m.role !== 'system')
-          .map(m => ({ role: m.role === 'agent' ? 'assistant' : m.role, content: m.content }));
-        apiMessages.push({ role: 'user', content: userMsg });
-        const res = await fetch('/api/hermes/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: apiMessages, model: 'deepseek-chat', stream: true }),
-        });
-        if (!res.ok) {
-          addChatMessage(agentId, { id: `err-${Date.now()}`, role: 'system', content: `Hermes API error: ${res.status}`, timestamp: Date.now(), agentId });
-          setIsChatStreaming(false);
-          return;
-        }
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            for (const line of chunk.split('\n')) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim();
-                if (data === '[DONE]') continue;
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta?.content || '';
-                  if (delta) { fullText += delta; setStreamingText(fullText); }
-                } catch {
-                  if (data && data !== '[DONE]') { fullText += data; setStreamingText(fullText); }
-                }
-              }
-            }
-          }
-        }
-        addChatMessage(agentId, { id: `agent-${Date.now()}`, role: 'agent', content: fullText || 'No response received.', timestamp: Date.now(), agentId });
-      } catch (err) {
-        addChatMessage(agentId, { id: `err-${Date.now()}`, role: 'system', content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`, timestamp: Date.now(), agentId });
-      } finally {
-        setStreamingText('');
-        setIsChatStreaming(false);
-      }
-    } else {
-      // For non-Hermes agents, show a simulated response
-      setTimeout(() => {
-        addChatMessage(agentId, { id: `agent-${Date.now()}`, role: 'agent', content: `Command "${userMsg}" acknowledged. Processing through Layers ${agent.layers.map(l => `L${l}`).join(', ')} pipeline...`, timestamp: Date.now(), agentId });
-      }, 800);
-    }
-  };
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-        className="w-[90vw] max-w-4xl h-[80vh] rounded-2xl border bg-[#0a0a1a] overflow-hidden flex flex-col"
-        style={{ borderColor: `${layer.color}25` }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: `${layer.color}15` }}>
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-              style={{ background: `linear-gradient(135deg, ${layer.color}20, ${layer.color}08)`, border: `1px solid ${layer.color}30` }}>
-              {layer.icon}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${layer.color}20`, color: layer.color }}>L{agent.layers.join(',L')}</span>
-                <h2 className="text-white font-bold text-lg">{agent.name} Control Room</h2>
-                {isHermesLive && (
-                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#00ff88]/15 text-[#00ff88] font-bold tracking-wider flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse-glow" />LIVE API
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px]" style={{ color: `${layer.color}aa` }}>{layer.role}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => clearChatHistory(agentId)} className="text-[10px] px-2 py-1 rounded-lg border border-[rgba(255,170,0,0.2)] text-[#ffaa00] hover:bg-[rgba(255,170,0,0.1)] transition-colors">Clear</button>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${agent.status === 'live' ? 'bg-[#00ffff]/15 text-[#00ffff]' : 'bg-[#8888aa]/15 text-[#8888aa]'}`}>{agent.status.toUpperCase()}</span>
-            <button onClick={onClose} className="text-[#8888aa] hover:text-white transition-colors text-xl">×</button>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col">
-          <div id="chat-scroll-container" className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.map((msg) => (
-              <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : msg.role === 'system' ? 'justify-center' : 'justify-start'}`}>
-                <div className={`max-w-[70%] px-4 py-3 rounded-xl text-sm ${
-                  msg.role === 'user' ? 'bg-[rgba(123,44,191,0.2)] text-white border border-[rgba(123,44,191,0.15)]'
-                    : msg.role === 'system' ? 'bg-[rgba(255,170,0,0.1)] text-[#ffaa00] border border-[rgba(255,170,0,0.15)] text-xs text-center max-w-[90%]'
-                    : 'bg-[rgba(18,18,42,0.8)] text-[#ccccdd] border border-[rgba(123,44,191,0.1)]'}`}>
-                  <pre className="whitespace-pre-wrap font-sans break-words">{msg.content}</pre>
-                </div>
-              </motion.div>
-            ))}
-            {streamingText && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-                <div className="max-w-[70%] px-4 py-3 rounded-xl text-sm bg-[rgba(18,18,42,0.8)] text-[#ccccdd] border border-[rgba(0,255,136,0.2)]">
-                  <pre className="whitespace-pre-wrap font-sans break-words">{streamingText}</pre>
-                  <span className="inline-block w-2 h-4 bg-[#00ff88] animate-pulse-glow ml-1" />
-                </div>
-              </motion.div>
-            )}
-          </div>
-          <div className="p-4 border-t border-[rgba(157,78,221,0.1)]">
-            {/* Attachment chips */}
-            {chatAttachments.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {chatAttachments.map(att => (
-                  <div key={att.id}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[rgba(157,78,221,0.3)] bg-[rgba(157,78,221,0.1)] text-[10px] text-[#ccccdd]"
-                    title={att.name}>
-                    <Paperclip size={9} className="text-[#9d4edd] flex-shrink-0" />
-                    <span className="truncate max-w-[120px]">{att.name}</span>
-                    <span className="text-[#8888aa]">({formatFileSize(att.size)})</span>
-                    <button onClick={() => removeChatAttachment(att.id)}
-                      className="text-[#8888aa] hover:text-[#ff4444] transition-colors flex-shrink-0">
-                      <XIcon size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-3">
-              <input ref={fileInputRef} type="file" accept={ACCEPTED_FILE_TYPES} onChange={handleFileSelect} className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()}
-                className="flex-shrink-0 w-10 h-10 rounded-lg border border-[rgba(157,78,221,0.2)] text-[#8888aa] hover:text-white hover:border-[rgba(157,78,221,0.4)] flex items-center justify-center transition-all"
-                title="Attach file">
-                <Paperclip size={16} />
-              </button>
-              <input value={input} onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                disabled={isChatStreaming}
-                placeholder={isChatStreaming ? 'Hermes is thinking...' : agentId === 'hermes' ? `Message Hermes (AI-powered via ${isHermesLive ? 'Live API' : 'Fallback AI'})...` : `Send command to ${agent.name} (L${agent.layers.join(',L')})...`}
-                className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-4 py-2.5 text-white text-sm placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] disabled:opacity-50" />
-              <button onClick={handleSend} disabled={isChatStreaming || (!input.trim() && chatAttachments.length === 0)}
-                className="px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50"
-                style={{ background: `linear-gradient(135deg, ${agent.color}cc, ${agent.color}88)` }}>
-                {isChatStreaming ? '...' : 'Send'}
-              </button>
-            </div>
-            {agentId === 'hermes' && (
-              <div className="mt-2 text-[10px] flex items-center gap-1" style={{ color: isHermesLive ? '#00ff88' : '#FFB627' }}>
-                <div className={`w-1.5 h-1.5 rounded-full ${isHermesLive ? 'bg-[#00ff88] animate-pulse-glow' : 'bg-[#FFB627]'}`} />
-                {isHermesLive
-                  ? `Connected to Hermes API at ${hermesConnection.apiEndpoint} — Model: ${hermesConnection.model || 'default'}`
-                  : 'Hermes CLI offline — using AI fallback (still functional)'}
-              </div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/* ───────── COMMAND PALETTE ───────── */
-export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen, setActiveView, setControlRoomAgent, stackLayers } = useOSStore();
-  const [query, setQuery] = useState('');
-
-  const layerCommands = stackLayers.map(l => ({
-    id: `l${l.number}`,
-    label: `Layer ${l.number} — ${l.name}`,
-    desc: l.flowLabel,
-    action: () => setActiveView(`layer-${l.id}`),
-  }));
-
-  const commands = [
-    { id: 'mc', label: 'Mission Control', desc: 'Main dashboard', action: () => setActiveView('mission-control') },
-    { id: 'stack', label: '7-Layer Stack', desc: 'Full stack overview', action: () => setActiveView('stack-overview') },
-    { id: 'flow', label: 'Layer Flow', desc: 'How layers work together', action: () => setActiveView('layer-flow') },
-    ...layerCommands,
-    { id: 'cr-claude', label: 'Claude Control Room', desc: 'L1,L4 agent', action: () => setControlRoomAgent('claude') },
-    { id: 'cr-openclaw', label: 'OpenClaw Control Room', desc: 'L3,L7 agent', action: () => setControlRoomAgent('openclaw') },
-    { id: 'cr-hermes', label: 'Hermes Control Room', desc: 'L2,L5 agent', action: () => setControlRoomAgent('hermes') },
-    { id: 'cr-vault', label: 'Self Vault Control Room', desc: 'L6 agent', action: () => setControlRoomAgent('vault') },
-    { id: 'goals', label: 'Self — Goals', desc: 'View goals', action: () => setActiveView('self-goals') },
-    { id: 'journal', label: 'Self — Journal', desc: 'View journal', action: () => setActiveView('self-journal') },
-    { id: 'memory', label: 'Self — Memory', desc: 'Search memory', action: () => setActiveView('self-memory') },
-  ];
-  const filtered = commands.filter(c => c.label.toLowerCase().includes(query.toLowerCase()) || c.desc.toLowerCase().includes(query.toLowerCase()));
-  if (!commandPaletteOpen) return null;
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/60 backdrop-blur-sm"
-      onClick={() => { setCommandPaletteOpen(false); setQuery(''); }}>
-      <motion.div initial={{ scale: 0.95, opacity: 0, y: -20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="w-[90vw] max-w-lg rounded-2xl border border-[rgba(157,78,221,0.2)] bg-[#0d0d20] overflow-hidden shadow-2xl"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgba(157,78,221,0.1)]">
-          <Search size={16} className="text-[#8888aa]" />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type a command..."
-            className="flex-1 bg-transparent text-white text-sm placeholder:text-[#8888aa] focus:outline-none" autoFocus />
-          <kbd className="text-[10px] text-[#8888aa] bg-[rgba(157,78,221,0.1)] px-1.5 py-0.5 rounded">ESC</kbd>
-        </div>
-        <div className="max-h-64 overflow-y-auto p-2">
-          {filtered.map(cmd => (
-            <button key={cmd.id} onClick={() => { cmd.action(); setCommandPaletteOpen(false); setQuery(''); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-[rgba(157,78,221,0.1)] transition-colors group">
-              <Command size={14} className="text-[#7B2CBF]" />
-              <div><div className="text-white text-sm">{cmd.label}</div><div className="text-[#8888aa] text-xs">{cmd.desc}</div></div>
-            </button>
-          ))}
-          {filtered.length === 0 && <div className="text-center py-6 text-[#8888aa] text-sm">No commands found</div>}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/* ───────── SELF: GOALS VIEW ───────── */
-export function GoalsView() {
-  const { goals, addGoal, updateGoal, removeGoal } = useOSStore();
-  const [showForm, setShowForm] = useState(false);
-  const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState('Product');
-  const [formTimeline, setFormTimeline] = useState('Q2 2026');
-  const [formProgress, setFormProgress] = useState(0);
-
-  const handleAdd = () => {
-    if (!formTitle.trim()) return;
-    addGoal({
-      id: `g${Date.now()}`,
-      title: formTitle.trim(),
-      category: formCategory,
-      timeline: formTimeline,
-      progress: formProgress,
-    });
-    setFormTitle(''); setFormCategory('Product'); setFormTimeline('Q2 2026'); setFormProgress(0);
-    setShowForm(false);
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Target size={20} className="text-[#E63946]" />
-          <h2 className="text-white font-bold text-xl uppercase tracking-wider">Goals</h2>
-          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(230,57,70,0.2)] text-[#E63946] font-mono">{goals.length} active</span>
-        </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-medium transition-all hover:scale-105 active:scale-95"
-          style={{ borderColor: '#E6394635', color: '#E63946', background: '#E6394608' }}>
-          <Plus size={11} /> Add Goal
-        </button>
-      </div>
-
-      {/* Add Goal Form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="rounded-xl border border-[#E6394625] bg-[rgba(18,18,42,0.8)] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] text-[#E63946] uppercase tracking-wider font-bold flex items-center gap-1"><Target size={11} /> New Goal</h3>
-                <button onClick={() => setShowForm(false)} className="text-[#8888aa] hover:text-white"><X size={12} /></button>
-              </div>
-              <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Goal title"
-                className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-[11px] placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
-              <div className="flex flex-wrap gap-2">
-                <select value={formCategory} onChange={e => setFormCategory(e.target.value)}
-                  className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none">
-                  {['Product', 'Engineering', 'Reliability', 'AI', 'Security', 'Growth'].map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <input value={formTimeline} onChange={e => setFormTimeline(e.target.value)} placeholder="Timeline" className="w-28 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] focus:outline-none" />
-                <input type="number" min={0} max={100} value={formProgress} onChange={e => setFormProgress(Number(e.target.value))} placeholder="%" className="w-20 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none" />
-              </div>
-              <button onClick={handleAdd} disabled={!formTitle.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold text-white transition-all disabled:opacity-30"
-                style={{ background: 'linear-gradient(135deg, #E63946cc, #E6394688)' }}>
-                <Check size={11} /> Add Goal
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="grid gap-3">
-        {goals.map((goal, i) => (
-          <motion.div key={goal.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-            className="group rounded-xl border border-[rgba(230,57,70,0.1)] bg-[rgba(18,18,42,0.6)] p-5 card-hover relative">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.08)] font-medium">{goal.category}</span>
-                <h4 className="text-white text-sm font-semibold">{goal.title}</h4>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[#8888aa]">{goal.timeline}</span>
-                <button onClick={() => removeGoal(goal.id)}
-                  className="p-1 rounded-md border border-[rgba(230,57,70,0.2)] text-[#ff4444] hover:bg-[rgba(230,57,70,0.08)] transition-colors opacity-0 group-hover:opacity-100"
-                  title="Delete goal"><Trash2 size={10} /></button>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
-                <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, #E6394688, #E63946)` }}
-                  initial={{ width: '0%' }} animate={{ width: `${goal.progress}%` }} transition={{ duration: 1.5, ease: 'easeOut', delay: i * 0.1 }} />
-              </div>
-              <span className="text-[#E63946] text-sm font-mono font-bold w-10 text-right">{goal.progress}%</span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ───────── SELF: JOURNAL VIEW ───────── */
 export function JournalView() {
-  const { journal, addJournalEntry, removeJournalEntry } = useOSStore();
-  const [showForm, setShowForm] = useState(false);
-  const [formType, setFormType] = useState<'voice' | 'text'>('text');
-  const [formContent, setFormContent] = useState('');
-  const [formSource, setFormSource] = useState('Manual Entry');
+  const { selfSearchQuery, setSelfSearchQuery } = useOSStore();
+  const [entries, setEntries] = useState<JournalEntry[]>([
+    { id: 'j1', title: 'Agentic OS Architecture Redesign', content: 'Completed the redesign to make Agentic OS completely provider-independent. The Brain Layer is now the native intelligence. External models are interchangeable execution engines.', mood: 'inspired', tags: ['architecture', 'brain', 'redesign'], createdAt: Date.now(), agent: 'Brain', type: 'milestone' },
+    { id: 'j2', title: 'Brain Layer Activation', content: 'The Brain Layer is now the primary intelligence. It handles planning, reasoning, delegation, and coordination natively. No dependency on any external agent framework.', mood: 'focused', tags: ['brain', 'core'], createdAt: Date.now() - 86400000, agent: 'Brain', type: 'insight' },
+    { id: 'j3', title: 'Provider-Independent Design', content: 'All dependencies on Hermes, Claude Desktop, OpenClaw, and Vault have been removed. The platform is now a clean, provider-independent operating system for AI agents.', mood: 'calm', tags: ['independence', 'cleanup'], createdAt: Date.now() - 172800000, agent: 'Brain', type: 'decision' },
+  ]);
+  const [newEntry, setNewEntry] = useState('');
 
-  const handleAdd = () => {
-    if (!formContent.trim()) return;
-    addJournalEntry({
-      id: `j${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      type: formType,
-      content: formContent.trim(),
-      source: formSource,
-    });
-    setFormContent(''); setFormType('text'); setFormSource('Manual Entry');
-    setShowForm(false);
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <BookOpen size={20} className="text-[#7B2CBF]" />
-          <h2 className="text-white font-bold text-xl uppercase tracking-wider">Journal</h2>
-          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] font-mono">{journal.length} entries</span>
-        </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-medium transition-all hover:scale-105 active:scale-95"
-          style={{ borderColor: '#7B2CBF35', color: '#7B2CBF', background: '#7B2CBF08' }}>
-          <Plus size={11} /> Add Entry
-        </button>
-      </div>
-
-      {/* Add Journal Entry Form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="rounded-xl border border-[#7B2CBF25] bg-[rgba(18,18,42,0.8)] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] text-[#7B2CBF] uppercase tracking-wider font-bold flex items-center gap-1"><BookOpen size={11} /> New Entry</h3>
-                <button onClick={() => setShowForm(false)} className="text-[#8888aa] hover:text-white"><X size={12} /></button>
-              </div>
-              <textarea value={formContent} onChange={e => setFormContent(e.target.value)} rows={3} placeholder="Journal entry..."
-                className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-[11px] placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] resize-none" />
-              <div className="flex flex-wrap gap-2">
-                <select value={formType} onChange={e => setFormType(e.target.value as 'voice' | 'text')}
-                  className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none">
-                  <option value="text">Text</option>
-                  <option value="voice">Voice</option>
-                </select>
-                <input value={formSource} onChange={e => setFormSource(e.target.value)} placeholder="Source"
-                  className="w-36 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] focus:outline-none" />
-              </div>
-              <button onClick={handleAdd} disabled={!formContent.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold text-white transition-all disabled:opacity-30"
-                style={{ background: 'linear-gradient(135deg, #7B2CBFcc, #7B2CBF88)' }}>
-                <Check size={11} /> Add Entry
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="grid gap-3">
-        {journal.map((entry, i) => (
-          <motion.div key={entry.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-            className="group rounded-xl border border-[rgba(123,44,191,0.1)] bg-[rgba(18,18,42,0.6)] p-5 card-hover">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-white text-sm font-medium">{entry.date}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                entry.type === 'voice' ? 'bg-[rgba(255,170,0,0.1)] text-[#ffaa00] border border-[rgba(255,170,0,0.2)]' : 'bg-[rgba(230,57,70,0.1)] text-[#E63946] border border-[rgba(230,57,70,0.2)]'
-              }`}>
-                {entry.type === 'voice' ? <><Mic size={10} className="inline mr-1" />VOICE</> : <><PenLine size={10} className="inline mr-1" />TEXT</>}
-              </span>
-              <span className="text-[10px] text-[#8888aa]">via {entry.source}</span>
-              <div className="flex-1" />
-              <button onClick={() => removeJournalEntry(entry.id)}
-                className="p-1 rounded-md border border-[rgba(230,57,70,0.2)] text-[#ff4444] hover:bg-[rgba(230,57,70,0.08)] transition-colors opacity-0 group-hover:opacity-100"
-                title="Delete entry"><Trash2 size={10} /></button>
-            </div>
-            <p className="text-[#ccccdd] text-sm leading-relaxed">{entry.content}</p>
-          </motion.div>
-        ))}
-      </div>
-    </div>
+  const filteredEntries = entries.filter(e =>
+    !selfSearchQuery || e.title.toLowerCase().includes(selfSearchQuery.toLowerCase()) || e.content.toLowerCase().includes(selfSearchQuery.toLowerCase())
   );
-}
 
-/* ───────── SELF: MEMORY VIEW ───────── */
-export function MemoryView() {
-  const { memories, selfSearchQuery, setSelfSearchQuery, agents, addMemory } = useOSStore();
-  const filtered = selfSearchQuery
-    ? memories.filter(m => m.content.toLowerCase().includes(selfSearchQuery.toLowerCase()) || m.tags.some(t => t.toLowerCase().includes(selfSearchQuery.toLowerCase())))
-    : memories;
+  const moodColors: {[key: string]: string} = {
+    inspired: '#9d4edd', focused: '#00ffff', reflective: '#2E86AB', energized: '#FFB627', calm: '#00ff88',
+  };
 
-  const layerColors: Record<string, string> = Object.fromEntries(agents.map(a => [a.name, a.color]));
-
-  const [showForm, setShowForm] = useState(false);
-  const [formContent, setFormContent] = useState('');
-  const [formAgent, setFormAgent] = useState('Self Vault');
-  const [formTags, setFormTags] = useState('');
-
-  const handleAdd = () => {
-    if (!formContent.trim()) return;
-    addMemory({
-      id: `m${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      content: formContent.trim(),
-      agent: formAgent,
-      tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
-    });
-    setFormContent(''); setFormAgent('Self Vault'); setFormTags('');
-    setShowForm(false);
+  const addEntry = () => {
+    if (!newEntry.trim()) return;
+    setEntries(prev => [{
+      id: `j-${Date.now()}`,
+      title: newEntry.slice(0, 60),
+      content: newEntry,
+      mood: 'reflective',
+      tags: ['journal'],
+      createdAt: Date.now(),
+      agent: 'Brain',
+      type: 'reflection',
+    }, ...prev]);
+    setNewEntry('');
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Database size={20} className="text-[#2E86AB]" />
-          <h2 className="text-white font-bold text-xl uppercase tracking-wider">Memory</h2>
-          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[rgba(46,134,171,0.2)] text-[#2E86AB] font-mono">{memories.length} entries</span>
-        </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-medium transition-all hover:scale-105 active:scale-95"
-          style={{ borderColor: '#2E86AB35', color: '#2E86AB', background: '#2E86AB08' }}>
-          <Plus size={11} /> Add Memory
+        <h2 className="text-white font-bold text-lg tracking-wider uppercase flex items-center gap-2">
+          <BookOpen size={20} className="text-[#2E86AB]" /> Journal
+        </h2>
+      </div>
+      <div className="flex gap-2">
+        <input type="text" value={newEntry} onChange={e => setNewEntry(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addEntry()}
+          placeholder="Write a journal entry..."
+          className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
+        <button onClick={addEntry} className="px-4 py-2 rounded-lg bg-[#2E86AB] text-white text-sm font-medium hover:bg-[#1B998B] transition-colors">
+          <Plus size={14} />
         </button>
       </div>
-
-      {/* Add Memory Form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="rounded-xl border border-[#2E86AB25] bg-[rgba(18,18,42,0.8)] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] text-[#2E86AB] uppercase tracking-wider font-bold flex items-center gap-1"><Database size={11} /> New Memory</h3>
-                <button onClick={() => setShowForm(false)} className="text-[#8888aa] hover:text-white"><X size={12} /></button>
-              </div>
-              <textarea value={formContent} onChange={e => setFormContent(e.target.value)} rows={2} placeholder="Memory content..."
-                className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-[11px] placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] resize-none" />
-              <div className="flex flex-wrap gap-2">
-                <select value={formAgent} onChange={e => setFormAgent(e.target.value)}
-                  className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none">
-                  {['Self Vault', 'Claude', 'Hermes', 'OpenClaw', 'Gemini'].map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-                <input value={formTags} onChange={e => setFormTags(e.target.value)} placeholder="Tags (comma separated)"
-                  className="flex-1 min-w-[160px] bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder:text-[#8888aa] focus:outline-none" />
-              </div>
-              <button onClick={handleAdd} disabled={!formContent.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold text-white transition-all disabled:opacity-30"
-                style={{ background: 'linear-gradient(135deg, #2E86ABcc, #2E86AB88)' }}>
-                <Check size={11} /> Add Memory
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8888aa]" />
-        <input value={selfSearchQuery} onChange={e => setSelfSearchQuery(e.target.value)}
-          placeholder="Search memories... (tags, content, agents)"
-          className="w-full bg-[rgba(18,18,42,0.6)] border border-[rgba(157,78,221,0.15)] rounded-xl pl-10 pr-4 py-3 text-white text-sm placeholder:text-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.3)]" />
-        {selfSearchQuery && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#8888aa]">{filtered.length} results</span>
-        )}
+      <div className="flex items-center gap-2 mb-2">
+        <Search size={12} className="text-[#8888aa]" />
+        <input type="text" value={selfSearchQuery} onChange={e => setSelfSearchQuery(e.target.value)}
+          placeholder="Search journal..."
+          className="flex-1 bg-transparent text-[#ccccdd] text-xs placeholder-[#8888aa] focus:outline-none" />
       </div>
-      <div className="grid gap-3">
-        {filtered.map((mem, i) => (
-          <motion.div key={mem.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
-            className="rounded-xl border border-[rgba(46,134,171,0.1)] bg-[rgba(18,18,42,0.6)] p-4 card-hover">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: `${layerColors[mem.agent] || '#8888aa'}20`, color: layerColors[mem.agent] || '#8888aa' }}>
-                {mem.agent}
-              </span>
-              <span className="text-[10px] text-[#8888aa]">{mem.timestamp}</span>
-              <div className="flex-1" />
-              {mem.tags.map(t => (
-                <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.05)]">{t}</span>
+      <div className="space-y-3">
+        {filteredEntries.map(entry => (
+          <div key={entry.id} className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h3 className="text-white font-semibold text-sm">{entry.title}</h3>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-bold capitalize"
+                    style={{ borderColor: `${moodColors[entry.mood]}30`, color: moodColors[entry.mood], background: `${moodColors[entry.mood]}10` }}>
+                    {entry.mood}
+                  </span>
+                  <span className="text-[8px] text-[#8888aa] font-mono">{entry.type}</span>
+                  <span className="text-[8px] text-[#8888aa]">by {entry.agent}</span>
+                </div>
+              </div>
+              <span className="text-[9px] text-[#8888aa]">{new Date(entry.createdAt).toLocaleDateString()}</span>
+            </div>
+            <p className="text-[#ccccdd] text-[12px] leading-relaxed">{entry.content}</p>
+            <div className="flex gap-1 mt-2">
+              {entry.tags.map(tag => (
+                <span key={tag} className="text-[8px] px-1.5 py-0.5 rounded-full bg-[rgba(157,78,221,0.1)] text-[#9d4edd]">#{tag}</span>
               ))}
             </div>
-            <p className="text-[#ccccdd] text-sm leading-relaxed">{mem.content}</p>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ───────── HERMES FEATURE GRID ───────── */
-export function HermesFeatureGrid() {
-  const features = [
-    { title: '2,550+ Skills', desc: 'Across 11 registries in 35 categories', icon: '⚡', color: '#FFB627' },
-    { title: '20+ LLM Providers', desc: 'Model-agnostic architecture', icon: '🧠', color: '#7B2CBF' },
-    { title: 'MCP Server', desc: 'stdio + SSE transports', icon: '🔌', color: '#00ff88' },
-    { title: 'Browser Automation', desc: 'Cloud & local Chromium/CDP', icon: '🌐', color: '#E63946' },
-    { title: 'Voice & TTS', desc: '5 TTS + 6 STT providers', icon: '🎙️', color: '#FF8C42' },
-    { title: '19+ Platforms', desc: 'Telegram, Discord, Slack, WhatsApp...', icon: '💬', color: '#7B2CBF' },
-    { title: 'OpenAI API', desc: 'Compatible server endpoint', icon: '🔗', color: '#00ff88' },
-    { title: 'IDE Integration', desc: 'VS Code, Zed, JetBrains via ACP', icon: '💻', color: '#FFB627' },
-    { title: 'Kanban & DevOps', desc: 'Task lists, scheduled workflows', icon: '📋', color: '#FF8C42' },
-    { title: 'Memory System', desc: '8 providers + MEMORY.md persistence', icon: '🧠', color: '#2E86AB' },
-    { title: 'Coding Delegation', desc: 'Claude Code, Codex, OpenCode CLIs', icon: '⚙️', color: '#7B2CBF' },
-    { title: 'Computer Use', desc: 'Full macOS desktop automation', icon: '🖥️', color: '#E63946' },
-  ];
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-      {features.map((f, i) => (
-        <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-          className="rounded-xl border border-[rgba(255,182,39,0.1)] bg-[rgba(18,18,42,0.6)] p-4 card-hover">
-          <div className="text-2xl mb-2">{f.icon}</div>
-          <h4 className="text-white text-sm font-semibold mb-1">{f.title}</h4>
-          <p className="text-[#8888aa] text-xs">{f.desc}</p>
-          <div className="mt-2 h-0.5 w-8 rounded-full" style={{ backgroundColor: f.color }} />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-/* ───────── SELF LAYER EXPLANATION ───────── */
-export function SelfLayerExplanation() {
-  return (
-    <div className="rounded-2xl border border-[rgba(46,134,171,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Database size={18} className="text-[#2E86AB]" />
-        <h3 className="text-white font-bold text-base tracking-wider uppercase">Why The Memory Layer Is The Real Unlock</h3>
-      </div>
-      <p className="text-[#ccccdd] text-sm leading-relaxed mb-4">
-        The Memory Layer (L6) is the difference between an agent that gives <span className="text-[#8888aa]">generic answers</span> and an agent that gives advice as if it&apos;s <span className="text-[#2E86AB] font-semibold">worked at your company for two years</span>. It has three components inside Agent OS that compound over time.
-      </p>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {[
-          { icon: Target, label: 'Goals', desc: 'Tracked with progress bars so every agent knows what you\'re working towards.', color: '#E63946' },
-          { icon: BookOpen, label: 'Journal', desc: 'Voice or text entries stored in the vault every day so agents always know your current state.', color: '#7B2CBF' },
-          { icon: Database, label: 'Memory', desc: 'Every chat auto-saved and searchable. Your AI never forgets a thing.', color: '#2E86AB' },
-        ].map(item => (
-          <div key={item.label} className="rounded-xl border p-4" style={{ borderColor: `${item.color}20`, background: `${item.color}05` }}>
-            <item.icon size={18} style={{ color: item.color }} className="mb-2" />
-            <h4 className="text-white text-sm font-semibold mb-1">{item.label}</h4>
-            <p className="text-[#8888aa] text-xs leading-relaxed">{item.desc}</p>
           </div>
         ))}
       </div>
-      <div className="mt-4 pt-4 border-t border-[rgba(46,134,171,0.1)] flex items-center gap-3">
-        <TrendingUp size={14} className="text-[#FFB627]" />
-        <p className="text-[#FFB627] text-sm font-medium">Day one this is good. Day thirty this is wild. The system compounds because it knows more about you, your business and your priorities every single day.</p>
-      </div>
     </div>
   );
 }
 
-/* ───────── OMI + OBSIDIAN STATUS ───────── */
-export function OmiObsidianStatus() {
-  const { systemMetrics } = useOSStore();
-  return (
-    <div className="rounded-2xl border border-[rgba(46,134,171,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-semibold text-sm tracking-wider uppercase flex items-center gap-2">
-          <Headphones size={14} className="text-[#2E86AB]" /> OMI + Obsidian
-        </h3>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#2E86AB] animate-pulse-glow" />
-          <span className="text-[10px] text-[#2E86AB] font-mono">RECORDING</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="rounded-lg bg-[rgba(10,10,26,0.5)] p-3 text-center">
-          <Eye size={14} className="text-[#2E86AB] mx-auto mb-1" />
-          <div className="text-[10px] text-[#8888aa] uppercase">Screen</div>
-          <div className="text-[#00ff88] text-xs font-mono font-bold">Active</div>
-        </div>
-        <div className="rounded-lg bg-[rgba(10,10,26,0.5)] p-3 text-center">
-          <Mic size={14} className="text-[#2E86AB] mx-auto mb-1" />
-          <div className="text-[10px] text-[#8888aa] uppercase">Microphone</div>
-          <div className="text-[#00ff88] text-xs font-mono font-bold">Active</div>
-        </div>
-      </div>
-      <div className="space-y-2 text-xs">
-        <div className="flex justify-between"><span className="text-[#8888aa]">Export Target</span><span className="text-white font-mono">Obsidian Vault</span></div>
-        <div className="flex justify-between"><span className="text-[#8888aa]">Vault Size</span><span className="text-white font-mono">{systemMetrics.vaultSize ?? 0} GB</span></div>
-        <div className="flex justify-between"><span className="text-[#8888aa]">Total Entries</span><span className="text-[#2E86AB] font-mono">{(systemMetrics.vaultEntries ?? 0).toLocaleString('en-US')}</span></div>
-        <div className="flex justify-between"><span className="text-[#8888aa]">Notes Today</span><span className="text-[#00ff88] font-mono">47</span></div>
-      </div>
-    </div>
+// ═══════════════════════════════════════════════════════════
+// MEMORY VIEW
+// ═══════════════════════════════════════════════════════════
+
+export function MemoryView() {
+  const { memories, selfSearchQuery, setSelfSearchQuery } = useOSStore();
+
+  const filteredMemories = memories.filter(m =>
+    !selfSearchQuery || m.content.toLowerCase().includes(selfSearchQuery.toLowerCase()) || m.tags.some(t => t.toLowerCase().includes(selfSearchQuery.toLowerCase()))
   );
-}
 
-/* ───────── HERMES AUTO-DETECTION HOOK ───────── */
-export function useHermesDetection() {
-  const { hermesConnection, setHermesConnection, updateAgent, addLog, addHermesLatency, setSSEConnectionStatus, setHermesSkills, setMCPServers } = useOSStore();
-
-  const detect = useCallback(async () => {
-    try {
-      const res = await fetch('/api/hermes/detect');
-      const data = await res.json();
-
-      setHermesConnection({
-        installed: data.installed,
-        running: data.running,
-        version: data.version,
-        apiEndpoint: data.apiEndpoint,
-        model: data.model,
-        latency: data.latency,
-        lastChecked: Date.now(),
-      });
-
-      if (data.latency) {
-        addHermesLatency(data.latency);
-      }
-
-      if (data.running) {
-        updateAgent('hermes', {
-          status: 'live',
-          model: data.model || 'hermes-3',
-          lastActive: '0s ago',
-        });
-        addLog({
-          id: `hermes-detect-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-          agent: 'Hermes',
-          layer: 2,
-          level: 'success',
-          message: `Hermes API detected and connected at ${data.apiEndpoint} — model: ${data.model || 'default'} — latency: ${data.latency}ms`,
-        });
-
-        // Fetch skills and MCP servers in parallel when connected
-        Promise.all([
-          fetch('/api/hermes/skills').then(r => r.json()).catch(() => null),
-          fetch('/api/hermes/mcp').then(r => r.json()).catch(() => null),
-          fetch('/api/hermes/status').then(r => r.json()).catch(() => null),
-        ]).then(([skillsData, mcpData, statusData]) => {
-          if (skillsData?.skills) {
-            setHermesSkills(skillsData.skills.map((s: { name: string; description?: string; category?: string; source?: string }) => ({
-              id: s.name,
-              name: s.name,
-              description: s.description,
-              category: s.category ?? 'General',
-              source: s.source === 'Built-in' ? 'builtin' : (s.source as 'builtin' | 'mcp' | 'plugin') ?? 'builtin',
-            })));
-            setHermesConnection({ skillCount: skillsData.total ?? skillsData.skills.length });
-          }
-          if (mcpData?.servers) {
-            setMCPServers(mcpData.servers.map((s: { name: string; transport: string; connected: boolean }) => ({
-              name: s.name,
-              transport: s.transport as 'stdio' | 'http',
-              connected: s.connected ?? false,
-            })));
-            setHermesConnection({ mcpServerCount: mcpData.connected ?? mcpData.total });
-          }
-          if (statusData) {
-            setHermesConnection({
-              activeSessions: statusData.activeSessions,
-            });
-          }
-        });
-      } else if (data.installed) {
-        updateAgent('hermes', { status: 'degraded', lastActive: 'offline' });
-        addLog({
-          id: `hermes-detect-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-          agent: 'Hermes',
-          layer: 2,
-          level: 'warn',
-          message: 'Hermes is installed but API server is not running. Start with: hermes gateway',
-        });
-      } else {
-        updateAgent('hermes', { status: 'offline', lastActive: 'not installed' });
-      }
-    } catch {
-      setHermesConnection({ installed: false, running: false, lastChecked: Date.now() });
-    }
-  }, [setHermesConnection, updateAgent, addLog, addHermesLatency, setHermesSkills, setMCPServers]);
-
-  // Connect to SSE stream when Hermes is running
-  useEffect(() => {
-    if (!hermesConnection.running) return;
-
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let eventSource: EventSource | null = null;
-
-    const connectSSE = () => {
-      setSSEConnectionStatus('connecting');
-      try {
-        eventSource = new EventSource('/api/hermes/stream');
-
-        eventSource.addEventListener('hermes:status', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            setHermesConnection({
-              running: data.online,
-              model: data.model,
-              activeSessions: data.activeSessions,
-              skillCount: data.skillCount,
-              mcpServerCount: data.mcpServers,
-            });
-          } catch { /* ignore parse errors */ }
-        });
-
-        eventSource.addEventListener('hermes:latency', (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            if (data.latency !== undefined) {
-              addHermesLatency(data.latency);
-              setHermesConnection({ latency: data.latency });
-            }
-          } catch { /* ignore parse errors */ }
-        });
-
-        eventSource.addEventListener('ping', () => {
-          // Keep-alive — no action needed
-        });
-
-        eventSource.onopen = () => {
-          setSSEConnectionStatus('connected');
-        };
-
-        eventSource.onerror = () => {
-          setSSEConnectionStatus('error');
-          eventSource?.close();
-          eventSource = null;
-          reconnectTimeout = setTimeout(connectSSE, 10000);
-        };
-      } catch {
-        setSSEConnectionStatus('error');
-      }
-    };
-
-    connectSSE();
-    return () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (eventSource) eventSource.close();
-      setSSEConnectionStatus('disconnected');
-    };
-  }, [hermesConnection.running, setSSEConnectionStatus, setHermesConnection, addHermesLatency]);
-
-  useEffect(() => {
-    detect();
-    const interval = setInterval(detect, 30000);
-    return () => clearInterval(interval);
-  }, [detect]);
-
-  // Auto-measure latency every 15 seconds when connected
-  useEffect(() => {
-    if (!hermesConnection.running) return;
-    const measureLatency = async () => {
-      try {
-        const start = Date.now();
-        await fetch('/api/hermes/status');
-        const latency = Date.now() - start;
-        addHermesLatency(latency);
-        setHermesConnection({ latency });
-      } catch { /* ignore */ }
-    };
-    const interval = setInterval(measureLatency, 15000);
-    return () => clearInterval(interval);
-  }, [hermesConnection.running, addHermesLatency, setHermesConnection]);
-
-  return { hermesConnection, redetect: detect };
-}
-
-/* ───────── HERMES CONNECTION BANNER ───────── */
-export function HermesConnectionBanner() {
-  const { hermesConnection, setControlRoomAgent } = useOSStore();
-
-  // Latency color indicator
-  const latencyColor = hermesConnection.latency
-    ? hermesConnection.latency < 100 ? '#00ff88'
-    : hermesConnection.latency < 500 ? '#ffaa00' : '#ff4444'
-    : '#8888aa';
-
-  if (!hermesConnection.installed) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-[rgba(255,170,0,0.2)] bg-[rgba(255,170,0,0.05)] p-3 flex items-center gap-3"
-      >
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(255,170,0,0.1)] border border-[rgba(255,170,0,0.2)]">
-          <FlaskConical size={16} className="text-[#ffaa00]" />
-        </div>
-        <div className="flex-1">
-          <div className="text-white text-sm font-medium">Hermes Not Detected</div>
-          <div className="text-[#8888aa] text-xs">Install Hermes Agent to enable live AI chat (L2 Knowledge + L5 Execution).</div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  if (!hermesConnection.running) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-[rgba(255,170,0,0.2)] bg-[rgba(255,170,0,0.05)] p-3 flex items-center gap-3"
-      >
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(255,170,0,0.1)] border border-[rgba(255,170,0,0.2)]">
-          <div className="w-3 h-3 rounded-full bg-[#ffaa00] animate-pulse-glow" />
-        </div>
-        <div className="flex-1">
-          <div className="text-white text-sm font-medium">Hermes Installed — API Offline</div>
-          <div className="text-[#8888aa] text-xs">Start the API server: <code className="text-[#00ffff] bg-[rgba(0,255,255,0.1)] px-1.5 py-0.5 rounded text-[10px]">hermes gateway</code></div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-[rgba(0,255,136,0.2)] bg-[rgba(0,255,136,0.05)] p-3 flex items-center gap-3"
-    >
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(0,255,136,0.1)] border border-[rgba(0,255,136,0.2)]">
-        <div className="relative">
-          <div className="w-3 h-3 rounded-full bg-[#00ff88] animate-pulse-glow" />
-          <div className="absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-30 bg-[#00ff88]" />
-        </div>
-      </div>
-      <div className="flex-1">
-        <div className="text-white text-sm font-medium flex items-center gap-2">
-          Hermes AI Connected
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#00ff88]/15 text-[#00ff88] font-bold tracking-wider">LIVE</span>
-          {hermesConnection.latency !== undefined && (
-            <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold" style={{ color: latencyColor, backgroundColor: `${latencyColor}15` }}>
-              {hermesConnection.latency}ms
-            </span>
-          )}
-        </div>
-        <div className="text-[#8888aa] text-xs flex items-center gap-1.5 flex-wrap">
-          <span>API: <span className="text-[#00ff88]">{hermesConnection.apiEndpoint}</span></span>
-          {hermesConnection.model && <span>· Model: <span className="text-[#00ff88]">{hermesConnection.model}</span></span>}
-          {hermesConnection.version && <span>· v<span className="text-[#00ff88]">{hermesConnection.version}</span></span>}
-          {hermesConnection.skillCount !== undefined && <span>· Skills: <span className="text-[#FFB627]">{hermesConnection.skillCount}</span></span>}
-          {hermesConnection.activeSessions !== undefined && <span>· Sessions: <span className="text-[#00ff88]">{hermesConnection.activeSessions}</span></span>}
-          {hermesConnection.mcpServerCount !== undefined && <span>· MCP: <span className="text-[#7B2CBF]">{hermesConnection.mcpServerCount}</span></span>}
-        </div>
-      </div>
-      <button onClick={() => setControlRoomAgent('hermes')}
-        className="px-4 py-2 rounded-lg text-xs font-medium border border-[rgba(0,255,136,0.3)] text-[#00ff88] bg-[rgba(0,255,136,0.1)] hover:bg-[rgba(0,255,136,0.2)] transition-colors flex items-center gap-1.5">
-        <MessageSquare size={12} /> Chat
-      </button>
-    </motion.div>
-  );
-}
-
-/* ───────── GEMINI CONNECTION BANNER ───────── */
-export function GeminiConnectionBanner() {
-  const { geminiConnection, setControlRoomAgent } = useOSStore();
-
-  const latencyColor = geminiConnection.latency
-    ? geminiConnection.latency < 200 ? '#34A853'
-    : geminiConnection.latency < 500 ? '#FBBC05' : '#EA4335'
-    : '#8888aa';
-
-  if (!geminiConnection.installed) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-[rgba(66,133,244,0.2)] bg-[rgba(66,133,244,0.05)] p-3 flex items-center gap-3"
-      >
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(66,133,244,0.1)] border border-[rgba(66,133,244,0.2)]">
-          <Bot size={16} className="text-[#4285F4]" />
-        </div>
-        <div className="flex-1">
-          <div className="text-white text-sm font-medium">Gemini CLI Not Detected</div>
-          <div className="text-[#8888aa] text-xs">Install Google Gemini CLI to enable multimodal AI chat (L2 Knowledge + L5 Execution).</div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  if (!geminiConnection.running) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-[rgba(251,188,5,0.2)] bg-[rgba(251,188,5,0.05)] p-3 flex items-center gap-3"
-      >
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(251,188,5,0.1)] border border-[rgba(251,188,5,0.2)]">
-          <div className="w-3 h-3 rounded-full bg-[#FBBC05] animate-pulse-glow" />
-        </div>
-        <div className="flex-1">
-          <div className="text-white text-sm font-medium">Gemini CLI Installed — Not Running</div>
-          <div className="text-[#8888aa] text-xs">Start the CLI: <code className="text-[#4285F4] bg-[rgba(66,133,244,0.1)] px-1.5 py-0.5 rounded text-[10px]">gemini serve</code></div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-[rgba(52,168,83,0.2)] bg-[rgba(52,168,83,0.05)] p-3 flex items-center gap-3"
-    >
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[rgba(52,168,83,0.1)] border border-[rgba(52,168,83,0.2)]">
-        <div className="relative">
-          <div className="w-3 h-3 rounded-full bg-[#34A853] animate-pulse-glow" />
-          <div className="absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-30 bg-[#34A853]" />
-        </div>
-      </div>
-      <div className="flex-1">
-        <div className="text-white text-sm font-medium flex items-center gap-2">
-          Gemini AI Connected
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#34A853]/15 text-[#34A853] font-bold tracking-wider">LIVE</span>
-          {geminiConnection.latency !== undefined && (
-            <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold" style={{ color: latencyColor, backgroundColor: `${latencyColor}15` }}>
-              {geminiConnection.latency}ms
-            </span>
-          )}
-        </div>
-        <div className="text-[#8888aa] text-xs flex items-center gap-1.5 flex-wrap">
-          {geminiConnection.apiEndpoint && <span>API: <span className="text-[#34A853]">{geminiConnection.apiEndpoint}</span></span>}
-          {geminiConnection.model && <span>· Model: <span className="text-[#34A853]">{geminiConnection.model}</span></span>}
-          {geminiConnection.version && <span>· v<span className="text-[#34A853]">{geminiConnection.version}</span></span>}
-          {geminiConnection.projectCount !== undefined && <span>· Projects: <span className="text-[#4285F4]">{geminiConnection.projectCount}</span></span>}
-          {geminiConnection.sandboxEnabled && <span>· <span className="text-[#34A853]">Sandbox Active</span></span>}
-        </div>
-      </div>
-      <button onClick={() => setControlRoomAgent('gemini')}
-        className="px-4 py-2 rounded-lg text-xs font-medium border border-[rgba(52,168,83,0.3)] text-[#34A853] bg-[rgba(52,168,83,0.1)] hover:bg-[rgba(52,168,83,0.2)] transition-colors flex items-center gap-1.5">
-        <MessageSquare size={12} /> Chat
-      </button>
-    </motion.div>
-  );
-}
-
-/* ───────── HERMES QUICK ACTIONS ───────── */
-export function HermesQuickActions() {
-  const { hermesConnection, hermesSkills, addSkillExecution, addLog, addKanbanTask } = useOSStore();
-
-  if (!hermesConnection.running) return null;
-
-  const executeSkill = async (skillName: string) => {
-    const executionId = `exec-${Date.now()}`;
-    addSkillExecution({
-      id: executionId,
-      skill: skillName,
-      status: 'running',
-      startedAt: Date.now(),
-    });
-    addLog({
-      id: `skill-${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-      agent: 'Hermes',
-      layer: 5,
-      level: 'info',
-      message: `Executing skill: ${skillName}`,
-    });
-    try {
-      const res = await fetch('/api/hermes/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill: skillName, stream: false }),
-      });
-      const data = await res.json();
-      addSkillExecution({
-        id: executionId,
-        skill: skillName,
-        status: data.success ? 'completed' : 'failed',
-        result: data.result ?? data.error,
-        startedAt: Date.now(),
-        completedAt: Date.now(),
-      });
-    } catch {
-      addSkillExecution({
-        id: executionId,
-        skill: skillName,
-        status: 'failed',
-        startedAt: Date.now(),
-        completedAt: Date.now(),
-      });
-    }
+  const typeColors: {[key: string]: string} = {
+    'short-term': '#00ffff', 'long-term': '#9d4edd', 'episodic': '#FFB627', 'semantic': '#00ff88', 'procedural': '#E8751A',
   };
 
-  const createKanbanTask = async () => {
-    try {
-      const res = await fetch('/api/hermes/kanban', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New task from Hermes', priority: 'medium', assignedTo: 'hermes' }),
-      });
-      const data = await res.json();
-      if (data.task) {
-        addKanbanTask(data.task);
-      }
-    } catch { /* ignore */ }
-  };
-
-  const runResearch = async () => {
-    await executeSkill('web-search');
-  };
-
-  const topSkills = hermesSkills.slice(0, 5);
-
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <button
-        onClick={runResearch}
-        className="text-[9px] px-2.5 py-1.5 rounded-lg border border-[rgba(255,182,39,0.2)] text-[#FFB627] bg-[rgba(255,182,39,0.05)] hover:bg-[rgba(255,182,39,0.1)] transition-colors flex items-center gap-1"
-      >
-        <Search size={9} /> Run Research
-      </button>
-      <button
-        onClick={createKanbanTask}
-        className="text-[9px] px-2.5 py-1.5 rounded-lg border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.05)] hover:bg-[rgba(123,44,191,0.1)] transition-colors flex items-center gap-1"
-      >
-        <Target size={9} /> Create Task
-      </button>
-      {topSkills.map((skill) => (
-        <button
-          key={skill.id}
-          onClick={() => executeSkill(skill.name)}
-          className="text-[9px] px-2.5 py-1.5 rounded-lg border border-[rgba(0,255,136,0.2)] text-[#00ff88] bg-[rgba(0,255,136,0.05)] hover:bg-[rgba(0,255,136,0.1)] transition-colors flex items-center gap-1"
-        >
-          <Zap size={9} /> {skill.name}
-        </button>
-      ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-white font-bold text-lg tracking-wider uppercase flex items-center gap-2">
+          <Database size={20} className="text-[#2E86AB]" /> Memory
+        </h2>
+        <span className="text-[10px] text-[#8888aa] font-mono">{memories.length} ENTRIES</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Search size={12} className="text-[#8888aa]" />
+        <input type="text" value={selfSearchQuery} onChange={e => setSelfSearchQuery(e.target.value)}
+          placeholder="Search memories..."
+          className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
+      </div>
+      <div className="space-y-3">
+        {filteredMemories.map((memory: MemoryEntry) => (
+          <div key={memory.id} className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-bold capitalize"
+                  style={{ borderColor: `${typeColors[memory.type] || '#8888aa'}30`, color: typeColors[memory.type] || '#8888aa', background: `${typeColors[memory.type] || '#8888aa'}10` }}>
+                  {memory.type}
+                </span>
+                <span className="text-[8px] text-[#8888aa]">by {memory.agent}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[8px] text-[#8888aa]">Importance:</span>
+                <div className="w-12 h-1 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-[#9d4edd]" style={{ width: `${memory.importance * 100}%` }} />
+                </div>
+              </div>
+            </div>
+            <p className="text-[#ccccdd] text-[12px] leading-relaxed">{memory.content}</p>
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex gap-1">
+                {memory.tags.map(tag => (
+                  <span key={tag} className="text-[8px] px-1.5 py-0.5 rounded-full bg-[rgba(157,78,221,0.1)] text-[#9d4edd]">#{tag}</span>
+                ))}
+              </div>
+              <span className="text-[8px] text-[#8888aa] font-mono">×{memory.accessCount}</span>
+            </div>
+          </div>
+        ))}
+        {filteredMemories.length === 0 && (
+          <div className="text-[#8888aa] text-sm text-center py-8">No memories found. The Brain Layer will create memories as you use the system.</div>
+        )}
+      </div>
     </div>
   );
 }
