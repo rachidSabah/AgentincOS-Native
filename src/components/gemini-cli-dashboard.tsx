@@ -10,7 +10,7 @@ import {
   Eye, GitBranch, Zap, Brain, Clock, ChevronDown,
   FileCode, Bug, Cpu, Shield, BookOpen, ArrowRight,
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
-  Workflow, Puzzle, Network, Users, Cog, Database,
+  Workflow, Puzzle, Network, Users, Cog,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -258,9 +258,9 @@ export function GeminiCLIDashboard() {
       </div>
 
       {/* ─── Tab Content ─── */}
-      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex-1 min-h-0 flex flex-col">
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
             {activeTab === 'chat' && <ChatTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
@@ -367,7 +367,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   }, [messages, streamingText]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
       {/* Chat Messages */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar">
         {messages.length === 0 && (
