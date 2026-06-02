@@ -233,7 +233,7 @@ export async function GET(req: NextRequest) {
           running: true,
           version: data.version || 'unknown',
           apiEndpoint: `http://localhost:${serverResult.port}`,
-          model: data.model || 'gemini-2.5-pro',
+          model: data.model || 'auto',
           latency,
           projectCount: data.projectCount || 0,
           sandboxEnabled: data.sandboxEnabled ?? true,
@@ -399,20 +399,8 @@ export async function POST(req: NextRequest) {
     case 'chat': {
       const startTime = Date.now();
 
-      // Strategy 1: Try real Gemini CLI server (try all ports)
-      for (const port of GEMINI_CLI_PORTS) {
-        const res = await geminiRequest('/api/chat', {
-          method: 'POST',
-          body: JSON.stringify({ message, model: model || 'gemini-2.5-pro' }),
-        }, port);
-
-        if (res?.ok) {
-          const data = await res.json();
-          return NextResponse.json({ ...data, via: 'gemini-cli-server' });
-        }
-      }
-
-      // Strategy 2: ZAI SDK — real AI response (primary when no Gemini CLI running)
+      // Strategy 0: ZAI SDK — ALWAYS available as the primary AI provider
+      // This ensures chat always works even without Gemini CLI installed
       try {
         const zai = await getZAI();
         const sdkMessages = [
@@ -427,25 +415,51 @@ export async function POST(req: NextRequest) {
         const responseText = completion.choices[0]?.message?.content ?? '';
         const latency = Date.now() - startTime;
 
+        // If Gemini CLI server is also running, note that for the user
+        let cliServerPort: number | null = null;
+        for (const port of GEMINI_CLI_PORTS) {
+          try {
+            const healthRes = await fetch(`http://localhost:${port}/api/health`, {
+              signal: AbortSignal.timeout(1000),
+            });
+            if (healthRes.ok) { cliServerPort = port; break; }
+          } catch { /* not running on this port */ }
+        }
+
         return NextResponse.json({
           response: responseText,
-          model: model || 'gemini-2.5-pro',
+          model: model || 'auto',
           tokensUsed: Math.floor((message?.length || 0) * 1.2) + Math.floor(responseText.length * 1.3),
           latency,
           sources: 0,
           confidence: 0.88,
-          via: 'zai-sdk',
+          via: cliServerPort ? 'zai-sdk+gemini-cli' : 'zai-sdk',
+          geminiCLIServer: cliServerPort ? `localhost:${cliServerPort}` : null,
         });
       } catch (zaiError) {
-        console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
+        console.error('[gemini/chat] ZAI SDK failed (unexpected):', zaiError);
+        // Fall through to try Gemini CLI server and binary as backups
       }
 
-      // Strategy 3: Try CLI binary with current (v0.44+) syntax
+      // Strategy 1: Try real Gemini CLI server (try all ports)
+      for (const port of GEMINI_CLI_PORTS) {
+        const res = await geminiRequest('/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({ message, model: model || 'auto' }),
+        }, port);
+
+        if (res?.ok) {
+          const data = await res.json();
+          return NextResponse.json({ ...data, via: 'gemini-cli-server' });
+        }
+      }
+
+      // Strategy 2: Try CLI binary with current (v0.44+) syntax
       try {
         const escaped = (message || '').replace(/"/g, '\\"');
         const cmd = IS_WIN
-          ? `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json`
-          : ['gemini', '-p', message || '', '-m', model || 'gemini-2.5-flash-lite', '-o', 'json'];
+          ? `gemini -p "${escaped}" -m ${model || 'flash-lite'} -o json`
+          : ['gemini', '-p', message || '', '-m', model || 'flash-lite', '-o', 'json'];
         const execFn = IS_WIN ? execAsync : execFileAsync;
         const { stdout } = await execFn(cmd, { timeout: 60000, ...(IS_WIN ? { shell: true } : {}) });
 
@@ -457,7 +471,7 @@ export async function POST(req: NextRequest) {
           } catch {
             return NextResponse.json({
               response: stdout.trim(),
-              model: model || 'gemini-2.5-flash-lite',
+              model: model || 'flash-lite',
               tokensUsed: Math.floor((message?.length || 0) * 1.2),
               latency,
               via: 'gemini-cli',
@@ -473,8 +487,8 @@ export async function POST(req: NextRequest) {
         const escaped = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
         const wslCmd = IS_WIN ? 'wsl.exe' : 'wsl';
         const wslStrategies = [
-          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],
-          ['-e', 'bash', '-l', '-c', `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],
+          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini -p "${escaped}" -m ${model || 'flash-lite'} -o json 2>/dev/null`],
+          ['-e', 'bash', '-l', '-c', `gemini -p "${escaped}" -m ${model || 'flash-lite'} -o json 2>/dev/null`],
         ];
 
         for (const args of wslStrategies) {
@@ -488,7 +502,7 @@ export async function POST(req: NextRequest) {
               } catch {
                 return NextResponse.json({
                   response: stdout.trim(),
-                  model: model || 'gemini-2.5-flash-lite',
+                  model: model || 'flash-lite',
                   tokensUsed: Math.floor((message?.length || 0) * 1.2),
                   latency,
                   via: 'wsl',
@@ -504,7 +518,7 @@ export async function POST(req: NextRequest) {
       // All strategies failed — return honest error, not fake response
       return NextResponse.json({
         response: 'I\'m unable to connect to any AI provider right now. Please check that at least one provider is configured and enabled in Settings > Providers, or ensure the Gemini CLI is running. You can also verify your API keys are valid.',
-        model: model || 'gemini-2.5-pro',
+        model: model || 'auto',
         tokensUsed: 0,
         latency: Date.now() - startTime,
         error: true,

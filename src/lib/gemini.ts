@@ -52,7 +52,7 @@ export const GEMINI_NPM_PACKAGES = [
 ];
 
 /** Default model for Gemini CLI. */
-export const GEMINI_DEFAULT_MODEL = "gemini-2.5-pro";
+export const GEMINI_DEFAULT_MODEL = "auto";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1204,9 +1204,16 @@ export function GeminiCLISetup() {
               onChange={(e) => updateGeminiCLI({ model: e.target.value })}
               className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(66,133,244,0.2)] rounded-lg px-3 py-2 text-[11px] text-white font-mono focus:outline-none focus:border-[rgba(66,133,244,0.4)] transition-colors"
             >
-              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-              <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+              <option value="auto">Auto (Default)</option>
+              <option value="pro">Pro Mode</option>
+              <option value="flash">Flash</option>
+              <option value="flash-lite">Flash Lite</option>
+              <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+              <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+              <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
             </select>
           </div>
 

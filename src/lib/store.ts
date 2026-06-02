@@ -639,8 +639,8 @@ const defaultProviders: ProviderConfig[] = [
     type: 'cloud',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
     apiKey: '',
-    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'],
-    defaultModel: 'gemini-2.5-pro',
+    models: ['auto', 'pro', 'flash', 'flash-lite', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+    defaultModel: 'auto',
     enabled: false,
     healthStatus: 'unknown',
     lastHealthCheck: 0,
@@ -649,7 +649,7 @@ const defaultProviders: ProviderConfig[] = [
     priority: 3,
     icon: '✨',
     color: '#4285f4',
-    description: 'Gemini models with multimodal capabilities',
+    description: 'Gemini models with multimodal capabilities — all 10 CLI models',
     website: 'https://ai.google.dev',
     supportsStreaming: true,
     supportsVision: true,
@@ -823,8 +823,8 @@ const defaultProviders: ProviderConfig[] = [
     type: 'cli',
     apiEndpoint: 'http://localhost:3100/api/gemini',
     apiKey: '',
-    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
-    defaultModel: 'gemini-2.5-pro',
+    models: ['auto', 'pro', 'flash', 'flash-lite', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+    defaultModel: 'auto',
     enabled: false,
     healthStatus: 'unknown',
     lastHealthCheck: 0,
@@ -833,7 +833,7 @@ const defaultProviders: ProviderConfig[] = [
     priority: 0, // Highest priority when available
     icon: '💎',
     color: '#4285f4',
-    description: 'Google Gemini CLI - local execution agent with multimodal capabilities',
+    description: 'Google Gemini CLI - local execution agent with all 10 CLI models',
     website: 'https://github.com/google-gemini/gemini-cli',
     supportsStreaming: true,
     supportsVision: true,
@@ -1121,7 +1121,7 @@ export const useOSStore = create<OSState>()(
         running: false,
         version: '',
         path: '',
-        model: 'gemini-2.5-pro',
+        model: 'auto',
         projectContext: '',
         sandboxEnabled: true,
         lastHealthCheck: 0,
@@ -1392,7 +1392,7 @@ export const useOSStore = create<OSState>()(
 
       // ─── Connections ───
       hermesConnection: { running: false, apiEndpoint: '', model: '', version: '', latency: 0 },
-      geminiConnection: { installed: false, running: false, version: '', model: 'gemini-2.5-pro' },
+      geminiConnection: { installed: false, running: false, version: '', model: 'auto' },
       sseConnectionStatus: 'disconnected',
 
       // ─── Agent Analytics ───

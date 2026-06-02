@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { platform } from 'os';
+
+const execFileAsync = promisify(execFile);
+const IS_WIN = platform() === 'win32';
 
 // Force dynamic rendering — prevent Next.js from caching this route
 export const dynamic = 'force-dynamic';
@@ -356,27 +362,167 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { action, updateId } = body;
+  const projectDir = process.cwd();
 
   switch (action) {
     case 'install': {
-      return NextResponse.json({
-        success: true,
-        updateId,
-        message: `Update ${updateId} installed successfully`,
-        timestamp: Date.now(),
-      });
+      // Perform actual git pull to update from GitHub
+      try {
+        const shellOpt = IS_WIN ? { shell: true } : {};
+
+        // Step 1: Fetch latest from origin
+        const { stdout: fetchOut } = await execFileAsync('git', ['fetch', 'origin'], {
+          timeout: 30000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        // Step 2: Check if there are changes
+        const { stdout: statusOut } = await execFileAsync('git', ['status', '--porcelain', '-b'], {
+          timeout: 10000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        // Step 3: Pull latest changes
+        const { stdout: pullOut, stderr: pullErr } = await execFileAsync('git', ['pull', '--rebase', 'origin', 'main'], {
+          timeout: 60000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        // Step 4: Install dependencies if package.json changed
+        let depsInstalled = false;
+        try {
+          const { stdout: diffOut } = await execFileAsync('git', ['diff', 'HEAD~1', '--name-only', 'package.json'], {
+            timeout: 10000,
+            cwd: projectDir,
+            ...shellOpt,
+          });
+          if (diffOut.trim().includes('package.json')) {
+            const npmCmd = IS_WIN ? 'npm.cmd' : 'npm';
+            await execFileAsync(npmCmd, ['install'], {
+              timeout: 120000,
+              cwd: projectDir,
+              ...shellOpt,
+            });
+            depsInstalled = true;
+          }
+        } catch {
+          // package.json didn't change or npm install failed — not critical
+        }
+
+        // Step 5: Get the new version
+        const newVersion = await getAppVersion();
+
+        return NextResponse.json({
+          success: true,
+          updateId,
+          message: `Updated successfully to ${newVersion}. ${depsInstalled ? 'Dependencies installed.' : ''}`,
+          output: pullOut || pullErr || 'Already up to date.',
+          version: newVersion,
+          depsInstalled,
+          timestamp: Date.now(),
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error('[Updates] Git pull failed:', errorMsg);
+        return NextResponse.json({
+          success: false,
+          updateId,
+          message: `Update failed: ${errorMsg}`,
+          error: errorMsg,
+          timestamp: Date.now(),
+        });
+      }
     }
 
     case 'rollback': {
-      return NextResponse.json({
-        success: true,
-        updateId,
-        message: `Update ${updateId} rolled back successfully`,
-        timestamp: Date.now(),
-      });
+      // Rollback to the previous commit
+      try {
+        const shellOpt = IS_WIN ? { shell: true } : {};
+        const { stdout: logOut } = await execFileAsync('git', ['log', '--oneline', '-2'], {
+          timeout: 10000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        const lines = logOut.trim().split('\n');
+        if (lines.length < 2) {
+          return NextResponse.json({
+            success: false,
+            message: 'No previous commit to rollback to.',
+            timestamp: Date.now(),
+          });
+        }
+
+        const prevCommit = lines[1].split(' ')[0];
+        await execFileAsync('git', ['reset', '--hard', prevCommit], {
+          timeout: 30000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        return NextResponse.json({
+          success: true,
+          updateId,
+          message: `Rolled back to commit ${prevCommit}`,
+          commitHash: prevCommit,
+          timestamp: Date.now(),
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({
+          success: false,
+          updateId,
+          message: `Rollback failed: ${errorMsg}`,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    case 'check-local': {
+      // Check if there are local changes not yet committed
+      try {
+        const shellOpt = IS_WIN ? { shell: true } : {};
+        const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
+          timeout: 10000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], {
+          timeout: 10000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        const { stdout: aheadBehind } = await execFileAsync('git', ['rev-list', '--left-right', '--count', 'HEAD...origin/main'], {
+          timeout: 10000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        const [ahead, behind] = aheadBehind.trim().split(/\s+/).map(Number);
+
+        return NextResponse.json({
+          branch: branchOut.trim(),
+          uncommittedChanges: stdout.trim().split('\n').filter(Boolean).length,
+          ahead: ahead || 0,
+          behind: behind || 0,
+          needsUpdate: (behind || 0) > 0,
+          timestamp: Date.now(),
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({
+          error: `Failed to check local status: ${errorMsg}`,
+          timestamp: Date.now(),
+        });
+      }
     }
 
     default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid action. Use: install, rollback, check-local' }, { status: 400 });
   }
 }

@@ -53,7 +53,7 @@ export function GeminiPowerPanel() {
       if (data.running) {
         updateAgent('gemini', {
           status: 'live',
-          model: data.model || 'gemini-2.5-pro',
+          model: data.model || 'auto',
           lastActive: '0s ago',
         });
         addLog({
@@ -62,7 +62,7 @@ export function GeminiPowerPanel() {
           agent: 'Gemini',
           layer: 2,
           level: 'success',
-          message: `Gemini CLI detected and connected — model: ${data.model || 'gemini-2.5-pro'} — latency: ${data.latency}ms`,
+          message: `Gemini CLI detected and connected — model: ${data.model || 'auto'} — latency: ${data.latency}ms`,
         });
       } else if (data.installed) {
         const cliReady = data.cliReady || data.running;
@@ -72,7 +72,7 @@ export function GeminiPowerPanel() {
         updateAgent('gemini', {
           status: agentStatus,
           lastActive: statusLabel,
-          model: data.version ? `gemini-2.5-pro (v${data.version})` : 'gemini-2.5-pro',
+          model: data.version ? `auto (v${data.version})` : 'auto',
         });
         addLog({
           id: `gemini-installed-${Date.now()}`,
@@ -100,7 +100,7 @@ export function GeminiPowerPanel() {
               updateAgent('gemini', {
                 status: 'degraded',
                 lastActive: `installed${cliData.version ? ` (v${cliData.version})` : ''}`,
-                model: 'gemini-2.5-pro (via SDK)',
+                model: 'auto (via SDK)',
               });
               addLog({
                 id: `gemini-cli-${Date.now()}`,
@@ -118,7 +118,7 @@ export function GeminiPowerPanel() {
         }
 
         // SDK fallback mode — Gemini CLI not detected, but ZAI SDK provides real AI
-        updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'gemini-2.5-pro (via SDK)' });
+        updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'auto (via SDK)' });
         addLog({
           id: `gemini-sdk-${Date.now()}`,
           timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
@@ -130,7 +130,7 @@ export function GeminiPowerPanel() {
       }
     } catch {
       setGeminiConnection({ installed: false, running: false, lastChecked: Date.now() });
-      updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'gemini-2.5-pro (via SDK)' });
+      updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'auto (via SDK)' });
     } finally {
       setIsDetecting(false);
     }
@@ -415,7 +415,7 @@ function GeminiOverviewTab({ geminiConnection, analytics }: {
           <span className="text-[10px] text-[#8888aa] uppercase tracking-wider flex items-center gap-1"><Cpu size={10} /> Models Used</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {(analytics?.modelsUsed ?? ['gemini-2.5-pro', 'gemini-2.5-flash']).map(model => (
+          {(analytics?.modelsUsed ?? ['auto', 'gemini-2.5-pro', 'gemini-2.5-flash']).map(model => (
             <span key={model} className="text-[9px] px-2 py-0.5 rounded-full border font-medium"
               style={{ borderColor: `${GOOGLE_BLUE}35`, color: GOOGLE_BLUE, background: `${GOOGLE_BLUE}10` }}>
               {model}
