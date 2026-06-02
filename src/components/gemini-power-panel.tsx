@@ -206,7 +206,8 @@ export function GeminiPowerPanel() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 p-1">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
@@ -923,6 +924,7 @@ function GeminiMetricsTab({ analytics }: {
           <div className="font-mono font-bold text-lg" style={{ color: GOOGLE_YELLOW }}>847</div>
           <div className="text-[8px] text-[#8888aa]">All completed successfully</div>
         </div>
+      </div>
       </div>
     </div>
   );

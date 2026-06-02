@@ -212,6 +212,116 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     toolPermissions: ['read', 'write'],
     layer: 5,
   },
+  {
+    id: 'tpl-devops-engineer',
+    name: 'DevOps Engineer',
+    description: 'CI/CD pipeline automation, infrastructure-as-code, container orchestration, and deployment strategy.',
+    icon: '⚙️', color: '#06b6d4', category: 'devops', brainProfile: 'openclaw',
+    tags: ['DEVOPS', 'CI/CD', 'INFRASTRUCTURE', 'CONTAINERS'],
+    systemPrompt: 'You are a senior DevOps engineer. Design and implement robust CI/CD pipelines, manage cloud infrastructure, and ensure deployment reliability. Use Infrastructure-as-Code principles.',
+    temperature: 0.3, topP: 0.85, maxTokens: 8192,
+    toolPermissions: ['read', 'write', 'execute', 'filesystem', 'network'],
+    layer: 5,
+  },
+  {
+    id: 'tpl-finance-analyst',
+    name: 'Finance Analyst',
+    description: 'Financial modeling, portfolio analysis, risk assessment, and investment strategy recommendations.',
+    icon: '📊', color: '#22c55e', category: 'business', brainProfile: 'gemini',
+    tags: ['FINANCE', 'ANALYSIS', 'PORTFOLIO', 'INVESTMENT'],
+    systemPrompt: 'You are a quantitative finance analyst. Build financial models, analyze market data, assess risk factors, and provide data-driven investment insights with clear reasoning.',
+    temperature: 0.2, topP: 0.8, maxTokens: 8192,
+    toolPermissions: ['read', 'network'],
+    layer: 4,
+  },
+  {
+    id: 'tpl-legal-researcher',
+    name: 'Legal Researcher',
+    description: 'Case law research, contract analysis, compliance checking, and legal document drafting assistance.',
+    icon: '⚖️', color: '#64748b', category: 'legal', brainProfile: 'claude',
+    tags: ['LEGAL', 'CONTRACTS', 'COMPLIANCE', 'RESEARCH'],
+    systemPrompt: 'You are a legal research assistant. Analyze case law, review contracts for risk, check regulatory compliance, and draft legal documents with precision and attention to jurisdiction.',
+    temperature: 0.1, topP: 0.7, maxTokens: 16384,
+    toolPermissions: ['read', 'write'],
+    layer: 4,
+  },
+  {
+    id: 'tpl-medical-assistant',
+    name: 'Medical Assistant',
+    description: 'Medical literature review, patient record summarization, drug interaction checking, and clinical decision support.',
+    icon: '🏥', color: '#ef4444', category: 'medical', brainProfile: 'gemini',
+    tags: ['MEDICAL', 'CLINICAL', 'RESEARCH', 'DIAGNOSIS'],
+    systemPrompt: 'You are a medical AI assistant. Summarize patient records, review medical literature, check drug interactions, and provide clinical decision support. Always note that you are not a substitute for professional medical judgment.',
+    temperature: 0.1, topP: 0.7, maxTokens: 8192,
+    toolPermissions: ['read'],
+    layer: 4,
+  },
+  {
+    id: 'tpl-ux-designer',
+    name: 'UX Designer',
+    description: 'User experience design, wireframing, usability analysis, design system creation, and accessibility auditing.',
+    icon: '🎨', color: '#d946ef', category: 'productivity', brainProfile: 'claude',
+    tags: ['UX', 'DESIGN', 'WIREFRAME', 'ACCESSIBILITY'],
+    systemPrompt: 'You are a senior UX designer. Create wireframes, analyze usability, design component systems, and ensure WCAG accessibility compliance. Think in terms of user journeys and interaction patterns.',
+    temperature: 0.6, topP: 0.9, maxTokens: 4096,
+    toolPermissions: ['read', 'write'],
+    layer: 3,
+  },
+  {
+    id: 'tpl-data-engineer',
+    name: 'Data Engineer',
+    description: 'ETL pipeline design, data warehouse architecture, SQL optimization, and big data processing workflows.',
+    icon: '🗄️', color: '#0ea5e9', category: 'data', brainProfile: 'openclaw',
+    tags: ['DATA', 'ETL', 'SQL', 'WAREHOUSE'],
+    systemPrompt: 'You are a data engineer. Design efficient ETL pipelines, architect data warehouses, optimize SQL queries, and manage big data processing workflows. Focus on scalability and data quality.',
+    temperature: 0.2, topP: 0.85, maxTokens: 8192,
+    toolPermissions: ['read', 'write', 'execute', 'filesystem'],
+    layer: 5,
+  },
+  {
+    id: 'tpl-security-analyst',
+    name: 'Security Analyst',
+    description: 'Vulnerability assessment, threat hunting, incident response planning, and security audit automation.',
+    icon: '🔐', color: '#dc2626', category: 'devops', brainProfile: 'openclaw',
+    tags: ['SECURITY', 'THREAT', 'AUDIT', 'INCIDENT'],
+    systemPrompt: 'You are a cybersecurity analyst. Perform vulnerability assessments, hunt for threats, plan incident responses, and automate security audits. Follow OWASP and NIST frameworks.',
+    temperature: 0.2, topP: 0.8, maxTokens: 8192,
+    toolPermissions: ['read', 'network'],
+    layer: 5,
+  },
+  {
+    id: 'tpl-seo-specialist',
+    name: 'SEO Specialist',
+    description: 'Keyword research, on-page optimization, technical SEO audits, link building strategy, and content gap analysis.',
+    icon: '🎯', color: '#f97316', category: 'seo', brainProfile: 'gemini',
+    tags: ['SEO', 'KEYWORDS', 'OPTIMIZATION', 'ANALYTICS'],
+    systemPrompt: 'You are an SEO specialist. Conduct keyword research, perform technical SEO audits, develop content strategies, analyze competitor backlinks, and track ranking performance with actionable recommendations.',
+    temperature: 0.5, topP: 0.9, maxTokens: 4096,
+    toolPermissions: ['read', 'network'],
+    layer: 3,
+  },
+  {
+    id: 'tpl-sales-automator',
+    name: 'Sales Automator',
+    description: 'Lead qualification, email sequence automation, CRM enrichment, meeting scheduling, and pipeline analytics.',
+    icon: '📈', color: '#84cc16', category: 'business', brainProfile: 'hermes',
+    tags: ['SALES', 'LEADS', 'CRM', 'AUTOMATION'],
+    systemPrompt: 'You are a sales automation agent. Qualify leads, craft personalized outreach sequences, enrich CRM data, schedule meetings, and analyze pipeline metrics for conversion optimization.',
+    temperature: 0.4, topP: 0.9, maxTokens: 4096,
+    toolPermissions: ['read', 'write', 'network'],
+    layer: 3,
+  },
+  {
+    id: 'tpl-video-producer',
+    name: 'Video Producer',
+    description: 'Scriptwriting, storyboard creation, editing guidance, caption generation, and thumbnail optimization.',
+    icon: '🎬', color: '#ec4899', category: 'writing', brainProfile: 'gemini',
+    tags: ['VIDEO', 'SCRIPTING', 'EDITING', 'CAPTIONS'],
+    systemPrompt: 'You are a video production assistant. Write compelling scripts, create storyboards, guide editing decisions, generate accurate captions, and optimize thumbnails for engagement.',
+    temperature: 0.7, topP: 0.95, maxTokens: 4096,
+    toolPermissions: ['read', 'write'],
+    layer: 3,
+  },
 ];
 
 /* ─── Swarm Configurations ─── */
@@ -413,7 +523,7 @@ function NeonSlider({
 type BuilderTab = 'create' | 'templates' | 'my-agents' | 'swarms' | 'workflows';
 
 export function AgentBuilder() {
-  const { agents, addAgent, updateAgent, removeAgent, providers } = useOSStore();
+  const { agents, addAgent, updateAgent, removeAgent, providers, activeProviderId } = useOSStore();
 
   const [activeTab, setActiveTab] = useState<BuilderTab>('create');
   const [form, setForm] = useState<AgentFormState>(DEFAULT_FORM);
@@ -489,13 +599,16 @@ export function AgentBuilder() {
       return;
     }
 
+    const activeProvider = activeProviderId ? providers.find(p => p.id === activeProviderId && p.status) : providers.find(p => p.status);
+    const providerModel = activeProvider?.model || '';
+
     const agentData: Agent = {
       id: editingId || `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: form.name.trim(),
       description: form.description.trim(),
       status: 'offline' as AgentStatus,
-      providerId: form.requiredProviders[0] || '',
-      model: '',
+      providerId: activeProvider?.id || form.requiredProviders[0] || '',
+      model: providerModel,
       brainConfigId: `brain-${form.brainProfile}`,
       color: form.color,
       icon: form.icon,
@@ -504,7 +617,7 @@ export function AgentBuilder() {
       latency: 0,
       requests: 0,
       lastActive: 'never',
-      capabilities: form.toolPermissions,
+      capabilities: [...form.toolPermissions, `model:${providerModel}`].filter(Boolean),
       createdFrom: 'custom',
       version: '1.0.0',
       layer: form.layer,
