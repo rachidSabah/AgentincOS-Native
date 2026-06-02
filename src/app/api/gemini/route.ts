@@ -15,6 +15,7 @@ import {
   type GeminiRequest,
 } from "@/lib/gemini";
 import ZAI from "z-ai-web-dev-sdk";
+import { resolveModelAlias } from "@/lib/gemini";
 
 // ---------------------------------------------------------------------------
 // ZAI SDK singleton (lazy-initialised) — used as fallback when Gemini CLI
@@ -294,6 +295,7 @@ async function streamFallback(
       { role: "user" as const, content: body.message },
     ];
 
+    const resolvedModel = resolveModelAlias(body.model || "auto");
     const completion = await zai.chat.completions.create({
       messages,
     });
@@ -310,6 +312,7 @@ async function streamFallback(
           data: responseText,
           timestamp: Date.now(),
           fallback: true,
+          model: resolvedModel,
         };
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
@@ -322,6 +325,7 @@ async function streamFallback(
           exitCode: 0,
           timestamp: Date.now(),
           fallback: true,
+          model: resolvedModel,
         };
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify(doneChunk)}\n\n`),
@@ -365,6 +369,7 @@ async function nonStreamFallback(
       { role: "user" as const, content: body.message },
     ];
 
+    const resolvedModel = resolveModelAlias(body.model || "auto");
     const completion = await zai.chat.completions.create({
       messages,
     });
@@ -375,7 +380,7 @@ async function nonStreamFallback(
       success: true,
       action: body.action,
       response: responseText,
-      model: "fallback-ai",
+      model: resolvedModel,
       fallback: true,
       timestamp: Date.now(),
       note: "Gemini CLI is not installed. Using fallback AI provider. Install Gemini CLI for native integration: npm install -g @google/gemini-cli",

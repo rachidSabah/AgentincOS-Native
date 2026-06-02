@@ -54,6 +54,99 @@ export const GEMINI_NPM_PACKAGES = [
 /** Default model for Gemini CLI. */
 export const GEMINI_DEFAULT_MODEL = "auto";
 
+/** All 10 Gemini CLI models matching the actual CLI — single source of truth. */
+export const GEMINI_CLI_MODELS = [
+  {
+    id: "auto",
+    name: "Auto (Default)",
+    resolvesTo: "gemini-3-pro or 2.5-pro",
+    bestFor: "Automatic best model",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "pro",
+    name: "Pro Mode",
+    resolvesTo: "gemini-3-pro or 2.5-pro",
+    bestFor: "Deep reasoning, debugging",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "flash",
+    name: "Flash",
+    resolvesTo: "gemini-2.5-flash",
+    bestFor: "Balanced speed & quality",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "flash-lite",
+    name: "Flash Lite",
+    resolvesTo: "gemini-2.5-flash-lite",
+    bestFor: "Fastest, utility tasks",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "gemini-3-pro-preview",
+    name: "Gemini 3 Pro Preview",
+    resolvesTo: "gemini-3-pro-preview",
+    bestFor: "Architectural planning",
+    contextWindow: 2_000_000,
+  },
+  {
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash Preview",
+    resolvesTo: "gemini-3-flash-preview",
+    bestFor: "Latest fast model",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "gemini-3.1-flash-lite",
+    name: "Gemini 3.1 Flash Lite",
+    resolvesTo: "gemini-3.1-flash-lite",
+    bestFor: "Utility speed",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "gemini-2.5-pro",
+    name: "Gemini 2.5 Pro",
+    resolvesTo: "gemini-2.5-pro",
+    bestFor: "Reasoning, code",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    resolvesTo: "gemini-2.5-flash",
+    bestFor: "Balanced, multimodal",
+    contextWindow: 1_048_576,
+  },
+  {
+    id: "gemini-2.5-flash-lite",
+    name: "Gemini 2.5 Flash Lite",
+    resolvesTo: "gemini-2.5-flash-lite",
+    bestFor: "Cost-efficient",
+    contextWindow: 1_048_576,
+  },
+] as const;
+
+/**
+ * Resolves a model alias (e.g. "auto", "pro", "flash") to an actual model name
+ * suitable for API calls (ZAI SDK, etc.). When using the real Gemini CLI,
+ * aliases are passed through as-is since the CLI handles resolution natively.
+ */
+export function resolveModelAlias(modelId: string): string {
+  const found = GEMINI_CLI_MODELS.find((m) => m.id === modelId);
+  if (!found) return modelId; // unknown model, pass through
+  // For the CLI aliases, the CLI resolves them natively.
+  // For non-CLI providers (ZAI SDK), we need to give an actual model name.
+  const resolutionMap: { [key: string]: string } = {
+    auto: "gemini-2.5-pro",
+    pro: "gemini-2.5-pro",
+    flash: "gemini-2.5-flash",
+    "flash-lite": "gemini-2.5-flash-lite",
+  };
+  return resolutionMap[modelId] ?? found.resolvesTo.split(" or ")[0];
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import ZAI from 'z-ai-web-dev-sdk';
+import { GEMINI_CLI_MODELS, resolveModelAlias } from '@/lib/gemini';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -276,18 +277,15 @@ export async function GET(req: NextRequest) {
 
     case 'models': {
       return NextResponse.json({
-        models: [
-          { id: 'auto', name: 'Auto (Default)', provider: 'Google', contextWindow: 1048576, strengths: ['auto', 'best-model', 'adaptive'] },
-          { id: 'pro', name: 'Pro Mode', provider: 'Google', contextWindow: 1048576, strengths: ['reasoning', 'deep-research', 'complex-debugging'] },
-          { id: 'flash', name: 'Flash', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'code', 'balanced'] },
-          { id: 'flash-lite', name: 'Flash Lite', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'cost', 'fastest'] },
-          { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview', provider: 'Google', contextWindow: 2000000, strengths: ['reasoning', 'deep-research', 'architectural-planning'] },
-          { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'code', 'latest'] },
-          { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'cost', 'utility'] },
-          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', contextWindow: 1048576, strengths: ['reasoning', 'code', 'multimodal'] },
-          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'code', 'multimodal', 'balanced'] },
-          { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'cost', 'fastest'] },
-        ],
+        models: GEMINI_CLI_MODELS.map(m => ({
+          id: m.id,
+          name: m.name,
+          provider: 'Google',
+          contextWindow: m.contextWindow,
+          resolvesTo: m.resolvesTo,
+          bestFor: m.bestFor,
+          strengths: m.bestFor.split(', ').map(s => s.toLowerCase().replace(/\s+/g, '-')),
+        })),
       });
     }
 

@@ -9,6 +9,7 @@ import {
   Box, FileCode, BarChart3, Clock, Paperclip, X as XIcon,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { GEMINI_CLI_MODELS } from '@/lib/gemini';
 
 const BASE_TS = 1700000000000;
 
@@ -216,22 +217,15 @@ export function GeminiPowerPanel() {
           <Sparkles size={16} style={{ color: accentColor }} /> Gemini CLI Power Panel
         </h2>
         <div className="flex items-center gap-3">
-          {/* Model selector */}
+          {/* Model selector — 10 Gemini CLI models (single source: GEMINI_CLI_MODELS) */}
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.3)] rounded-lg px-2 py-1 text-[10px] text-[#ccccdd] outline-none"
           >
-            <option value="auto">Auto (Default)</option>
-            <option value="pro">Pro Mode</option>
-            <option value="flash">Flash</option>
-            <option value="flash-lite">Flash Lite</option>
-            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+            {GEMINI_CLI_MODELS.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
           </select>
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${isRunning ? 'animate-pulse-glow' : ''}`}
@@ -374,6 +368,7 @@ export function GeminiPowerPanel() {
         {activeTab === 'models' && <GeminiModelsTab selectedModel={selectedModel} onSelectModel={setSelectedModel} />}
         {activeTab === 'metrics' && <GeminiMetricsTab analytics={geminiAnalytics} />}
       </motion.div>
+      </div>{/* end flex-1 overflow-y-auto wrapper */}
     </div>
   );
 }
@@ -926,7 +921,6 @@ function GeminiMetricsTab({ analytics }: {
           <div className="font-mono font-bold text-lg" style={{ color: GOOGLE_YELLOW }}>847</div>
           <div className="text-[8px] text-[#8888aa]">All completed successfully</div>
         </div>
-      </div>
       </div>
     </div>
   );
