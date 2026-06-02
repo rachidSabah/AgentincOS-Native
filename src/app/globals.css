@@ -316,8 +316,13 @@
 }
 
 /* Smooth scrollbar for premium feel */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(157, 78, 221, 0.4) rgba(18, 18, 42, 0.3);
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -325,12 +330,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(157, 78, 221, 0.25);
-  border-radius: 2px;
+  background: rgba(157, 78, 221, 0.45);
+  border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(157, 78, 221, 0.4);
+  background: rgba(157, 78, 221, 0.7);
 }
 
 /* Memory type colors for badges */
