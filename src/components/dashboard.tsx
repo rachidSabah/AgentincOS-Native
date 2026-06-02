@@ -1786,29 +1786,36 @@ export function CompoundVisualizer() {
 // ═══════════════════════════════════════════════════════════
 
 export function GoalsView() {
-  const { selfSearchQuery, setSelfSearchQuery } = useOSStore();
-  const [goals, setGoals] = useState<Goal[]>([
-    { id: 'g1', title: 'Master Agentic OS Architecture', description: 'Understand the Brain Layer, Provider Layer, and Agent Layer deeply', progress: 35, status: 'active', category: 'Learning', createdAt: Date.now(), updatedAt: Date.now(), subtasks: [{ id: 's1', title: 'Understand Brain Layer', completed: true }, { id: 's2', title: 'Configure Provider', completed: false }, { id: 's3', title: 'Build first Agent', completed: false }] },
-    { id: 'g2', title: 'Configure First Provider', description: 'Set up an LLM provider API key to enable execution', progress: 0, status: 'active', category: 'Setup', createdAt: Date.now(), updatedAt: Date.now(), subtasks: [{ id: 's4', title: 'Choose provider', completed: false }, { id: 's5', title: 'Add API key', completed: false }] },
-    { id: 'g3', title: 'Build Knowledge Base', description: 'Add knowledge entries and build the knowledge graph', progress: 20, status: 'active', category: 'Knowledge', createdAt: Date.now(), updatedAt: Date.now(), subtasks: [{ id: 's6', title: 'Add first entry', completed: true }, { id: 's7', title: 'Connect entries', completed: false }] },
-  ]);
+  const { goals, addGoal, updateGoal, removeGoal, toggleGoalSubtask, selfSearchQuery, setSelfSearchQuery } = useOSStore();
+  const [showNewGoal, setShowNewGoal] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newCategory, setNewCategory] = useState('General');
 
   const filteredGoals = goals.filter(g =>
-    !selfSearchQuery || g.title.toLowerCase().includes(selfSearchQuery.toLowerCase())
+    !selfSearchQuery || g.title.toLowerCase().includes(selfSearchQuery.toLowerCase()) || (g.description ?? '').toLowerCase().includes(selfSearchQuery.toLowerCase())
   );
 
   const statusColors: {[key: string]: string} = {
     active: '#00ff88', completed: '#9d4edd', paused: '#FFB627', archived: '#8888aa',
   };
 
-  const toggleSubtask = (goalId: string, subtaskId: string) => {
-    setGoals(prev => prev.map(g => {
-      if (g.id !== goalId) return g;
-      const subtasks = g.subtasks.map(s => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
-      const completed = subtasks.filter(s => s.completed).length;
-      const progress = Math.round((completed / subtasks.length) * 100);
-      return { ...g, subtasks, progress, updatedAt: Date.now() };
-    }));
+  const handleAddGoal = () => {
+    if (!newTitle.trim()) return;
+    addGoal({
+      id: `goal-${Date.now()}`,
+      title: newTitle.trim(),
+      description: newDescription.trim(),
+      progress: 0,
+      status: 'active',
+      category: newCategory,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      subtasks: [],
+    });
+    setNewTitle('');
+    setNewDescription('');
+    setShowNewGoal(false);
   };
 
   return (
@@ -1817,6 +1824,7 @@ export function GoalsView() {
         <h2 className="text-white font-bold text-lg tracking-wider uppercase flex items-center gap-2">
           <Target size={20} className="text-[#00ff88]" /> Goals
         </h2>
+        <span className="text-[10px] text-[#8888aa] font-mono">{goals.length} GOALS</span>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
@@ -1825,22 +1833,61 @@ export function GoalsView() {
             placeholder="Search goals..."
             className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)] rounded-lg pl-9 pr-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
         </div>
-        <button className="px-4 py-2 rounded-lg bg-[#9d4edd] text-white text-sm font-medium hover:bg-[#7B2CBF] transition-colors flex items-center gap-2">
+        <button onClick={() => setShowNewGoal(!showNewGoal)}
+          className="px-4 py-2 rounded-lg bg-[#9d4edd] text-white text-sm font-medium hover:bg-[#7B2CBF] transition-colors flex items-center gap-2">
           <Plus size={14} /> New Goal
         </button>
       </div>
+
+      {/* New Goal Form */}
+      <AnimatePresence>
+        {showNewGoal && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="rounded-xl border border-[rgba(157,78,221,0.2)] bg-[rgba(18,18,42,0.6)] p-4 overflow-hidden space-y-3">
+            <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Goal title..."
+              className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)]" />
+            <textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder="Description..." rows={2}
+              className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8888aa] focus:outline-none focus:border-[rgba(157,78,221,0.4)] resize-none" />
+            <div className="flex items-center gap-2">
+              <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
+                className="bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[rgba(157,78,221,0.4)]">
+                <option value="General">General</option>
+                <option value="Learning">Learning</option>
+                <option value="Setup">Setup</option>
+                <option value="Knowledge">Knowledge</option>
+                <option value="Career">Career</option>
+                <option value="Project">Project</option>
+              </select>
+              <div className="flex-1" />
+              <button onClick={() => setShowNewGoal(false)} className="px-3 py-2 rounded-lg border border-[rgba(136,136,170,0.2)] text-[#8888aa] text-sm hover:text-white transition-colors">Cancel</button>
+              <button onClick={handleAddGoal} disabled={!newTitle.trim()} className="px-4 py-2 rounded-lg bg-[#9d4edd] text-white text-sm font-medium hover:bg-[#7B2CBF] transition-colors disabled:opacity-50">Create</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="space-y-3">
+        {filteredGoals.length === 0 && (
+          <div className="text-[#8888aa] text-sm text-center py-8">
+            {goals.length === 0 ? 'No goals yet. Create your first goal to start tracking progress.' : 'No goals match your search.'}
+          </div>
+        )}
         {filteredGoals.map(goal => (
           <div key={goal.id} className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
             <div className="flex items-start justify-between mb-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="text-white font-semibold text-sm">{goal.title}</h3>
-                <p className="text-[#aaaacc] text-[11px]">{goal.description}</p>
+                {goal.description && <p className="text-[#aaaacc] text-[11px] mt-0.5">{goal.description}</p>}
               </div>
-              <span className="text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase"
-                style={{ borderColor: `${statusColors[goal.status]}30`, color: statusColors[goal.status], background: `${statusColors[goal.status]}10` }}>
-                {goal.status}
-              </span>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <span className="text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase"
+                  style={{ borderColor: `${statusColors[goal.status] || '#8888aa'}30`, color: statusColors[goal.status] || '#8888aa', background: `${statusColors[goal.status] || '#8888aa'}10` }}>
+                  {goal.status}
+                </span>
+                <button onClick={() => removeGoal(goal.id)} className="text-[#8888aa] hover:text-[#ff4444] transition-colors" title="Delete goal">
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
@@ -1852,19 +1899,27 @@ export function GoalsView() {
                   initial={{ width: 0 }} animate={{ width: `${goal.progress}%` }} transition={{ duration: 1 }} />
               </div>
             </div>
-            <div className="space-y-1">
-              {goal.subtasks.map(sub => (
-                <button key={sub.id} onClick={() => toggleSubtask(goal.id, sub.id)}
-                  className="flex items-center gap-2 text-xs w-full text-left py-0.5 hover:bg-[rgba(157,78,221,0.05)] rounded px-1 transition-colors">
-                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                    sub.completed ? 'bg-[#9d4edd] border-[#9d4edd]' : 'border-[#8888aa]'
-                  }`}>
-                    {sub.completed && <Check size={8} className="text-white" />}
-                  </div>
-                  <span className={sub.completed ? 'text-[#8888aa] line-through' : 'text-[#ccccdd]'}>{sub.title}</span>
-                </button>
-              ))}
-            </div>
+            {(goal.subtasks ?? []).length > 0 && (
+              <div className="space-y-1">
+                {goal.subtasks.map(sub => (
+                  <button key={sub.id} onClick={() => toggleGoalSubtask(goal.id, sub.id)}
+                    className="flex items-center gap-2 text-xs w-full text-left py-0.5 hover:bg-[rgba(157,78,221,0.05)] rounded px-1 transition-colors">
+                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                      sub.completed ? 'bg-[#9d4edd] border-[#9d4edd]' : 'border-[#8888aa]'
+                    }`}>
+                      {sub.completed && <Check size={8} className="text-white" />}
+                    </div>
+                    <span className={sub.completed ? 'text-[#8888aa] line-through' : 'text-[#ccccdd]'}>{sub.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {goal.category && (
+              <div className="mt-2 pt-2 border-t border-[rgba(157,78,221,0.08)]">
+                <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[rgba(157,78,221,0.1)] text-[#9d4edd]">{goal.category}</span>
+                <span className="text-[8px] text-[#8888aa] ml-2">{new Date(goal.createdAt).toLocaleDateString()}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1877,15 +1932,10 @@ export function GoalsView() {
 // ═══════════════════════════════════════════════════════════
 
 export function JournalView() {
-  const { selfSearchQuery, setSelfSearchQuery } = useOSStore();
-  const [entries, setEntries] = useState<JournalEntry[]>([
-    { id: 'j1', title: 'Agentic OS Architecture Redesign', content: 'Completed the redesign to make Agentic OS completely provider-independent. The Brain Layer is now the native intelligence. External models are interchangeable execution engines.', mood: 'inspired', tags: ['architecture', 'brain', 'redesign'], createdAt: Date.now(), agent: 'Brain', type: 'milestone' },
-    { id: 'j2', title: 'Brain Layer Activation', content: 'The Brain Layer is now the primary intelligence. It handles planning, reasoning, delegation, and coordination natively. No dependency on any external agent framework.', mood: 'focused', tags: ['brain', 'core'], createdAt: Date.now() - 86400000, agent: 'Brain', type: 'insight' },
-    { id: 'j3', title: 'Provider-Independent Design', content: 'All dependencies on Hermes, Claude Desktop, OpenClaw, and Vault have been removed. The platform is now a clean, provider-independent operating system for AI agents.', mood: 'calm', tags: ['independence', 'cleanup'], createdAt: Date.now() - 172800000, agent: 'Brain', type: 'decision' },
-  ]);
+  const { journal, addJournalEntry, removeJournalEntry, selfSearchQuery, setSelfSearchQuery } = useOSStore();
   const [newEntry, setNewEntry] = useState('');
 
-  const filteredEntries = entries.filter(e =>
+  const filteredEntries = journal.filter(e =>
     !selfSearchQuery || e.title.toLowerCase().includes(selfSearchQuery.toLowerCase()) || e.content.toLowerCase().includes(selfSearchQuery.toLowerCase())
   );
 
@@ -1895,7 +1945,7 @@ export function JournalView() {
 
   const addEntry = () => {
     if (!newEntry.trim()) return;
-    setEntries(prev => [{
+    addJournalEntry({
       id: `j-${Date.now()}`,
       title: newEntry.slice(0, 60),
       content: newEntry,
@@ -1904,7 +1954,7 @@ export function JournalView() {
       createdAt: Date.now(),
       agent: 'Brain',
       type: 'reflection',
-    }, ...prev]);
+    });
     setNewEntry('');
   };
 
@@ -1914,6 +1964,7 @@ export function JournalView() {
         <h2 className="text-white font-bold text-lg tracking-wider uppercase flex items-center gap-2">
           <BookOpen size={20} className="text-[#2E86AB]" /> Journal
         </h2>
+        <span className="text-[10px] text-[#8888aa] font-mono">{journal.length} ENTRIES</span>
       </div>
       <div className="flex gap-2">
         <input type="text" value={newEntry} onChange={e => setNewEntry(e.target.value)}
@@ -1931,21 +1982,31 @@ export function JournalView() {
           className="flex-1 bg-transparent text-[#ccccdd] text-xs placeholder-[#8888aa] focus:outline-none" />
       </div>
       <div className="space-y-3">
+        {filteredEntries.length === 0 && (
+          <div className="text-[#8888aa] text-sm text-center py-8">
+            {journal.length === 0 ? 'No journal entries yet. Write your first entry above.' : 'No entries match your search.'}
+          </div>
+        )}
         {filteredEntries.map(entry => (
           <div key={entry.id} className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] p-4">
             <div className="flex items-start justify-between mb-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="text-white font-semibold text-sm">{entry.title}</h3>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-bold capitalize"
-                    style={{ borderColor: `${moodColors[entry.mood]}30`, color: moodColors[entry.mood], background: `${moodColors[entry.mood]}10` }}>
+                    style={{ borderColor: `${moodColors[entry.mood] || '#8888aa'}30`, color: moodColors[entry.mood] || '#8888aa', background: `${moodColors[entry.mood] || '#8888aa'}10` }}>
                     {entry.mood}
                   </span>
                   <span className="text-[8px] text-[#8888aa] font-mono">{entry.type}</span>
                   <span className="text-[8px] text-[#8888aa]">by {entry.agent}</span>
                 </div>
               </div>
-              <span className="text-[9px] text-[#8888aa]">{new Date(entry.createdAt).toLocaleDateString()}</span>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <span className="text-[9px] text-[#8888aa]">{new Date(entry.createdAt).toLocaleDateString()}</span>
+                <button onClick={() => removeJournalEntry(entry.id)} className="text-[#8888aa] hover:text-[#ff4444] transition-colors" title="Delete entry">
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
             <p className="text-[#ccccdd] text-[12px] leading-relaxed">{entry.content}</p>
             <div className="flex gap-1 mt-2">
@@ -1965,7 +2026,7 @@ export function JournalView() {
 // ═══════════════════════════════════════════════════════════
 
 export function MemoryView() {
-  const { memories, selfSearchQuery, setSelfSearchQuery } = useOSStore();
+  const { memories, removeMemory, selfSearchQuery, setSelfSearchQuery } = useOSStore();
 
   const filteredMemories = memories.filter(m =>
     !selfSearchQuery || m.content.toLowerCase().includes(selfSearchQuery.toLowerCase()) || m.tags.some(t => t.toLowerCase().includes(selfSearchQuery.toLowerCase()))
@@ -2000,11 +2061,16 @@ export function MemoryView() {
                 </span>
                 <span className="text-[8px] text-[#8888aa]">by {memory.agent}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[8px] text-[#8888aa]">Importance:</span>
-                <div className="w-12 h-1 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-[#9d4edd]" style={{ width: `${memory.importance * 100}%` }} />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[8px] text-[#8888aa]">Importance:</span>
+                  <div className="w-12 h-1 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-[#9d4edd]" style={{ width: `${(memory.importance ?? 0) * 100}%` }} />
+                  </div>
                 </div>
+                <button onClick={() => removeMemory(memory.id)} className="text-[#8888aa] hover:text-[#ff4444] transition-colors" title="Delete memory">
+                  <Trash2 size={12} />
+                </button>
               </div>
             </div>
             <p className="text-[#ccccdd] text-[12px] leading-relaxed">{memory.content}</p>
@@ -2014,12 +2080,14 @@ export function MemoryView() {
                   <span key={tag} className="text-[8px] px-1.5 py-0.5 rounded-full bg-[rgba(157,78,221,0.1)] text-[#9d4edd]">#{tag}</span>
                 ))}
               </div>
-              <span className="text-[8px] text-[#8888aa] font-mono">×{memory.accessCount}</span>
+              <span className="text-[8px] text-[#8888aa] font-mono">×{memory.accessCount ?? 0}</span>
             </div>
           </div>
         ))}
         {filteredMemories.length === 0 && (
-          <div className="text-[#8888aa] text-sm text-center py-8">No memories found. The Brain Layer will create memories as you use the system.</div>
+          <div className="text-[#8888aa] text-sm text-center py-8">
+            {memories.length === 0 ? 'No memories found. The Brain Layer will create memories as you use the system.' : 'No memories match your search.'}
+          </div>
         )}
       </div>
     </div>

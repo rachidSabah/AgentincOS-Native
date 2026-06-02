@@ -164,22 +164,40 @@ export interface GeminiConnection {
 }
 
 // ─── Goal Types ───
+export interface GoalSubtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface Goal {
   id: string;
   title: string;
-  category: string;
-  timeline: string;
+  description: string;
   progress: number;
-  color: string;
+  status: 'active' | 'completed' | 'paused' | 'archived';
+  category: string;
+  createdAt: number;
+  updatedAt: number;
+  deadline?: number;
+  subtasks: GoalSubtask[];
+  color?: string;
+  timeline?: string;
 }
 
 // ─── Journal Types ───
 export interface JournalEntry {
   id: string;
-  date: string;
-  type: 'voice' | 'text';
-  source: string;
+  title: string;
   content: string;
+  mood: 'inspired' | 'focused' | 'reflective' | 'energized' | 'calm';
+  tags: string[];
+  createdAt: number;
+  agent: string;
+  type: 'milestone' | 'insight' | 'decision' | 'reflection' | 'voice' | 'text';
+  // Legacy fields (for BrainPanel compatibility)
+  date?: string;
+  source?: string;
 }
 
 // ─── Skill Execution ───
@@ -907,6 +925,7 @@ interface OSState {
   memories: MemoryEntry[];
   addMemory: (memory: MemoryEntry) => void;
   updateMemory: (id: string, updates: Partial<MemoryEntry>) => void;
+  removeMemory: (id: string) => void;
 
   // ─── Chat ───
   chatHistories: {[key: string]: ChatMessage[]};
@@ -990,7 +1009,14 @@ interface OSState {
 
   // ─── Goals & Journal ───
   goals: Goal[];
+  addGoal: (goal: Goal) => void;
+  updateGoal: (id: string, updates: Partial<Goal>) => void;
+  removeGoal: (id: string) => void;
+  toggleGoalSubtask: (goalId: string, subtaskId: string) => void;
   journal: JournalEntry[];
+  addJournalEntry: (entry: JournalEntry) => void;
+  updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => void;
+  removeJournalEntry: (id: string) => void;
 
   // ─── Hermes ───
   hermesSkills: HermesSkill[];
@@ -1241,6 +1267,7 @@ export const useOSStore = create<OSState>()(
       updateMemory: (id, updates) => set((s) => ({
         memories: s.memories.map((m) => (m.id === id ? { ...m, ...updates } : m)),
       })),
+      removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
 
       // ─── Chat ───
       chatHistories: {},
@@ -1378,7 +1405,28 @@ export const useOSStore = create<OSState>()(
 
       // ─── Goals & Journal ───
       goals: [],
+      addGoal: (goal) => set((s) => ({ goals: [goal, ...s.goals] })),
+      updateGoal: (id, updates) => set((s) => ({
+        goals: s.goals.map((g) => (g.id === id ? { ...g, ...updates, updatedAt: Date.now() } : g)),
+      })),
+      removeGoal: (id) => set((s) => ({ goals: s.goals.filter((g) => g.id !== id) })),
+      toggleGoalSubtask: (goalId, subtaskId) => set((s) => ({
+        goals: s.goals.map((g) => {
+          if (g.id !== goalId) return g;
+          const subtasks = (g.subtasks ?? []).map(st =>
+            st.id === subtaskId ? { ...st, completed: !st.completed } : st
+          );
+          const completed = subtasks.filter(st => st.completed).length;
+          const progress = subtasks.length > 0 ? Math.round((completed / subtasks.length) * 100) : g.progress;
+          return { ...g, subtasks, progress, updatedAt: Date.now() };
+        }),
+      })),
       journal: [],
+      addJournalEntry: (entry) => set((s) => ({ journal: [entry, ...s.journal] })),
+      updateJournalEntry: (id, updates) => set((s) => ({
+        journal: s.journal.map((j) => (j.id === id ? { ...j, ...updates } : j)),
+      })),
+      removeJournalEntry: (id) => set((s) => ({ journal: s.journal.filter((j) => j.id !== id) })),
 
       // ─── Hermes ───
       hermesSkills: [] as HermesSkill[],

@@ -681,8 +681,8 @@ export function BrainPanel() {
               {goals.slice(0, 4).map((goal) => (
                 <div key={goal.id} className="rounded-lg border border-[rgba(230,57,70,0.1)] bg-[rgba(10,10,26,0.4)] p-3">
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.05)] font-medium">{goal.category}</span>
-                    <span className="text-[8px] text-[#8888aa]">{goal.timeline}</span>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-[rgba(123,44,191,0.2)] text-[#7B2CBF] bg-[rgba(123,44,191,0.05)] font-medium">{goal.category || 'General'}</span>
+                    <span className="text-[8px] text-[#8888aa]">{goal.timeline || (goal.status ? `${goal.status}` : '')}</span>
                   </div>
                   <p className="text-white text-[11px] font-medium mb-2 leading-tight">{goal.title}</p>
                   <div className="flex items-center gap-2">
@@ -705,13 +705,13 @@ export function BrainPanel() {
               {journal.slice(0, 3).map((entry) => (
                 <div key={entry.id} className="rounded-lg border border-[rgba(123,44,191,0.1)] bg-[rgba(10,10,26,0.4)] p-3">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-white text-[10px] font-medium">{entry.date}</span>
+                    <span className="text-white text-[10px] font-medium">{entry.date || new Date(entry.createdAt).toLocaleDateString()}</span>
                     <span className={`text-[7px] px-1.5 py-0.5 rounded-full font-bold ${
                       entry.type === 'voice' ? 'bg-[rgba(255,170,0,0.1)] text-[#ffaa00] border border-[rgba(255,170,0,0.2)]' : 'bg-[rgba(230,57,70,0.1)] text-[#E63946] border border-[rgba(230,57,70,0.2)]'
                     }`}>
                       {entry.type === 'voice' ? 'VOICE' : 'TEXT'}
                     </span>
-                    <span className="text-[8px] text-[#8888aa]">via {entry.source}</span>
+                    <span className="text-[8px] text-[#8888aa]">via {entry.source || entry.agent}</span>
                   </div>
                   <p className="text-[#ccccdd] text-[11px] leading-relaxed line-clamp-3">{entry.content}</p>
                 </div>
