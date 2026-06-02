@@ -84,7 +84,7 @@ export function AgentRail() {
                     <span className="text-white text-xs font-semibold truncate">{agent.name}</span>
                     <span className="text-[7px] font-mono font-bold px-1 py-0.5 rounded"
                       style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>
-                      L{agent.layers.join(',L')}
+                      L{(agent.layers ?? []).join(',L')}
                     </span>
                     {isHermesLive && (
                       <span className="text-[7px] px-1 py-0.5 rounded-full bg-[#00ff88]/15 text-[#00ff88] font-bold">LIVE</span>
@@ -216,7 +216,7 @@ export function LiveWorkspace() {
       addChatMessage(agentId, {
         id: `init-${Date.now()}`,
         role: 'agent',
-        content: `${agent.name} workspace initialized. Layers ${agent.layers.map(l => `L${l}`).join(', ')} — ${primaryLayer.role}. ${statusMsg} Ask me anything or use the quick actions below.`,
+        content: `${agent.name} workspace initialized. Layers ${(agent.layers ?? []).map(l => `L${l}`).join(', ')} — ${primaryLayer.role}. ${statusMsg} Ask me anything or use the quick actions below.`,
         timestamp: Date.now(),
         agentId,
       });
@@ -474,7 +474,7 @@ export function LiveWorkspace() {
             <div className="flex items-center gap-2">
               <span className="text-white text-sm font-bold">{agent.name}</span>
               <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded"
-                style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>L{agent.layers.join(',L')}</span>
+                style={{ backgroundColor: `${agent.color}20`, color: agent.color }}>L{(agent.layers ?? []).join(',L')}</span>
               {(isHermesLive || isGeminiLive) && (
                 <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#00ff88]/15 text-[#00ff88] font-bold flex items-center gap-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse-glow" />

@@ -421,15 +421,25 @@ function ResourcesPanel() {
   const { systemMetrics, setSystemMetrics } = useOSStore();
   const [networkActivity, setNetworkActivity] = useState(0);
 
+  // Defensive: ensure numeric values (API may return objects)
+  const toNum = (v: unknown, fallback = 0): number => {
+    if (typeof v === 'number') return v;
+    if (v && typeof v === 'object') {
+      const obj = v as Record<string, unknown>;
+      return Number(obj.overallUsagePercent ?? obj.usagePercent ?? obj.percent ?? obj.value ?? fallback);
+    }
+    return fallback;
+  };
+
   // Poll metrics
   useEffect(() => {
     const updateMetrics = () => {
       setSystemMetrics({
         ...systemMetrics,
-        cpu: Math.min(100, Math.max(0, systemMetrics.cpu + (Math.random() - 0.5) * 8)),
-        memory: Math.min(100, Math.max(0, systemMetrics.memory + (Math.random() - 0.5) * 4)),
-        disk: Math.min(100, Math.max(0, systemMetrics.disk + (Math.random() - 0.5) * 1)),
-        network: Math.min(100, Math.max(0, systemMetrics.network + (Math.random() - 0.5) * 12)),
+        cpu: Math.min(100, Math.max(0, toNum(systemMetrics.cpu) + (Math.random() - 0.5) * 8)),
+        memory: Math.min(100, Math.max(0, toNum(systemMetrics.memory) + (Math.random() - 0.5) * 4)),
+        disk: Math.min(100, Math.max(0, toNum(systemMetrics.disk) + (Math.random() - 0.5) * 1)),
+        network: Math.min(100, Math.max(0, toNum(systemMetrics.network) + (Math.random() - 0.5) * 12)),
       });
       setNetworkActivity(Math.random() * 100);
     };
@@ -439,10 +449,10 @@ function ResourcesPanel() {
   }, [systemMetrics, setSystemMetrics]);
 
   const resources = [
-    { label: 'CPU Usage', value: systemMetrics.cpu, icon: Cpu, color: CYBER_CYAN, unit: '%' },
-    { label: 'RAM Usage', value: systemMetrics.memory, icon: MemoryStick, color: CYBER_GREEN, unit: '%' },
-    { label: 'Disk Usage', value: systemMetrics.disk, icon: HardDrive, color: CYBER_AMBER, unit: '%' },
-    { label: 'Network', value: systemMetrics.network, icon: Wifi, color: GOOGLE_BLUE, unit: '%' },
+    { label: 'CPU Usage', value: toNum(systemMetrics.cpu), icon: Cpu, color: CYBER_CYAN, unit: '%' },
+    { label: 'RAM Usage', value: toNum(systemMetrics.memory), icon: MemoryStick, color: CYBER_GREEN, unit: '%' },
+    { label: 'Disk Usage', value: toNum(systemMetrics.disk), icon: HardDrive, color: CYBER_AMBER, unit: '%' },
+    { label: 'Network', value: toNum(systemMetrics.network), icon: Wifi, color: GOOGLE_BLUE, unit: '%' },
   ];
 
   const getStatusColor = (value: number) => {

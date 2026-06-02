@@ -99,10 +99,10 @@ export function SystemManagement() {
       // Use simulated metrics
       setSystemMetrics({
         ...systemMetrics,
-        cpu: Math.min(100, Math.max(0, systemMetrics.cpu + (Math.random() - 0.5) * 10)),
-        memory: Math.min(100, Math.max(0, systemMetrics.memory + (Math.random() - 0.5) * 5)),
-        disk: Math.min(100, Math.max(0, systemMetrics.disk + (Math.random() - 0.5) * 2)),
-        network: Math.min(100, Math.max(0, systemMetrics.network + (Math.random() - 0.5) * 15)),
+        cpu: Math.min(100, Math.max(0, (typeof systemMetrics.cpu === 'number' ? systemMetrics.cpu : 0) + (Math.random() - 0.5) * 10)),
+        memory: Math.min(100, Math.max(0, (typeof systemMetrics.memory === 'number' ? systemMetrics.memory : 0) + (Math.random() - 0.5) * 5)),
+        disk: Math.min(100, Math.max(0, (typeof systemMetrics.disk === 'number' ? systemMetrics.disk : 0) + (Math.random() - 0.5) * 2)),
+        network: Math.min(100, Math.max(0, (typeof systemMetrics.network === 'number' ? systemMetrics.network : 0) + (Math.random() - 0.5) * 15)),
       });
     } finally {
       setIsRefreshing(false);

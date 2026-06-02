@@ -958,19 +958,19 @@ export function StackOverview() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Active Agents</div>
-            <div className="text-[#00ff88] font-mono text-lg font-bold">{systemMetrics.activeAgents}</div>
+            <div className="text-[#00ff88] font-mono text-lg font-bold">{typeof systemMetrics.activeAgents === 'number' ? systemMetrics.activeAgents : 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Providers</div>
-            <div className="text-[#00ffff] font-mono text-lg font-bold">{systemMetrics.activeProviders}</div>
+            <div className="text-[#00ffff] font-mono text-lg font-bold">{typeof systemMetrics.activeProviders === 'number' ? systemMetrics.activeProviders : 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Knowledge</div>
-            <div className="text-[#FFB627] font-mono text-lg font-bold">{systemMetrics.knowledgeEntries}</div>
+            <div className="text-[#FFB627] font-mono text-lg font-bold">{typeof systemMetrics.knowledgeEntries === 'number' ? systemMetrics.knowledgeEntries : 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Memory</div>
-            <div className="text-[#2E86AB] font-mono text-lg font-bold">{systemMetrics.memoryEntries}</div>
+            <div className="text-[#2E86AB] font-mono text-lg font-bold">{typeof systemMetrics.memoryEntries === 'number' ? systemMetrics.memoryEntries : 0}</div>
           </div>
         </div>
       </div>
@@ -1630,15 +1630,15 @@ export function SEOSilo() {
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Active Agents</div>
-            <div className="text-[#9d4edd] font-mono text-lg font-bold">{systemMetrics.activeAgents}</div>
+            <div className="text-[#9d4edd] font-mono text-lg font-bold">{typeof systemMetrics.activeAgents === 'number' ? systemMetrics.activeAgents : 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Knowledge</div>
-            <div className="text-[#FFB627] font-mono text-lg font-bold">{systemMetrics.knowledgeEntries}</div>
+            <div className="text-[#FFB627] font-mono text-lg font-bold">{typeof systemMetrics.knowledgeEntries === 'number' ? systemMetrics.knowledgeEntries : 0}</div>
           </div>
           <div>
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider">Providers</div>
-            <div className="text-[#00ffff] font-mono text-lg font-bold">{systemMetrics.activeProviders}</div>
+            <div className="text-[#00ffff] font-mono text-lg font-bold">{typeof systemMetrics.activeProviders === 'number' ? systemMetrics.activeProviders : 0}</div>
           </div>
         </div>
       </div>

@@ -153,16 +153,26 @@ function WelcomeBanner() {
 
 // ─── System Overview Cards ───
 
+// Defensive: ensure numeric values (API may return objects)
+function toNum(v: unknown, fallback = 0): number {
+  if (typeof v === 'number') return v;
+  if (v && typeof v === 'object') {
+    const obj = v as Record<string, unknown>;
+    return Number(obj.overallUsagePercent ?? obj.usagePercent ?? obj.percent ?? obj.value ?? fallback);
+  }
+  return fallback;
+}
+
 function SystemOverviewCards() {
   const { systemMetrics, totalCost, totalTokensUsed } = useOSStore();
 
   const cards = [
-    { label: 'Active Providers', value: systemMetrics.activeProviders, icon: Server, color: '#00ffff' },
-    { label: 'Active Agents', value: systemMetrics.activeAgents, icon: Brain, color: '#9d4edd' },
+    { label: 'Active Providers', value: toNum(systemMetrics.activeProviders), icon: Server, color: '#00ffff' },
+    { label: 'Active Agents', value: toNum(systemMetrics.activeAgents), icon: Brain, color: '#9d4edd' },
     { label: 'Total Tokens', value: totalTokensUsed > 1_000_000 ? `${(totalTokensUsed / 1_000_000).toFixed(1)}M` : totalTokensUsed > 1000 ? `${(totalTokensUsed / 1000).toFixed(1)}K` : totalTokensUsed, icon: Cpu, color: '#00ff88' },
     { label: 'Total Cost', value: `$${totalCost.toFixed(2)}`, icon: DollarSign, color: '#FFB627' },
-    { label: 'Knowledge', value: systemMetrics.knowledgeEntries, icon: Database, color: '#4285F4' },
-    { label: 'Memories', value: systemMetrics.memoryEntries, icon: Layers, color: '#E8751A' },
+    { label: 'Knowledge', value: toNum(systemMetrics.knowledgeEntries), icon: Database, color: '#4285F4' },
+    { label: 'Memories', value: toNum(systemMetrics.memoryEntries), icon: Layers, color: '#E8751A' },
   ];
 
   return (
@@ -425,10 +435,10 @@ function SystemResourceMetrics() {
   const { systemMetrics } = useOSStore();
 
   const metrics = [
-    { label: 'CPU', value: systemMetrics.cpu, color: '#00ff88' },
-    { label: 'Memory', value: systemMetrics.memory, color: '#4285F4' },
-    { label: 'Network', value: systemMetrics.network, color: '#FFB627' },
-    { label: 'Disk', value: systemMetrics.disk, color: '#9d4edd' },
+    { label: 'CPU', value: toNum(systemMetrics.cpu), color: '#00ff88' },
+    { label: 'Memory', value: toNum(systemMetrics.memory), color: '#4285F4' },
+    { label: 'Network', value: toNum(systemMetrics.network), color: '#FFB627' },
+    { label: 'Disk', value: toNum(systemMetrics.disk), color: '#9d4edd' },
   ];
 
   return (
