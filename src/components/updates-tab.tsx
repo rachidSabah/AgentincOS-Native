@@ -663,9 +663,10 @@ export function UpdatesTab() {
     };
   }, [updateSettings.autoCheck, updateSettings.checkInterval, checkForUpdates]);
 
-  // Toast helper
+  // Toast helper with unique IDs
+  const toastCounter = useRef(0);
   const addToast = useCallback((message: string, type: 'success' | 'info' | 'warning' = 'info') => {
-    const id = Date.now().toString();
+    const id = `${Date.now()}-${++toastCounter.current}`;
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
