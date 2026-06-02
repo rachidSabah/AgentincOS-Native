@@ -10,7 +10,7 @@ import {
   Eye, GitBranch, Zap, Brain, Clock, ChevronDown,
   FileCode, Bug, Cpu, Shield, BookOpen, ArrowRight,
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
-  Workflow, Puzzle, Network, Users, Cog,
+  Workflow, Puzzle, Network, Users, Cog, Database,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -258,9 +258,9 @@ export function GeminiCLIDashboard() {
       </div>
 
       {/* ─── Tab Content ─── */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col">
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex-1 min-h-0 flex flex-col">
             {activeTab === 'chat' && <ChatTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
