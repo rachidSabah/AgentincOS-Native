@@ -1497,6 +1497,18 @@ export const useOSStore = create<OSState>()(
     }),
     {
       name: 'agentic-os-store',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        // Force refresh geminiCLI defaults when store schema changes
+        if (version < 1) {
+          // Reset geminiCLI to use the new model definitions from code
+          persistedState.geminiCLI = {
+            ...persistedState.geminiCLI,
+            model: 'auto', // Reset to default so new dropdown shows correctly
+          };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         providers: state.providers,
         brainConfig: state.brainConfig,

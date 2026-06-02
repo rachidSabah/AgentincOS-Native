@@ -415,13 +415,39 @@ export async function POST(request: NextRequest) {
         // Step 5: Get the new version
         const newVersion = await getAppVersion();
 
+        // Step 6: Clear .next cache so changes are picked up
+        try {
+          const { rm } = await import('fs/promises');
+          const nextDir = join(projectDir, '.next');
+          await rm(nextDir, { recursive: true, force: true });
+        } catch {
+          // .next dir might not exist or be locked — not critical
+        }
+
+        // Step 7: Rebuild if in production mode (not needed for dev server)
+        let rebuilt = false;
+        if (process.env.NODE_ENV === 'production') {
+          try {
+            const npmCmd = IS_WIN ? 'npm.cmd' : 'npm';
+            await execFileAsync(npmCmd, ['run', 'build'], {
+              timeout: 300000,
+              cwd: projectDir,
+              ...shellOpt,
+            });
+            rebuilt = true;
+          } catch {
+            // Build failed — user can restart dev server manually
+          }
+        }
+
         return NextResponse.json({
           success: true,
           updateId,
-          message: `Updated successfully to ${newVersion}. ${depsInstalled ? 'Dependencies installed.' : ''}`,
+          message: `Updated successfully to ${newVersion}. ${depsInstalled ? 'Dependencies installed.' : ''} ${rebuilt ? 'App rebuilt.' : 'Restart the dev server to see changes.'}`,
           output: pullOut || pullErr || 'Already up to date.',
           version: newVersion,
           depsInstalled,
+          rebuilt,
           timestamp: Date.now(),
         });
       } catch (err: unknown) {
