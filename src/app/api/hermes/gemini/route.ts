@@ -37,7 +37,7 @@ Respond with thorough, well-structured answers. When writing code, use proper fo
 // Handles: chat, execute, detect, models, sandbox, start
 // Supports both HTTP server mode AND CLI direct execution
 
-const GEMINI_CLI_PORTS = [3001, 3002, 8080, 4000]; // Common ports to try
+const GEMINI_CLI_PORTS = [3001, 3002, 3100, 8080, 4000, 3000, 5000, 8000]; // Common ports to try including default gemini serve
 
 async function geminiRequest(path: string, options?: RequestInit, port = 3001) {
   try {
@@ -265,12 +265,13 @@ export async function GET(req: NextRequest) {
     }
 
     case 'models': {
-      // Return available Gemini models
       return NextResponse.json({
         models: [
           { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00125, costPer1kOutput: 0.005, strengths: ['reasoning', 'code', 'multimodal', 'long-context'] },
           { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00015, costPer1kOutput: 0.0006, strengths: ['speed', 'code', 'multimodal'] },
+          { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.000075, costPer1kOutput: 0.0003, strengths: ['speed', 'cost'] },
           { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.0001, costPer1kOutput: 0.0004, strengths: ['speed', 'chat'] },
+          { id: 'gemini-2.0-flash-thinking', name: 'Gemini 2.0 Flash Thinking', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.0001, costPer1kOutput: 0.0004, strengths: ['reasoning', 'thinking'] },
         ],
       });
     }

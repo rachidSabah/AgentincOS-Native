@@ -178,8 +178,6 @@ export const useUpdateStore = create<UpdateState>()(
       checkForUpdates: async () => {
         const state = get();
         if (state.isChecking) return;
-        // Wait for hydration before checking — prevents re-showing installed updates
-        if (!state._hasHydrated) return;
 
         set({ isChecking: true });
 
