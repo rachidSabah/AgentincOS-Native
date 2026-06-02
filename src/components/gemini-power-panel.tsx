@@ -364,7 +364,7 @@ export function GeminiPowerPanel() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className="rounded-xl border bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4"
+        className="rounded-xl border bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4 flex flex-col min-h-0 flex-1"
         style={{ borderColor: `${accentColor}20` }}
       >
         {activeTab === 'overview' && <GeminiOverviewTab geminiConnection={geminiConnection} analytics={geminiAnalytics} />}
@@ -609,9 +609,9 @@ function GeminiChatTab({ selectedModel, isRunning }: { selectedModel: string; is
   };
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Chat messages */}
-      <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
         {messages.length === 0 && (
           <div className="text-center py-8">
             <Sparkles size={24} style={{ color: GOOGLE_BLUE }} className="mx-auto mb-2 opacity-50" />
