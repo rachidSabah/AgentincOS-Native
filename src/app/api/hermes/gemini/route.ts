@@ -267,11 +267,11 @@ export async function GET(req: NextRequest) {
     case 'models': {
       return NextResponse.json({
         models: [
+          { id: 'auto', name: 'Auto (Default)', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0, costPer1kOutput: 0, strengths: ['auto', 'best-model', 'adaptive'] },
+          { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00125, costPer1kOutput: 0.005, strengths: ['reasoning', 'code', 'multimodal', 'long-context', 'deep-research'] },
           { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00125, costPer1kOutput: 0.005, strengths: ['reasoning', 'code', 'multimodal', 'long-context'] },
-          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00015, costPer1kOutput: 0.0006, strengths: ['speed', 'code', 'multimodal'] },
-          { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.000075, costPer1kOutput: 0.0003, strengths: ['speed', 'cost'] },
-          { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.0001, costPer1kOutput: 0.0004, strengths: ['speed', 'chat'] },
-          { id: 'gemini-2.0-flash-thinking', name: 'Gemini 2.0 Flash Thinking', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.0001, costPer1kOutput: 0.0004, strengths: ['reasoning', 'thinking'] },
+          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00015, costPer1kOutput: 0.0006, strengths: ['speed', 'code', 'multimodal', 'balanced'] },
+          { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.000075, costPer1kOutput: 0.0003, strengths: ['speed', 'cost', 'fastest'] },
         ],
       });
     }
@@ -425,14 +425,14 @@ export async function POST(req: NextRequest) {
         console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
       }
 
-      // Strategy 3: Try CLI binary directly (cross-platform)
+      // Strategy 3: Try CLI binary with current (v0.44+) syntax
       try {
-        const binCmd = IS_WIN ? 'gemini.cmd' : 'gemini';
+        const escaped = (message || '').replace(/"/g, '\\"');
+        const cmd = IS_WIN
+          ? `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json`
+          : ['gemini', '-p', message || '', '-m', model || 'gemini-2.5-flash-lite', '-o', 'json'];
         const execFn = IS_WIN ? execAsync : execFileAsync;
-        const execArgs = IS_WIN 
-          ? `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${(message || '').replace(/"/g, '\\"')}" --format json`
-          : ['chat', '--model', model || 'gemini-2.5-pro', '--message', message || '', '--format', 'json'];
-        const { stdout } = await execFn(execArgs, { timeout: 30000, ...(IS_WIN ? { shell: true } : {}) });
+        const { stdout } = await execFn(cmd, { timeout: 60000, ...(IS_WIN ? { shell: true } : {}) });
 
         if (stdout?.trim()) {
           const latency = Date.now() - startTime;
@@ -442,7 +442,7 @@ export async function POST(req: NextRequest) {
           } catch {
             return NextResponse.json({
               response: stdout.trim(),
-              model: model || 'gemini-2.5-pro',
+              model: model || 'gemini-2.5-flash-lite',
               tokensUsed: Math.floor((message?.length || 0) * 1.2),
               latency,
               via: 'gemini-cli',
@@ -453,19 +453,18 @@ export async function POST(req: NextRequest) {
         // CLI not available or failed
       }
 
-      // Strategy 4: Try WSL binary (Windows and Unix)
+      // Strategy 4: Try WSL binary (uses same gemini CLI v0.44+ syntax)
       {
-        const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+        const escaped = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
         const wslCmd = IS_WIN ? 'wsl.exe' : 'wsl';
         const wslStrategies = [
-          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-          ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-          ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],
+          ['-e', 'bash', '-l', '-c', `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],
         ];
 
         for (const args of wslStrategies) {
           try {
-            const { stdout } = await execFileAsync(wslCmd, args, { timeout: 30000 });
+            const { stdout } = await execFileAsync(wslCmd, args, { timeout: 60000 });
             if (stdout?.trim()) {
               const latency = Date.now() - startTime;
               try {
@@ -474,7 +473,7 @@ export async function POST(req: NextRequest) {
               } catch {
                 return NextResponse.json({
                   response: stdout.trim(),
-                  model: model || 'gemini-2.5-pro',
+                  model: model || 'gemini-2.5-flash-lite',
                   tokensUsed: Math.floor((message?.length || 0) * 1.2),
                   latency,
                   via: 'wsl',
