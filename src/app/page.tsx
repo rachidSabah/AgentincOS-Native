@@ -54,6 +54,7 @@ import { TerminalCenter } from '@/components/terminal-center';
 import { SystemManagement } from '@/components/system-management';
 import { FileExplorer } from '@/components/file-explorer';
 import { LiveExecutionViewer } from '@/components/live-execution-viewer';
+import { AgentBuilder } from '@/components/agent-builder';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, Component } from 'react';
 
@@ -419,6 +420,14 @@ export default function HomePage() {
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <AgentHeroCards />
+          </motion.div>
+        );
+
+      // ─── Agent Builder (Full) ───
+      case 'agent-builder':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <AgentBuilder />
           </motion.div>
         );
 

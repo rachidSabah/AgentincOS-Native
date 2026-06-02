@@ -530,11 +530,20 @@ export function TopBar() {
 
 export function SystemMonitor() {
   const { systemMetrics } = useOSStore();
+  // Defensive: ensure values are numbers (API may return objects)
+  const toNum = (v: unknown): number => {
+    if (typeof v === 'number') return v;
+    if (v && typeof v === 'object') {
+      const obj = v as Record<string, unknown>;
+      return Number((obj as Record<string, unknown>).overallUsagePercent ?? (obj as Record<string, unknown>).usagePercent ?? (obj as Record<string, unknown>).percent ?? (obj as Record<string, unknown>).value ?? 0);
+    }
+    return 0;
+  };
   const metrics = [
-    { label: 'CPU', value: systemMetrics.cpu, icon: Cpu, color: '#9d4edd' },
-    { label: 'Memory', value: systemMetrics.memory, icon: HardDrive, color: '#00ffff' },
-    { label: 'Network', value: systemMetrics.network, icon: Network, color: '#00ff88' },
-    { label: 'Disk', value: systemMetrics.disk, icon: Database, color: '#FFB627' },
+    { label: 'CPU', value: toNum(systemMetrics.cpu), icon: Cpu, color: '#9d4edd' },
+    { label: 'Memory', value: toNum(systemMetrics.memory), icon: HardDrive, color: '#00ffff' },
+    { label: 'Network', value: toNum(systemMetrics.network), icon: Network, color: '#00ff88' },
+    { label: 'Disk', value: toNum(systemMetrics.disk), icon: Database, color: '#FFB627' },
   ];
 
   return (

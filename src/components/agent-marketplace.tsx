@@ -7,7 +7,7 @@ import {
   Bot, Zap, Shield, Package, ArrowDownToLine, Sparkles,
   Brain, Users, FileCode, Briefcase, GraduationCap, Plane,
   Scale, Stethoscope, Microscope, Palette, Globe, Wrench,
-  ChevronRight, X, TrendingUp, Award,
+  ChevronRight, X, TrendingUp, Award, BarChart3,
 } from 'lucide-react';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
@@ -29,6 +29,10 @@ const CATEGORIES: Array<{
   { id: 'legal', label: 'Legal', icon: <Scale size={12} />, color: '#E63946' },
   { id: 'medical', label: 'Medical', icon: <Stethoscope size={12} />, color: '#f472b6' },
   { id: 'research', label: 'Research', icon: <Microscope size={12} />, color: '#a3e635' },
+  { id: 'devops', label: 'DevOps', icon: <Shield size={12} />, color: '#00ffff' },
+  { id: 'data', label: 'Data', icon: <BarChart3 size={12} />, color: '#00ffff' },
+  { id: 'writing', label: 'Writing', icon: <Sparkles size={12} />, color: '#c084fc' },
+  { id: 'productivity', label: 'Productivity', icon: <Zap size={12} />, color: '#FFB627' },
   { id: 'custom', label: 'Custom', icon: <Wrench size={12} />, color: '#8888aa' },
 ];
 
@@ -42,7 +46,7 @@ const BRAIN_META: Record<BrainProfile, { label: string; color: string; icon: str
   custom: { label: 'Custom', color: '#c084fc', icon: '⚙️' },
 };
 
-/* ─── Seed Marketplace Data ─── */
+/* ─── Seed Marketplace Data (ALL FREE) ─── */
 const SEED_AGENTS: MarketplaceAgent[] = [
   {
     id: 'ma-1', name: 'DealFlow Pro', description: 'Automates lead scoring, pipeline tracking, and deal analysis with real-time CRM integration and predictive insights.',
@@ -52,7 +56,7 @@ const SEED_AGENTS: MarketplaceAgent[] = [
   },
   {
     id: 'ma-2', name: 'TalentHunter AI', description: 'End-to-end recruitment agent: candidate sourcing, resume parsing, interview scheduling, and bias-aware screening.',
-    category: 'recruitment', author: 'HR Labs', version: '1.5.2', rating: 4.6, downloads: 8930, price: 29.99,
+    category: 'recruitment', author: 'HR Labs', version: '1.5.2', rating: 4.6, downloads: 8930, price: 0,
     installed: false, brainProfile: 'claude', requiredProviders: ['anthropic'], icon: '🎯', color: '#2E86AB',
     tags: ['hiring', 'screening', 'sourcing', 'ATS'],
   },
@@ -64,13 +68,13 @@ const SEED_AGENTS: MarketplaceAgent[] = [
   },
   {
     id: 'ma-4', name: 'SERP Dominator', description: 'Comprehensive SEO agent: keyword research, content optimization, backlink analysis, and technical SEO audits.',
-    category: 'seo', author: 'SearchStack', version: '4.2.0', rating: 4.7, downloads: 15600, price: 49.99,
+    category: 'seo', author: 'SearchStack', version: '4.2.0', rating: 4.7, downloads: 15600, price: 0,
     installed: false, brainProfile: 'hermes', requiredProviders: ['openai', 'anthropic'], icon: '🔍', color: '#FFB627',
     tags: ['keywords', 'content', 'backlinks', 'audit'],
   },
   {
     id: 'ma-5', name: 'BrandPulse', description: 'Social media marketing agent with content creation, scheduling, engagement tracking, and sentiment analysis across all platforms.',
-    category: 'marketing', author: 'SocialForge', version: '2.8.0', rating: 4.5, downloads: 9200, price: 19.99,
+    category: 'marketing', author: 'SocialForge', version: '2.8.0', rating: 4.5, downloads: 9200, price: 0,
     installed: false, brainProfile: 'gemini', requiredProviders: ['google'], icon: '📱', color: '#E8751A',
     tags: ['social', 'content', 'scheduling', 'analytics'],
   },
@@ -88,19 +92,19 @@ const SEED_AGENTS: MarketplaceAgent[] = [
   },
   {
     id: 'ma-8', name: 'SkyOps', description: 'Aviation operations agent: flight planning, weather analysis, compliance checking, and crew scheduling with real-time NOTAM monitoring.',
-    category: 'aviation', author: 'AeroLogic', version: '1.2.0', rating: 4.3, downloads: 2100, price: 99.99,
+    category: 'aviation', author: 'AeroLogic', version: '1.2.0', rating: 4.3, downloads: 2100, price: 0,
     installed: false, brainProfile: 'openclaw', requiredProviders: ['openai', 'anthropic'], icon: '✈️', color: '#38bdf8',
     tags: ['flight', 'weather', 'compliance', 'scheduling'],
   },
   {
     id: 'ma-9', name: 'LegalEase', description: 'Contract analysis, legal research, compliance auditing, and risk assessment with jurisdiction-aware reasoning and citation tracking.',
-    category: 'legal', author: 'JurisAI', version: '2.4.0', rating: 4.6, downloads: 5400, price: 79.99,
+    category: 'legal', author: 'JurisAI', version: '2.4.0', rating: 4.6, downloads: 5400, price: 0,
     installed: false, brainProfile: 'claude', requiredProviders: ['anthropic'], icon: '⚖️', color: '#E63946',
     tags: ['contracts', 'research', 'compliance', 'risk'],
   },
   {
     id: 'ma-10', name: 'MediAssist', description: 'Clinical decision support, literature review, diagnostic assistance, and patient data analysis with HIPAA-aware data handling.',
-    category: 'medical', author: 'HealthAI', version: '1.7.0', rating: 4.5, downloads: 3800, price: 149.99,
+    category: 'medical', author: 'HealthAI', version: '1.7.0', rating: 4.5, downloads: 3800, price: 0,
     installed: false, brainProfile: 'vault', requiredProviders: ['anthropic', 'openai'], icon: '🏥', color: '#f472b6',
     tags: ['clinical', 'diagnostics', 'literature', 'HIPAA'],
   },
@@ -118,7 +122,7 @@ const SEED_AGENTS: MarketplaceAgent[] = [
   },
   {
     id: 'ma-13', name: 'FinancePilot', description: 'Financial analysis, forecasting, budget optimization, and investment research with real-time market data integration.',
-    category: 'business', author: 'QuantEdge', version: '2.3.0', rating: 4.7, downloads: 9800, price: 39.99,
+    category: 'business', author: 'QuantEdge', version: '2.3.0', rating: 4.7, downloads: 9800, price: 0,
     installed: false, brainProfile: 'hermes', requiredProviders: ['openai'], icon: '📊', color: '#7B2CBF',
     tags: ['finance', 'forecasting', 'budget', 'investment'],
   },
@@ -130,9 +134,100 @@ const SEED_AGENTS: MarketplaceAgent[] = [
   },
   {
     id: 'ma-15', name: 'DevOps Sentinel', description: 'CI/CD pipeline monitoring, infrastructure health checks, incident response automation, and deployment rollback orchestration.',
-    category: 'programming', author: 'InfraGuard', version: '2.0.0', rating: 4.4, downloads: 7600, price: 29.99,
+    category: 'programming', author: 'InfraGuard', version: '2.0.0', rating: 4.4, downloads: 7600, price: 0,
     installed: false, brainProfile: 'openclaw', requiredProviders: ['anthropic'], icon: '🚀', color: '#00ff88',
     tags: ['CI/CD', 'monitoring', 'incident', 'deployment'],
+  },
+  // ─── NEW FREE AGENTS ───
+  {
+    id: 'ma-16', name: 'DataWizard', description: 'Data pipeline builder with ETL orchestration, data quality checks, schema validation, and automated reporting with visualization generation.',
+    category: 'data', author: 'DataForge Labs', version: '2.0.0', rating: 4.7, downloads: 8900, price: 0,
+    installed: false, brainProfile: 'gemini', requiredProviders: ['google', 'openai'], icon: '📊', color: '#00ffff',
+    tags: ['ETL', 'pipeline', 'quality', 'reporting'],
+  },
+  {
+    id: 'ma-17', name: 'CopyCraft', description: 'Professional copywriting agent for landing pages, email campaigns, ad copy, and product descriptions with A/B testing suggestions.',
+    category: 'writing', author: 'WordSmith AI', version: '3.2.0', rating: 4.8, downloads: 14200, price: 0,
+    installed: false, brainProfile: 'claude', requiredProviders: ['anthropic'], icon: '✏️', color: '#c084fc',
+    tags: ['copywriting', 'email', 'ads', 'landing-page'],
+  },
+  {
+    id: 'ma-18', name: 'TaskMaster', description: 'Project management agent with sprint planning, task decomposition, priority scoring, deadline tracking, and team workload balancing.',
+    category: 'productivity', author: 'AgileOps', version: '2.5.0', rating: 4.5, downloads: 10300, price: 0,
+    installed: false, brainProfile: 'hermes', requiredProviders: ['openai'], icon: '📋', color: '#FFB627',
+    tags: ['project', 'sprint', 'planning', 'decomposition'],
+  },
+  {
+    id: 'ma-19', name: 'SecurityShield', description: 'Continuous security scanning, vulnerability assessment, penetration test orchestration, and compliance monitoring with OWASP coverage.',
+    category: 'devops', author: 'CyberGuard', version: '2.1.0', rating: 4.9, downloads: 7800, price: 0,
+    installed: false, brainProfile: 'vault', requiredProviders: ['anthropic', 'openai'], icon: '🔐', color: '#E63946',
+    tags: ['security', 'vulnerability', 'pentest', 'compliance'],
+  },
+  {
+    id: 'ma-20', name: 'APIForge', description: 'REST and GraphQL API design, schema generation, endpoint documentation, integration testing, and mock server creation.',
+    category: 'programming', author: 'APISmith', version: '1.8.0', rating: 4.6, downloads: 6500, price: 0,
+    installed: false, brainProfile: 'opencode', requiredProviders: ['openai'], icon: '🔌', color: '#2E86AB',
+    tags: ['API', 'REST', 'GraphQL', 'testing'],
+  },
+  {
+    id: 'ma-21', name: 'DocuMind', description: 'Intelligent document processing agent that extracts, classifies, summarizes, and cross-references information from PDFs, DOCX, and spreadsheets.',
+    category: 'data', author: 'DocuTech AI', version: '2.4.0', rating: 4.7, downloads: 9100, price: 0,
+    installed: false, brainProfile: 'gemini', requiredProviders: ['google'], icon: '📄', color: '#a3e635',
+    tags: ['document', 'extraction', 'classification', 'summarization'],
+  },
+  {
+    id: 'ma-22', name: 'ChatBot Builder', description: 'Visual chatbot designer with intent recognition, entity extraction, dialogue flow management, multi-channel deployment, and analytics dashboard.',
+    category: 'custom', author: 'ConvoAI', version: '3.0.0', rating: 4.4, downloads: 11800, price: 0,
+    installed: false, brainProfile: 'hermes', requiredProviders: ['openai', 'anthropic'], icon: '💬', color: '#38bdf8',
+    tags: ['chatbot', 'intent', 'dialogue', 'deployment'],
+  },
+  {
+    id: 'ma-23', name: 'TestPilot', description: 'Automated testing agent: unit test generation, integration test scaffolding, coverage analysis, and regression detection across multiple frameworks.',
+    category: 'programming', author: 'QA Forge', version: '2.2.0', rating: 4.5, downloads: 5600, price: 0,
+    installed: false, brainProfile: 'opencode', requiredProviders: ['openai'], icon: '🧪', color: '#00ff88',
+    tags: ['testing', 'unit-test', 'integration', 'coverage'],
+  },
+  {
+    id: 'ma-24', name: 'InnovateLab', description: 'Innovation and ideation agent that generates product concepts, market analysis, competitive positioning, and go-to-market strategies.',
+    category: 'business', author: 'IdeaForge', version: '1.6.0', rating: 4.3, downloads: 4200, price: 0,
+    installed: false, brainProfile: 'claude', requiredProviders: ['anthropic'], icon: '💡', color: '#FFB627',
+    tags: ['innovation', 'ideation', 'market', 'strategy'],
+  },
+  {
+    id: 'ma-25', name: 'TranslatePro', description: 'Multi-language translation agent with context-aware translation, cultural adaptation, terminology management, and quality scoring.',
+    category: 'writing', author: 'LinguaAI', version: '2.0.0', rating: 4.6, downloads: 7400, price: 0,
+    installed: false, brainProfile: 'gemini', requiredProviders: ['google'], icon: '🌐', color: '#4285f4',
+    tags: ['translation', 'localization', 'language', 'cultural'],
+  },
+  {
+    id: 'ma-26', name: 'ComplianceGuard', description: 'Regulatory compliance monitoring with automated policy checks, audit trail generation, risk scoring, and remediation guidance across industries.',
+    category: 'legal', author: 'RegTech AI', version: '1.9.0', rating: 4.5, downloads: 3600, price: 0,
+    installed: false, brainProfile: 'vault', requiredProviders: ['anthropic'], icon: '🏛️', color: '#E63946',
+    tags: ['compliance', 'regulatory', 'audit', 'risk'],
+  },
+  {
+    id: 'ma-27', name: 'CloudArchitect', description: 'Cloud infrastructure design, cost optimization, migration planning, and multi-cloud orchestration with Terraform and Kubernetes support.',
+    category: 'devops', author: 'CloudNova', version: '2.3.0', rating: 4.8, downloads: 6200, price: 0,
+    installed: false, brainProfile: 'openclaw', requiredProviders: ['openai', 'anthropic'], icon: '☁️', color: '#00ffff',
+    tags: ['cloud', 'infrastructure', 'Terraform', 'Kubernetes'],
+  },
+  {
+    id: 'ma-28', name: 'UX Design Lab', description: 'User experience design assistant with wireframe generation, usability analysis, accessibility checks, and design system management.',
+    category: 'productivity', author: 'DesignForge', version: '1.4.0', rating: 4.4, downloads: 4800, price: 0,
+    installed: false, brainProfile: 'gemini', requiredProviders: ['google'], icon: '🎨', color: '#c084fc',
+    tags: ['UX', 'wireframe', 'accessibility', 'design-system'],
+  },
+  {
+    id: 'ma-29', name: 'Swarm Commander', description: 'Pre-built swarm intelligence configurations for code review, research sprint, security audit, and product launch with multi-agent orchestration.',
+    category: 'custom', author: 'AgenticOS Team', version: '1.2.0', rating: 4.7, downloads: 5400, price: 0,
+    installed: false, brainProfile: 'hermes', requiredProviders: ['openai', 'anthropic'], icon: '🐝', color: '#9d4edd',
+    tags: ['swarm', 'orchestration', 'multi-agent', 'consensus'],
+  },
+  {
+    id: 'ma-30', name: 'Analytics Guru', description: 'Business intelligence agent with KPI tracking, trend analysis, anomaly detection, and automated report generation with interactive dashboards.',
+    category: 'data', author: 'InsightAI', version: '3.1.0', rating: 4.6, downloads: 8700, price: 0,
+    installed: false, brainProfile: 'gemini', requiredProviders: ['google', 'openai'], icon: '📈', color: '#a3e635',
+    tags: ['analytics', 'KPI', 'dashboard', 'reporting'],
   },
 ];
 

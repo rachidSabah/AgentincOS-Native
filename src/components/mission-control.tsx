@@ -24,6 +24,8 @@ const agentIcons: Record<string, typeof Crown> = {
    ═══════════════════════════════════════════════════════ */
 export function AgentRail() {
   const { agents, selectedAgentId, setSelectedAgentId, stackLayers, hermesConnection, agentAnalytics } = useOSStore();
+  const layers = stackLayers ?? [];
+  const analytics = agentAnalytics ?? {};
 
   return (
     <div className="w-[220px] flex-shrink-0 border-r border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.5)] flex flex-col overflow-hidden">
@@ -39,9 +41,9 @@ export function AgentRail() {
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {agents.map((agent) => {
-          const primaryLayer = stackLayers.find(l => l.number === agent.layer);
+          const primaryLayer = layers.find(l => l.number === agent.layer);
           const isSelected = selectedAgentId === agent.id;
-          const analytics = agentAnalytics[agent.id];
+          const agentA = analytics[agent.id];
           const isHermesLive = agent.id === 'hermes' && hermesConnection.running;
 
           return (
@@ -91,7 +93,7 @@ export function AgentRail() {
                   <div className="text-[10px] text-[#8888aa] truncate mt-0.5">{primaryLayer?.role}</div>
                   <div className="flex items-center gap-2 mt-1.5">
                     <div className="text-[8px] text-[#8888aa]">
-                      <span className="text-white font-mono">{analytics?.totalSessions || 0}</span> sessions
+                      <span className="text-white font-mono">{agentA?.totalSessions || 0}</span> sessions
                     </div>
                     <div className="text-[8px] text-[#8888aa]">
                       <span className="font-mono" style={{ color: agent.latency > 200 ? '#ffaa00' : '#00ff88' }}>{agent.latency}ms</span>
@@ -108,7 +110,7 @@ export function AgentRail() {
       <div className="p-3 border-t border-[rgba(157,78,221,0.1)]">
         <div className="text-[8px] text-[#8888aa] uppercase tracking-widest mb-2">7 Layers</div>
         <div className="space-y-0.5">
-          {stackLayers.map(layer => (
+          {layers.map(layer => (
             <div key={layer.id} className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: layer.color }} />
               <span className="text-[8px] text-[#8888aa] font-mono">L{layer.number}</span>
@@ -134,10 +136,11 @@ export function LiveWorkspace() {
     sseConnectionStatus, hermesSkills, addSkillExecution, addKanbanTask,
     chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments,
   } = useOSStore();
+  const layers = stackLayers ?? [];
 
   const agentId = selectedAgentId || 'hermes';
   const agent = agents.find(a => a.id === agentId);
-  const primaryLayer = stackLayers.find(l => l.number === agent?.layer);
+  const primaryLayer = layers.find(l => l.number === agent?.layer);
   const messages = chatHistories[agentId] || [];
   const isHermesLive = agentId === 'hermes' && hermesConnection.running;
   const isGeminiLive = agentId === 'gemini' && geminiConnection.installed;
@@ -756,13 +759,13 @@ export function BrainPanel() {
         <div className="flex items-center gap-2 mb-1.5">
           <TrendingUp size={12} className="text-[#FFB627]" />
           <span className="text-[9px] text-[#FFB627] font-bold tracking-wider">COMPOUNDING</span>
-          <span className="text-[9px] text-[#8888aa] font-mono ml-auto">Day 30</span>
+          <span className="text-[9px] text-[#8888aa] font-mono ml-auto">Progress</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#7B2CBF] to-[#FFB627]" style={{ width: '72%' }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-[#7B2CBF] to-[#FFB627]" style={{ width: `${goals.length > 0 ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length) : 0}%` }} />
           </div>
-          <span className="text-[9px] text-[#FFB627] font-mono font-bold">72%</span>
+          <span className="text-[9px] text-[#FFB627] font-mono font-bold">{goals.length > 0 ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length) : 0}%</span>
         </div>
       </div>
     </div>

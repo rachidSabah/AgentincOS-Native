@@ -69,7 +69,31 @@ export function SystemManagement() {
       const res = await fetch('/api/hermes/system');
       if (res.ok) {
         const data = await res.json();
-        setSystemMetrics(data);
+        // API may return cpu/memory as objects — extract numeric values
+        const extractNum = (v: unknown): number => {
+          if (typeof v === 'number') return v;
+          if (v && typeof v === 'object') {
+            const obj = v as Record<string, unknown>;
+            return Number(obj.overallUsagePercent ?? obj.usagePercent ?? obj.percent ?? obj.value ?? 0);
+          }
+          return 0;
+        };
+        setSystemMetrics({
+          cpu: extractNum(data.cpu),
+          memory: extractNum(data.memory),
+          network: extractNum(data.network),
+          disk: extractNum(data.disk),
+          activeAgents: Number(data.activeAgents ?? systemMetrics.activeAgents),
+          activeProviders: Number(data.activeProviders ?? systemMetrics.activeProviders),
+          totalRequests: Number(data.totalRequests ?? systemMetrics.totalRequests),
+          avgLatency: Number(data.avgLatency ?? systemMetrics.avgLatency),
+          totalTokensUsed: Number(data.totalTokensUsed ?? systemMetrics.totalTokensUsed),
+          totalCost: Number(data.totalCost ?? systemMetrics.totalCost),
+          uptimeSeconds: Number(data.uptimeSeconds ?? systemMetrics.uptimeSeconds),
+          knowledgeEntries: Number(data.knowledgeEntries ?? systemMetrics.knowledgeEntries),
+          memoryEntries: Number(data.memoryEntries ?? systemMetrics.memoryEntries),
+          workspaceCount: Number(data.workspaceCount ?? systemMetrics.workspaceCount),
+        });
       }
     } catch {
       // Use simulated metrics
@@ -112,8 +136,8 @@ export function SystemManagement() {
             <h2 className="text-white font-bold text-sm tracking-wide">System Management</h2>
             <div className="text-[10px] text-[#8888aa] flex items-center gap-2">
               <span style={{ color: CYBER_GREEN }}>●</span> System Online
-              <span>· Uptime: {formatUptime(systemMetrics.uptimeSeconds)}</span>
-              <span>· Agents: {systemMetrics.activeAgents}</span>
+              <span>· Uptime: {formatUptime(Number(systemMetrics.uptimeSeconds ?? 0))}</span>
+              <span>· Agents: {Number(systemMetrics.activeAgents ?? 0)}</span>
             </div>
           </div>
         </div>
@@ -422,12 +446,21 @@ function ServiceManagement() {
    ═══════════════════════════════════════════════════════════ */
 function ResourceMonitor({ metrics }: { metrics: ReturnType<typeof useOSStore.getState>['systemMetrics'] }) {
   const [gpuAvailable] = useState(false);
+  // Defensive: ensure numeric values
+  const toNum = (v: unknown, fallback = 0): number => {
+    if (typeof v === 'number') return v;
+    if (v && typeof v === 'object') {
+      const obj = v as Record<string, unknown>;
+      return Number(obj.overallUsagePercent ?? obj.usagePercent ?? obj.percent ?? obj.value ?? fallback);
+    }
+    return fallback;
+  };
 
   const gauges = [
-    { label: 'CPU Usage', value: metrics.cpu, icon: Cpu, color: CYBER_CYAN, max: 100, unit: '%' },
-    { label: 'RAM Usage', value: metrics.memory, icon: MemoryStick, color: CYBER_GREEN, max: 100, unit: '%' },
-    { label: 'Disk Usage', value: metrics.disk, icon: HardDrive, color: CYBER_AMBER, max: 100, unit: '%' },
-    { label: 'Network', value: metrics.network, icon: Wifi, color: GOOGLE_BLUE, max: 100, unit: '%' },
+    { label: 'CPU Usage', value: toNum(metrics.cpu), icon: Cpu, color: CYBER_CYAN, max: 100, unit: '%' },
+    { label: 'RAM Usage', value: toNum(metrics.memory), icon: MemoryStick, color: CYBER_GREEN, max: 100, unit: '%' },
+    { label: 'Disk Usage', value: toNum(metrics.disk), icon: HardDrive, color: CYBER_AMBER, max: 100, unit: '%' },
+    { label: 'Network', value: toNum(metrics.network), icon: Wifi, color: GOOGLE_BLUE, max: 100, unit: '%' },
     ...(gpuAvailable ? [{ label: 'GPU Usage', value: 0, icon: Zap, color: CYBER_PURPLE, max: 100, unit: '%' }] : []),
   ];
 
@@ -474,10 +507,10 @@ function ResourceMonitor({ metrics }: { metrics: ReturnType<typeof useOSStore.ge
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Active Agents', value: metrics.activeAgents, color: CYBER_PURPLE },
-          { label: 'Total Requests', value: metrics.totalRequests.toLocaleString(), color: GOOGLE_BLUE },
-          { label: 'Avg Latency', value: `${metrics.avgLatency}ms`, color: CYBER_CYAN },
-          { label: 'Total Tokens', value: `${(metrics.totalTokensUsed / 1000).toFixed(1)}K`, color: CYBER_GREEN },
+          { label: 'Active Agents', value: toNum(metrics.activeAgents), color: CYBER_PURPLE },
+          { label: 'Total Requests', value: toNum(metrics.totalRequests).toLocaleString(), color: GOOGLE_BLUE },
+          { label: 'Avg Latency', value: `${toNum(metrics.avgLatency)}ms`, color: CYBER_CYAN },
+          { label: 'Total Tokens', value: `${(toNum(metrics.totalTokensUsed) / 1000).toFixed(1)}K`, color: CYBER_GREEN },
         ].map(stat => (
           <div key={stat.label} className="rounded-lg border border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] p-3">
             <div className="text-[8px] text-[#8888aa] uppercase tracking-wider mb-1">{stat.label}</div>
@@ -667,6 +700,7 @@ function formatUptime(seconds: number): string {
    ═══════════════════════════════════════════════════════════ */
 function OrchestrationPanel() {
   const { agents, activeSwarms, addLog } = useOSStore();
+  const swarms = activeSwarms ?? [];
   const [executionMode, setExecutionMode] = useState<'parallel' | 'sequential' | 'hybrid'>('hybrid');
   const [orchestratedTasks, setOrchestratedTasks] = useState<
     Array<{
@@ -688,7 +722,7 @@ function OrchestrationPanel() {
   ]);
 
   const [swarmData, setSwarmData] = useState({
-    activeCount: 2,
+    activeCount: swarms.length,
     complexityScore: 78,
     executionMode: 'hybrid' as const,
     composition: [

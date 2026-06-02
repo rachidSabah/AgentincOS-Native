@@ -101,6 +101,7 @@ interface HistoryItem {
    ═══════════════════════════════════════════════════════ */
 export function SwarmIntelligence() {
   const { activeSwarms, swarmHistory, agents, addSwarm, updateSwarm } = useOSStore();
+  const swarms = activeSwarms ?? [];
 
   const [consensusStates, setConsensusStates] = useState<ConsensusState[]>([]);
   const [apiHistory, setApiHistory] = useState<HistoryItem[]>([]);
@@ -119,7 +120,7 @@ export function SwarmIntelligence() {
       if (!res.ok) return;
       const data = await res.json();
       if (data.success) {
-        const currentSwarms = useOSStore.getState().activeSwarms;
+        const currentSwarms = useOSStore.getState().activeSwarms ?? [];
         for (const sw of data.activeSwarms ?? []) {
           const existing = currentSwarms.find(s => s.id === sw.id);
           if (!existing) {
@@ -158,7 +159,7 @@ export function SwarmIntelligence() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.success) {
-          const currentSwarms = useOSStore.getState().activeSwarms;
+          const currentSwarms = useOSStore.getState().activeSwarms ?? [];
           for (const sw of data.activeSwarms ?? []) {
             const existing = currentSwarms.find(s => s.id === sw.id);
             if (!existing) {
@@ -270,8 +271,8 @@ export function SwarmIntelligence() {
   };
 
   const completedCount = apiHistory.filter(s => s.status === 'completed').length;
-  const avgConsensus = activeSwarms.length > 0
-    ? Math.round(activeSwarms.reduce((sum, s) => sum + s.consensusPercentage, 0) / activeSwarms.length)
+  const avgConsensus = swarms.length > 0
+    ? Math.round(swarms.reduce((sum, s) => sum + s.consensusPercentage, 0) / swarms.length)
     : 0;
 
   // Metrics
@@ -306,7 +307,7 @@ export function SwarmIntelligence() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-4">
             <div className="text-center">
-              <div className="text-white font-mono font-bold text-sm">{activeSwarms.length}</div>
+              <div className="text-white font-mono font-bold text-sm">{swarms.length}</div>
               <div className="text-[9px] text-[#8888aa] uppercase tracking-wider">Active</div>
             </div>
             <div className="text-center">
@@ -389,14 +390,14 @@ export function SwarmIntelligence() {
       </AnimatePresence>
 
       {/* ─── 3. Active Swarms Grid ─── */}
-      {activeSwarms.length === 0 && consensusStates.length === 0 ? (
+      {swarms.length === 0 && consensusStates.length === 0 ? (
         <div className="rounded-xl border border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] p-8 text-center">
           <Users size={24} className="mx-auto text-[#8888aa] mb-2" />
           <p className="text-[#8888aa] text-xs">No active swarms. Create one to begin collaborative decision-making.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {(consensusStates.length > 0 ? consensusStates : activeSwarms.map(s => ({
+          {(consensusStates.length > 0 ? consensusStates : swarms.map(s => ({
             swarmId: s.id, task: s.task, strategy: s.strategy, status: s.status,
             currentRound: s.currentRound, consensusPercentage: s.consensusPercentage,
             hasWinner: s.winningProposal !== null, proposals: s.proposals.map(p => ({
@@ -409,7 +410,7 @@ export function SwarmIntelligence() {
           }))).map((swarm, idx) => {
             const uiStatus = mapStatus(swarm.status, swarm.proposals as unknown as { votes: unknown[] }[]);
             const sMeta = STRATEGY_META[swarm.strategy] || STRATEGY_META.consensus;
-            const swarmAgents = activeSwarms.find(s => s.id === swarm.swarmId)?.agents ?? [];
+            const swarmAgents = swarms.find(s => s.id === swarm.swarmId)?.agents ?? [];
 
             return (
               <motion.div key={swarm.swarmId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
@@ -450,7 +451,7 @@ export function SwarmIntelligence() {
                   </div>
                   <div className="w-full h-1.5 bg-[rgba(10,10,26,0.8)] rounded-full overflow-hidden">
                     <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${sMeta.color}88, ${sMeta.color})` }}
-                      initial={{ width: 0 }} animate={{ width: `${Math.min((swarm.currentRound / (activeSwarms.find(s => s.id === swarm.swarmId)?.maxRounds || 5)) * 100, 100)}%` }} />
+                      initial={{ width: 0 }} animate={{ width: `${Math.min((swarm.currentRound / (swarms.find(s => s.id === swarm.swarmId)?.maxRounds || 5)) * 100, 100)}%` }} />
                   </div>
                 </div>
 

@@ -186,6 +186,15 @@ function AgentStatusCard({ detail }: { detail: typeof agentDetails[0] }) {
 
 function SystemMetricsPanel() {
   const { systemMetrics } = useOSStore();
+  // Defensive: ensure numeric values (API may return objects)
+  const toNum = (v: unknown, fallback = 0): number => {
+    if (typeof v === 'number') return v;
+    if (v && typeof v === 'object') {
+      const obj = v as Record<string, unknown>;
+      return Number(obj.overallUsagePercent ?? obj.usagePercent ?? obj.percent ?? obj.value ?? fallback);
+    }
+    return fallback;
+  };
 
   return (
     <GlassCard>
@@ -195,18 +204,18 @@ function SystemMetricsPanel() {
       </div>
 
       <div className="flex items-center justify-around mb-4">
-        <CircularProgress value={systemMetrics.cpu ?? 0} max={100} color="#00ffff" label="CPU" />
-        <CircularProgress value={systemMetrics.memory ?? 0} max={100} color="#9d4edd" label="Memory" />
-        <CircularProgress value={systemMetrics.network ?? 0} max={100} color="#00ff88" label="Network" />
-        <CircularProgress value={systemMetrics.disk ?? 0} max={100} color="#FFB627" label="Disk" />
+        <CircularProgress value={toNum(systemMetrics.cpu)} max={100} color="#00ffff" label="CPU" />
+        <CircularProgress value={toNum(systemMetrics.memory)} max={100} color="#9d4edd" label="Memory" />
+        <CircularProgress value={toNum(systemMetrics.network)} max={100} color="#00ff88" label="Network" />
+        <CircularProgress value={toNum(systemMetrics.disk)} max={100} color="#FFB627" label="Disk" />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Active Agents', value: systemMetrics.activeAgents ?? 0, icon: Server, color: '#00ff88' },
-          { label: 'Total Requests', value: (systemMetrics.totalRequests ?? 0).toLocaleString('en-US'), icon: Activity, color: '#00ffff' },
-          { label: 'Avg Latency', value: `${systemMetrics.avgLatency ?? 0}ms`, icon: Clock, color: '#FFB627' },
-          { label: 'Vault Size', value: `${systemMetrics.vaultSize ?? 0}GB`, icon: HardDrive, color: '#9d4edd' },
+          { label: 'Active Agents', value: toNum(systemMetrics.activeAgents), icon: Server, color: '#00ff88' },
+          { label: 'Total Requests', value: (toNum(systemMetrics.totalRequests)).toLocaleString('en-US'), icon: Activity, color: '#00ffff' },
+          { label: 'Avg Latency', value: `${toNum(systemMetrics.avgLatency)}ms`, icon: Clock, color: '#FFB627' },
+          { label: 'Vault Size', value: `${toNum(systemMetrics.vaultSize, 0)}GB`, icon: HardDrive, color: '#9d4edd' },
         ].map(item => (
           <div key={item.label} className="bg-[rgba(10,10,26,0.5)] rounded-lg p-2.5 flex items-center gap-2">
             <item.icon size={12} style={{ color: item.color }} />
@@ -527,7 +536,7 @@ export function AgentObservability() {
             </span>
           </div>
           <span className="text-[9px] text-[#8888aa] font-mono">
-            {(systemMetrics.totalRequests ?? 0).toLocaleString('en-US')} total req
+            {Number(systemMetrics.totalRequests ?? 0).toLocaleString('en-US')} total req
           </span>
         </div>
       </div>

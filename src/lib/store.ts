@@ -502,17 +502,21 @@ export interface MCPServer {
 }
 
 // ─── Marketplace Types ───
+// ─── Brain Profile Type ───
+export type BrainProfile = 'claude' | 'gemini' | 'hermes' | 'openclaw' | 'vault' | 'opencode' | 'custom';
+
 export interface MarketplaceAgent {
   id: string;
   name: string;
   description: string;
-  category: 'business' | 'coding' | 'research' | 'marketing' | 'education' | 'custom';
+  category: 'business' | 'coding' | 'research' | 'marketing' | 'education' | 'custom' | 'recruitment' | 'wordpress' | 'seo' | 'aviation' | 'legal' | 'medical' | 'devops' | 'data' | 'writing' | 'productivity';
   author: string;
   version: string;
   rating: number;
   downloads: number;
   price: number;
   installed: boolean;
+  brainProfile: BrainProfile;
   requiredProviders: string[];
   icon: string;
   color: string;
@@ -1221,11 +1225,7 @@ export const useOSStore = create<OSState>()(
       })),
 
       // ─── Knowledge ───
-      knowledgeEntries: [
-        { id: 'k1', content: 'Agentic OS is a provider-independent AI Operating System. All reasoning, memory, and orchestration happen natively. External models are interchangeable execution engines.', type: 'fact', source: 'system', tags: ['architecture', 'core'], confidence: 1.0, createdAt: Date.now(), updatedAt: Date.now(), accessCount: 0, lastAccessedAt: Date.now(), connections: ['k2'], embeddingGenerated: false },
-        { id: 'k2', content: 'The Brain Layer is the native intelligence of Agentic OS. It handles planning, reasoning, tool selection, memory retrieval, agent delegation, and multi-agent coordination regardless of which LLM provider is selected.', type: 'concept', source: 'system', tags: ['brain', 'intelligence'], confidence: 1.0, createdAt: Date.now(), updatedAt: Date.now(), accessCount: 0, lastAccessedAt: Date.now(), connections: ['k1', 'k3'], embeddingGenerated: false },
-        { id: 'k3', content: 'Gemini CLI is the default local execution agent. When available, it is used automatically. When unavailable, the configured API provider is used instead.', type: 'procedure', source: 'system', tags: ['gemini', 'cli', 'fallback'], confidence: 1.0, createdAt: Date.now(), updatedAt: Date.now(), accessCount: 0, lastAccessedAt: Date.now(), connections: ['k1'], embeddingGenerated: false },
-      ],
+      knowledgeEntries: [],
       addKnowledgeEntry: (entry) => set((s) => ({ knowledgeEntries: [...s.knowledgeEntries, entry] })),
       updateKnowledgeEntry: (id, updates) => set((s) => ({
         knowledgeEntries: s.knowledgeEntries.map((e) => (e.id === id ? { ...e, ...updates } : e)),
@@ -1236,11 +1236,7 @@ export const useOSStore = create<OSState>()(
       knowledgeGraph: { nodes: [], edges: [] },
 
       // ─── Memory ───
-      memories: [
-        { id: 'm1', timestamp: new Date().toISOString(), content: 'Agentic OS architectural redesign: removed all dependencies on Hermes, Claude Desktop, OpenClaw, and Vault. Platform is now completely provider-independent.', agent: 'Brain', tags: ['architecture', 'redesign', 'milestone'], type: 'long-term', importance: 1.0, decayRate: 0.01, accessCount: 0, lastAccessedAt: Date.now() },
-        { id: 'm2', timestamp: new Date().toISOString(), content: 'Brain Layer created as the native intelligence. All reasoning, planning, and orchestration happens in Agentic OS Core. External models serve as interchangeable execution engines only.', agent: 'Brain', tags: ['brain', 'core', 'intelligence'], type: 'long-term', importance: 0.95, decayRate: 0.01, accessCount: 0, lastAccessedAt: Date.now() },
-        { id: 'm3', timestamp: new Date().toISOString(), content: 'Gemini CLI designated as default local agent with auto-detection, auto-install, auto-configuration, and auto-health monitoring capabilities.', agent: 'Brain', tags: ['gemini', 'cli', 'local-agent'], type: 'long-term', importance: 0.9, decayRate: 0.01, accessCount: 0, lastAccessedAt: Date.now() },
-      ],
+      memories: [],
       addMemory: (memory) => set((s) => ({ memories: [memory, ...s.memories] })),
       updateMemory: (id, updates) => set((s) => ({
         memories: s.memories.map((m) => (m.id === id ? { ...m, ...updates } : m)),
@@ -1335,19 +1331,19 @@ export const useOSStore = create<OSState>()(
 
       // ─── System Metrics ───
       systemMetrics: {
-        cpu: 42,
-        memory: 61,
-        network: 28,
-        disk: 35,
-        activeAgents: 1,
+        cpu: 0,
+        memory: 0,
+        network: 0,
+        disk: 0,
+        activeAgents: 0,
         activeProviders: 0,
         totalRequests: 0,
         avgLatency: 0,
         totalTokensUsed: 0,
         totalCost: 0,
         uptimeSeconds: 0,
-        knowledgeEntries: 3,
-        memoryEntries: 3,
+        knowledgeEntries: 0,
+        memoryEntries: 0,
         workspaceCount: 0,
       },
       setSystemMetrics: (metrics) => set({ systemMetrics: metrics }),
@@ -1381,15 +1377,8 @@ export const useOSStore = create<OSState>()(
       },
 
       // ─── Goals & Journal ───
-      goals: [
-        { id: 'g1', title: 'Launch Agentic OS V5.0', category: 'Milestone', timeline: 'Q2 2025', progress: 72, color: '#E63946' },
-        { id: 'g2', title: 'Complete Gemini CLI Integration', category: 'Feature', timeline: 'Q2 2025', progress: 40, color: '#7B2CBF' },
-        { id: 'g3', title: '100% Provider Independence', category: 'Architecture', timeline: 'Q2 2025', progress: 85, color: '#00ff88' },
-      ],
-      journal: [
-        { id: 'j1', date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), type: 'text', source: 'Brain', content: 'Agentic OS architectural redesign complete. Removed all external dependencies. Platform is now provider-independent.' },
-        { id: 'j2', date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), type: 'text', source: 'Brain', content: 'Gemini CLI designated as default local execution agent with auto-detection and health monitoring.' },
-      ],
+      goals: [],
+      journal: [],
 
       // ─── Hermes ───
       hermesSkills: [] as HermesSkill[],
