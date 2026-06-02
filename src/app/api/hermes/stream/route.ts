@@ -17,32 +17,28 @@ export async function GET() {
 
   const stream = new ReadableStream({
     async start(controller) {
-      // Send initial status
       await sendStatusUpdate(controller, encoder);
 
-      // Set up periodic updates
       const statusInterval = setInterval(async () => {
         try {
           await sendStatusUpdate(controller, encoder);
         } catch {
-          // Client disconnected or error
           clearInterval(statusInterval);
           clearInterval(latencyInterval);
+          clearInterval(keepAliveInterval);
           try { controller.close(); } catch { /* already closed */ }
         }
       }, 5000);
 
-      // Latency measurement every 15 seconds
       const latencyInterval = setInterval(async () => {
         try {
           const latency = await measureHermesLatency();
           sendSSE(controller, encoder, "hermes:latency", { latency, timestamp: Date.now() });
         } catch {
-          // Ignore — will retry next interval
+          // retry next interval
         }
       }, 15000);
 
-      // Keep-alive ping every 30 seconds
       const keepAliveInterval = setInterval(() => {
         try {
           sendSSE(controller, encoder, "ping", { timestamp: Date.now() });
@@ -53,11 +49,9 @@ export async function GET() {
           try { controller.close(); } catch { /* already closed */ }
         }
       }, 30000);
-
-      // Clean up on abort signal
-      // Note: In Next.js App Router, we don't have direct access to the
-      // request signal in the stream start callback. Cleanup happens when
-      // the controller is closed or errors occur.
+    },
+    cancel() {
+      // Client disconnected — intervals are cleaned via the catch blocks above
     },
   });
 

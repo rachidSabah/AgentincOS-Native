@@ -6,10 +6,10 @@ import {
   SystemMonitor, LogStream, LatencyGraph, ControlRoom,
   CommandPalette, GoalsView, JournalView, MemoryView,
   BrainFeatureGrid, CompoundVisualizer, BrainLayerExplanation,
-  KnowledgeSystemStatus, NetworkTopology, QuickStats,
+  KnowledgeSystemStatus, 
   LayerCard, StackOverview, AgentHeroCards,
-  SystemStatusBanner, BrainQuickActions, useSystemDetection,
-  Stack3DVisualization, LayerFlowDiagram, LayerFlowView,
+  useSystemDetection,
+  LayerFlowView,
   SEOSilo,
 } from '@/components/dashboard';
 import type { StackLayer } from '@/components/dashboard';
@@ -22,7 +22,7 @@ import { SecurityScanner, WebhookManager, ReportGenerator, ModelRouter } from '@
 import {
   MemoryEngineDashboard, MemoryGraph, MemoryTimeline,
   MemorySearch, MemoryExtractor, AgentMemorySharing,
-  RelationshipEngine, MemoryDetail,
+  RelationshipEngine,
 } from '@/components/memory-engine';
 import { HomeDashboard } from '@/components/home-dashboard';
 import { GeminiPowerPanel } from '@/components/gemini-power-panel';
@@ -47,8 +47,8 @@ import { ProductivityHeatmap } from '@/components/productivity-heatmap';
 import { WorkspaceManager } from '@/components/workspace-manager';
 import { AgentMarketplace } from '@/components/agent-marketplace';
 import { SettingsPanel } from '@/components/settings-panel';
-import { BrainLayerDashboard, BrainTaskPanel as BrainTaskPanelDetail, BrainReasoningView } from '@/components/brain-layer';
-import { ProviderSettingsPage, ProviderHealthCard, ActiveProviderBadge, GeminiCLISetup } from '@/components/provider-settings';
+import { BrainLayerDashboard } from '@/components/brain-layer';
+import { ProviderSettingsPage, GeminiCLISetup } from '@/components/provider-settings';
 import { GeminiCLIDashboard } from '@/components/gemini-cli-dashboard';
 import { TerminalCenter } from '@/components/terminal-center';
 import { SystemManagement } from '@/components/system-management';
@@ -580,14 +580,6 @@ export default function HomePage() {
           </motion.div>
         );
 
-      // ─── Cyberpunk Premium Components ───
-      case 'audit-trail':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <AuditTrail />
-          </motion.div>
-        );
-
       case 'permission-scopes':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -617,15 +609,7 @@ export default function HomePage() {
           </motion.div>
         );
 
-      // ─── Gemini CLI Panel (Legacy) ───
-      case 'gemini-cli':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <GeminiPowerPanel />
-          </motion.div>
-        );
-
-      // ─── Terminal Center ───
+      case 'gemini-dashboard':
       case 'terminal':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
@@ -672,13 +656,6 @@ export default function HomePage() {
           </motion.div>
         );
 
-      case 'rag-engine':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <RAGEngine />
-          </motion.div>
-        );
-
       case 'productivity-heatmap':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -708,13 +685,6 @@ export default function HomePage() {
           </motion.div>
         );
 
-      case 'security':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <SecurityScanner />
-          </motion.div>
-        );
-
       case 'reports':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -727,14 +697,6 @@ export default function HomePage() {
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <WorkspaceManager />
-          </motion.div>
-        );
-
-      // ─── Agent Marketplace ───
-      case 'agent-marketplace':
-        return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <AgentMarketplace />
           </motion.div>
         );
 
@@ -792,7 +754,7 @@ export default function HomePage() {
         {!isMissionControl3Col && !isHomeView && <TopBar />}
         <main className={`flex-1 overflow-hidden ${isMissionControl3Col || isHomeView ? '' : 'overflow-y-auto p-6'}`} role="main" aria-label="Dashboard Content">
           <ViewErrorBoundary>
-            <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
+            <AnimatePresence mode="wait"><div key={activeView}>{renderView()}</div></AnimatePresence>
           </ViewErrorBoundary>
         </main>
 

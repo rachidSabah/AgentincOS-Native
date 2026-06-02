@@ -34,12 +34,30 @@ const MAX_TIMEOUT = 120000; // 2 minutes
 const BLOCKED_COMMANDS = [
   "rm -rf /",
   "rm -rf /*",
+  "rm -rf ~",
   "mkfs",
   "dd if=",
   ":(){ :|:& };:",
   "fork bomb",
   "format c:",
   "del /f /s /q c:\\",
+];
+
+// Shell injection patterns (blocked regardless of command)
+const BLOCKED_PATTERNS = [
+  "$(",
+  "`",
+  "&&",
+  "||",
+  ";",
+  "|",
+  ">",
+  "<",
+  ">>",
+  "%0a",
+  "%0d",
+  "\\x",
+  "\\u",
 ];
 
 // ---------------------------------------------------------------------------
@@ -66,7 +84,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Security check: block dangerous commands
+  // Security check: block dangerous commands and injection patterns
   const commandLower = body.command.toLowerCase().trim();
   for (const blocked of BLOCKED_COMMANDS) {
     if (commandLower.includes(blocked.toLowerCase())) {
@@ -75,6 +93,18 @@ export async function POST(request: NextRequest) {
           error: "Command blocked for safety reasons",
           command: body.command,
           reason: `This command matches a blocked pattern: "${blocked}"`,
+        },
+        { status: 403 },
+      );
+    }
+  }
+  for (const pattern of BLOCKED_PATTERNS) {
+    if (body.command.includes(pattern)) {
+      return NextResponse.json(
+        {
+          error: "Command blocked for safety reasons",
+          command: body.command,
+          reason: `Command contains potentially dangerous characters: "${pattern}"`,
         },
         { status: 403 },
       );

@@ -54,6 +54,10 @@ export class MemoryGraphEngine {
   }
   
   getNode(id: string): MemoryNode | undefined {
+    return this.nodes.get(id);
+  }
+  
+  accessNode(id: string): MemoryNode | undefined {
     const node = this.nodes.get(id);
     if (node) {
       node.accessCount++;

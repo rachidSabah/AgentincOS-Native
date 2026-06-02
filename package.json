@@ -5,8 +5,8 @@
   "description": "Agentic OS Ultimate Edition V5.0 — Cyberpunk AI OS Dashboard with 7-Layer Agent Architecture, Gemini CLI Integration, Swarm Intelligence, Agent Builder, Marketplace, and more.",
   "scripts": {
     "dev": "next dev -p 3100",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production node .next/standalone/server.js",
+    "build": "next build",
+    "start": "node .next/standalone/server.js",
     "stop": "node scripts/stop.js",
     "restart": "npm run stop && node scripts/sleep.js && npm run start",
     "lint": "eslint .",

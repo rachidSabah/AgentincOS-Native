@@ -239,13 +239,16 @@ export interface HermesSkill {
  * Finds the hermes binary path asynchronously, or returns `null` if not found.
  */
 export async function findHermesBinaryAsync(): Promise<string | null> {
-  // 1. Check `which hermes` (fast path when on PATH)
+  const isWindows = process.platform === 'win32';
+  
+  // 1. Check via platform-appropriate command
   try {
-    const { stdout } = await execFileAsync("which", ["hermes"], {
+    const cmd = isWindows ? 'where' : 'which';
+    const { stdout } = await execFileAsync(cmd, ["hermes"], {
       timeout: 3000,
     });
-    const which = stdout.trim();
-    if (which && existsSync(which)) return which;
+    const result = stdout.trim().split('\n')[0]?.trim();
+    if (result && existsSync(result)) return result;
   } catch {
     // not on PATH — fall through
   }
@@ -311,21 +314,29 @@ export async function getHermesModelAsync(): Promise<string | undefined> {
  * Checks if the Hermes process is running (via `pgrep` or `ps`), asynchronously.
  */
 export async function isHermesProcessRunningAsync(): Promise<boolean> {
+  const isWindows = process.platform === 'win32';
+  
   try {
-    const { stdout } = await execFileAsync("pgrep", ["-f", "hermes"], {
-      timeout: 3000,
-    });
-    return stdout.trim().length > 0;
-  } catch {
-    // pgrep not available or no match — try ps
-    try {
-      const { stdout } = await execFileAsync("ps", ["aux"], {
+    if (isWindows) {
+      const { stdout } = await execFileAsync("tasklist", [], {
         timeout: 3000,
       });
-      return /hermes/.test(stdout);
-    } catch {
-      return false;
+      return /hermes/i.test(stdout);
+    } else {
+      try {
+        const { stdout } = await execFileAsync("pgrep", ["-f", "hermes"], {
+          timeout: 3000,
+        });
+        return stdout.trim().length > 0;
+      } catch {
+        const { stdout } = await execFileAsync("ps", ["aux"], {
+          timeout: 3000,
+        });
+        return /hermes/.test(stdout);
+      }
     }
+  } catch {
+    return false;
   }
 }
 
@@ -335,18 +346,19 @@ export async function isHermesProcessRunningAsync(): Promise<boolean> {
 
 /** @deprecated Use findHermesBinaryAsync() instead */
 export function findHermesBinary(): string | null {
-  // 1. Check `which hermes` (fast path when on PATH)
+  const isWindows = process.platform === 'win32';
   try {
-    const which = execSync("which hermes 2>/dev/null", {
+    const cmd = isWindows ? 'where hermes 2>nul' : 'which hermes 2>/dev/null';
+    const result = execSync(cmd, {
       encoding: "utf-8",
       timeout: 3000,
-    }).trim();
-    if (which && existsSync(which)) return which;
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim().split('\n')[0]?.trim();
+    if (result && existsSync(result)) return result;
   } catch {
     // not on PATH — fall through
   }
 
-  // 2. Check well-known candidate locations
   for (const candidate of HERMES_BIN_CANDIDATES) {
     if (existsSync(candidate)) return candidate;
   }
@@ -365,9 +377,10 @@ export function getHermesVersion(): string | undefined {
   if (!bin) return undefined;
 
   try {
-    const out = execSync(`${bin} --version 2>/dev/null`, {
+    const out = execSync(`"${bin}" --version`, {
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
     const match = out.match(/(\d+\.\d+\.\d+[^\s]*)/);
     return match ? match[1] : out.split("\n")[0] || undefined;
@@ -397,22 +410,33 @@ export function getHermesModel(): string | undefined {
 
 /** @deprecated Use isHermesProcessRunningAsync() instead */
 export function isHermesProcessRunning(): boolean {
+  const isWindows = process.platform === 'win32';
   try {
-    const out = execSync("pgrep -f hermes 2>/dev/null || true", {
-      encoding: "utf-8",
-      timeout: 3000,
-    }).trim();
-    return out.length > 0;
-  } catch {
-    try {
-      const out = execSync("ps aux 2>/dev/null", {
+    if (isWindows) {
+      const out = execSync("tasklist", {
         encoding: "utf-8",
         timeout: 3000,
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
-      return /hermes/.test(out);
-    } catch {
-      return false;
+      return /hermes/i.test(out);
+    } else {
+      try {
+        const out = execSync("pgrep -f hermes 2>/dev/null || true", {
+          encoding: "utf-8",
+          timeout: 3000,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        return out.length > 0;
+      } catch {
+        const out = execSync("ps aux 2>/dev/null", {
+          encoding: "utf-8",
+          timeout: 3000,
+        });
+        return /hermes/.test(out);
+      }
     }
+  } catch {
+    return false;
   }
 }
 
