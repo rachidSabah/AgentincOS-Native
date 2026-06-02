@@ -1,10 +1,11 @@
-import { execFile } from "child_process";
+import { execFile, exec } from "child_process";
 import { promisify } from "util";
 import { existsSync, readFileSync } from "fs";
-import { homedir } from "os";
+import { homedir, platform } from "os";
 import { join } from "path";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -19,18 +20,29 @@ export const GEMINI_CONFIG_PATH = join(GEMINI_DATA_DIR, "config.json");
 /** Path to the Gemini auth file. */
 export const GEMINI_AUTH_PATH = join(GEMINI_DATA_DIR, "auth.json");
 
-/** Possible binary names for the Gemini CLI. */
-export const GEMINI_BIN_NAMES = ["gemini", "gemini-cli"];
+/** Whether we're running on Windows */
+const IS_WIN = platform() === "win32";
 
-/** Common binary locations for the Gemini CLI. */
-export const GEMINI_BIN_CANDIDATES = [
-  join(homedir(), ".local", "bin", "gemini"),
-  join(homedir(), ".local", "bin", "gemini-cli"),
-  "/usr/local/bin/gemini",
-  "/usr/local/bin/gemini-cli",
-  "/usr/bin/gemini",
-  "/usr/bin/gemini-cli",
-];
+/** Possible binary names for the Gemini CLI (platform-aware). */
+export const GEMINI_BIN_NAMES: string[] = IS_WIN
+  ? ["gemini.cmd", "gemini.exe", "gemini", "gemini-cli.cmd", "gemini-cli"]
+  : ["gemini", "gemini-cli"];
+
+/** Common binary locations for the Gemini CLI (platform-aware). */
+export const GEMINI_BIN_CANDIDATES: string[] = IS_WIN
+  ? [
+      join(homedir(), "AppData", "Roaming", "npm", "gemini.cmd"),
+      join(homedir(), "AppData", "Roaming", "npm", "gemini-cli.cmd"),
+      join(homedir(), "AppData", "Local", "npm", "gemini.cmd"),
+    ]
+  : [
+      join(homedir(), ".local", "bin", "gemini"),
+      join(homedir(), ".local", "bin", "gemini-cli"),
+      "/usr/local/bin/gemini",
+      "/usr/local/bin/gemini-cli",
+      "/usr/bin/gemini",
+      "/usr/bin/gemini-cli",
+    ];
 
 /** Possible npm package names for the Gemini CLI. */
 export const GEMINI_NPM_PACKAGES = [
@@ -103,18 +115,30 @@ export interface GeminiRequest {
 // CLI Detection & Binary Resolution
 // ---------------------------------------------------------------------------
 
+/** Execute a binary with the correct shell options for the current platform */
+async function execBin(binPath: string, args: string[], opts?: { timeout?: number }) {
+  const baseOpts: { timeout: number; shell?: boolean } = { timeout: opts?.timeout ?? 5000 };
+  // On Windows, .cmd/.bat files MUST be executed with shell: true
+  if (IS_WIN || binPath.endsWith(".cmd") || binPath.endsWith(".bat")) {
+    baseOpts.shell = true;
+  }
+  return execFileAsync(binPath, args, baseOpts);
+}
+
 /**
  * Finds the Gemini CLI binary path asynchronously, or returns `null` if not found.
  */
 export async function findGeminiBinaryAsync(): Promise<string | null> {
-  // 1. Try `which` for each possible binary name
+  // 1. Try `which` (Unix) or `where` (Windows) for each possible binary name
+  const locateCmd = IS_WIN ? "where" : "which";
   for (const binName of GEMINI_BIN_NAMES) {
     try {
-      const { stdout } = await execFileAsync("which", [binName], {
+      const { stdout } = await execFileAsync(locateCmd, [binName], {
         timeout: 3000,
+        ...(IS_WIN ? { shell: true } : {}),
       });
-      const which = stdout.trim();
-      if (which && existsSync(which)) return which;
+      const located = stdout.trim().split(/\r?\n/)[0]; // `where` may return multiple lines
+      if (located && existsSync(located)) return located;
     } catch {
       // not on PATH — try next name
     }
@@ -125,8 +149,10 @@ export async function findGeminiBinaryAsync(): Promise<string | null> {
     if (existsSync(candidate)) return candidate;
   }
 
-  // 3. Check npx global bin locations
-  const npmGlobalBin = join(homedir(), ".npm-global", "bin");
+  // 3. Check npx global bin locations (platform-aware)
+  const npmGlobalBin = IS_WIN
+    ? join(homedir(), "AppData", "Roaming", "npm")
+    : join(homedir(), ".npm-global", "bin");
   for (const binName of GEMINI_BIN_NAMES) {
     const path = join(npmGlobalBin, binName);
     if (existsSync(path)) return path;
@@ -150,9 +176,7 @@ export async function getGeminiVersionAsync(): Promise<string | null> {
   if (!bin) return null;
 
   try {
-    const { stdout } = await execFileAsync(bin, ["--version"], {
-      timeout: 5000,
-    });
+    const { stdout } = await execBin(bin, ["--version"], { timeout: 5000 });
     const out = stdout.trim();
     const match = out.match(/(\d+\.\d+\.\d+[^\s]*)/);
     return match ? match[1] : out.split("\n")[0] || null;
@@ -171,13 +195,48 @@ export async function getGeminiModelAsync(): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Process Detection
+// Process Detection (Cross-Platform)
 // ---------------------------------------------------------------------------
 
 /**
  * Checks if the Gemini process is running, asynchronously.
+ * Works on Windows (tasklist), macOS, and Linux (pgrep/ps).
  */
 export async function isGeminiProcessRunningAsync(): Promise<boolean> {
+  if (IS_WIN) {
+    // Windows: use tasklist to find node processes that might be Gemini
+    try {
+      const { stdout } = await execAsync(
+        'tasklist /FI "IMAGENAME eq node.exe" /FO CSV /NH 2>NUL',
+        { timeout: 5000, windowsHide: true }
+      );
+      // Check if any node process has gemini in its command line
+      // Since tasklist doesn't show command-line args easily, also try WMIC
+      try {
+        const { stdout: wmicOut } = await execAsync(
+          'wmic process where "name=\'node.exe\'" get commandline /format:list 2>NUL',
+          { timeout: 5000, windowsHide: true }
+        );
+        return /gemini/i.test(wmicOut);
+      } catch {
+        // WMIC not available — fall back to PowerShell
+        try {
+          const { stdout: psOut } = await execAsync(
+            'powershell.exe -NoProfile -Command "Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Path -match \'gemini\' -or $_.CommandLine -match \'gemini\' } | Select-Object -First 1"',
+            { timeout: 5000, windowsHide: true }
+          );
+          return psOut.trim().length > 0;
+        } catch {
+          // Last resort: check if any node process is running (broad heuristic)
+          return /node\.exe/i.test(stdout);
+        }
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  // Unix (macOS / Linux)
   try {
     const { stdout } = await execFileAsync("pgrep", ["-f", "gemini"], {
       timeout: 3000,
@@ -273,9 +332,7 @@ export async function performGeminiHealthCheck(): Promise<GeminiHealthCheck> {
   // Try to ping the CLI if installed
   if (installed && binPath) {
     try {
-      const { stdout } = await execFileAsync(binPath, ["--version"], {
-        timeout: 5000,
-      });
+      const { stdout } = await execBin(binPath, ["--version"], { timeout: 5000 });
       cliResponsive = stdout.trim().length > 0;
     } catch {
       cliResponsive = false;

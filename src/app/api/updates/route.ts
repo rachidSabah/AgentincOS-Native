@@ -229,11 +229,12 @@ export async function GET(request: NextRequest) {
     case 'status': {
       const pkgVersion = await getAppVersion();
       const currentVersion = clientVersion || pkgVersion;
+      // Resolve token BEFORE try block so it's available outside
+      const effectiveToken = clientToken || process.env.GITHUB_TOKEN;
       // Check GitHub API reachability — works without token for public repos
       let githubReachable = false;
       try {
         // Use a lightweight endpoint to check connectivity — no token needed for public repos
-        const effectiveToken = clientToken || process.env.GITHUB_TOKEN;
         const testHeaders: Record<string, string> = {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'Agentic-OS-Update-Checker',

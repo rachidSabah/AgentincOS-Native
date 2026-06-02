@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execFile, exec } from 'child_process';
 import { promisify } from 'util';
+import { platform } from 'os';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import ZAI from 'z-ai-web-dev-sdk';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
+const IS_WIN = platform() === 'win32';
 
 // ─── ZAI SDK singleton (lazy-initialised) ───
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
@@ -59,113 +64,141 @@ async function findGeminiServer(): Promise<{ port: number; res: Response } | nul
 }
 
 // Try to detect Gemini CLI binary via command line — fast parallel check
+// Cross-platform: works on Windows, macOS, and Linux
 async function detectGeminiBinary(): Promise<{ installed: boolean; version?: string; path?: string }> {
+  const locateCmd = IS_WIN ? 'where' : 'which';
+  const shellOpt = IS_WIN ? { shell: true } : {};
+  const binNames = IS_WIN
+    ? ['gemini.cmd', 'gemini.exe', 'gemini', 'gemini-cli.cmd', 'gemini-cli']
+    : ['gemini', 'gemini-cli'];
+  const npmGlobalDir = IS_WIN
+    ? join(homedir(), 'AppData', 'Roaming', 'npm')
+    : join(homedir(), '.npm-global', 'bin');
+
+  // Helper to run binary with correct shell options
+  const execBin = (bin: string, args: string[], timeout = 3000) =>
+    execFileAsync(bin, args, { timeout, ...(bin.endsWith('.cmd') || bin.endsWith('.bat') || IS_WIN ? { shell: true } : {}) });
+
   // Run multiple detection strategies in parallel and return the first success
   const strategies: Promise<{ installed: boolean; version?: string; path?: string }>[] = [
-    // Strategy 1: Try 'gemini --version' directly
-    execFileAsync('gemini', ['--version'], { timeout: 3000 })
-      .then(({ stdout }) => ({ installed: true, version: stdout.trim().split('\n')[0], path: 'gemini' }))
-      .catch(() => ({ installed: false })),
+    // Strategy 1: Try each binary name with locate command (which/where)
+    ...binNames.map(binName =>
+      execFileAsync(locateCmd, [binName], { timeout: 2000, ...shellOpt })
+        .then(async ({ stdout }) => {
+          const located = stdout.trim().split(/\r?\n/)[0];
+          if (!located || !existsSync(located)) return { installed: false };
+          try {
+            const { stdout: verOut } = await execBin(located, ['--version']);
+            return { installed: true, path: located, version: verOut.trim().split('\n')[0] };
+          } catch {
+            return { installed: true, path: located };
+          }
+        })
+        .catch(() => ({ installed: false }))
+    ),
 
-    // Strategy 2: Try 'which gemini' (Linux/WSL native)
-    execFileAsync('which', ['gemini'], { timeout: 2000 })
-      .then(async ({ stdout }) => {
-        const geminiPath = stdout.trim();
-        if (!geminiPath) return { installed: false };
-        try {
-          const { stdout: verOut } = await execFileAsync(geminiPath, ['--version'], { timeout: 3000 });
-          return { installed: true, path: geminiPath, version: verOut.trim().split('\n')[0] };
-        } catch {
-          return { installed: true, path: geminiPath };
+    // Strategy 2: Try binary directly
+    ...binNames.map(binName =>
+      execBin(binName, ['--version'])
+        .then(({ stdout }) => ({ installed: true, version: stdout.trim().split('\n')[0], path: binName }))
+        .catch(() => ({ installed: false }))
+    ),
+
+    // Strategy 3: Try npm global check (cross-platform)
+    IS_WIN
+      ? execAsync('npm list -g --depth=0 2>NUL | findstr /i gemini', { timeout: 5000, windowsHide: true })
+          .then(({ stdout }) => {
+            if (stdout.trim()) {
+              const match = stdout.match(/gemini-cli@([\d.]+)/);
+              return { installed: true, path: 'npm global', version: match ? match[1] : 'npm-installed' };
+            }
+            return { installed: false };
+          })
+          .catch(() => ({ installed: false }))
+      : execAsync('npm list -g --depth=0 2>/dev/null | grep -i gemini', { timeout: 5000 })
+          .then(({ stdout }) => {
+            if (stdout.trim()) {
+              const match = stdout.match(/gemini-cli@([\d.]+)/);
+              return { installed: true, path: 'npm global', version: match ? match[1] : 'npm-installed' };
+            }
+            return { installed: false };
+          })
+          .catch(() => ({ installed: false })),
+
+    // Strategy 4: Check well-known candidate paths
+    (async () => {
+      const candidates = IS_WIN
+        ? [
+            join(homedir(), 'AppData', 'Roaming', 'npm', 'gemini.cmd'),
+            join(homedir(), 'AppData', 'Roaming', 'npm', 'gemini-cli.cmd'),
+          ]
+        : [
+            join(homedir(), '.local', 'bin', 'gemini'),
+            join(homedir(), '.local', 'bin', 'gemini-cli'),
+            '/usr/local/bin/gemini',
+            '/usr/local/bin/gemini-cli',
+          ];
+      for (const c of candidates) {
+        if (existsSync(c)) {
+          try {
+            const { stdout } = await execBin(c, ['--version']);
+            return { installed: true, path: c, version: stdout.trim().split('\n')[0] };
+          } catch {
+            return { installed: true, path: c };
+          }
         }
-      })
-      .catch(() => ({ installed: false })),
+      }
+      return { installed: false };
+    })(),
 
-    // Strategy 3: Try npm global — check if @anthropic-ai/gemini-cli or @google/gemini-cli is installed
-    execAsync('npm list -g --depth=0 2>/dev/null | grep -i gemini', { timeout: 5000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) {
-          const match = stdout.match(/gemini-cli@([\d.]+)/);
-          return { installed: true, path: 'npm global', version: match ? match[1] : 'npm-installed' };
+    // Strategy 5: Check npm global bin directory for binary files
+    (async () => {
+      for (const binName of binNames) {
+        const binPath = join(npmGlobalDir, binName);
+        if (existsSync(binPath)) {
+          try {
+            const { stdout } = await execBin(binPath, ['--version']);
+            return { installed: true, path: binPath, version: stdout.trim().split('\n')[0] };
+          } catch {
+            return { installed: true, path: binPath };
+          }
         }
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
+      }
+      return { installed: false };
+    })(),
 
-    // Strategy 4: Try npx (resolves locally installed packages)
-    execFileAsync('npx', ['--yes', '@anthropic-ai/gemini-cli', '--version'], { timeout: 8000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'npx @anthropic-ai/gemini-cli', version: stdout.trim().split('\n')[0] };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
+    // Strategy 6: Windows-only strategies
+    ...(IS_WIN ? [
+      // Windows CMD: where gemini
+      execFileAsync('cmd.exe', ['/c', 'where gemini'], { timeout: 3000 })
+        .then(({ stdout }) => {
+          if (stdout.trim()) {
+            const winPath = stdout.trim().split('\n')[0];
+            return { installed: true, path: winPath, version: 'Windows CLI detected' };
+          }
+          return { installed: false };
+        })
+        .catch(() => ({ installed: false })),
 
-    // Strategy 5: Try npx with Google's Gemini CLI package
-    execFileAsync('npx', ['--yes', '@google/gemini-cli', '--version'], { timeout: 8000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'npx @google/gemini-cli', version: stdout.trim().split('\n')[0] };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
+      // PowerShell: Get-Command gemini
+      execFileAsync('powershell.exe', ['-NoProfile', '-Command', 'Get-Command gemini -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source'], { timeout: 5000 })
+        .then(({ stdout }) => {
+          if (stdout.trim()) return { installed: true, path: stdout.trim(), version: 'Windows PowerShell detected' };
+          return { installed: false };
+        })
+        .catch(() => ({ installed: false })),
+    ] as Promise<{ installed: boolean; version?: string; path?: string }>[] : []),
 
-    // Strategy 6: Try WSL — run 'gemini --version' inside Windows Subsystem for Linux
-    execFileAsync('wsl.exe', ['-e', 'gemini', '--version'], { timeout: 5000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'wsl gemini', version: stdout.trim().split('\n')[0] };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
-
-    // Strategy 7: Try WSL with bash -l (loads login shell profile for PATH)
-    execFileAsync('wsl.exe', ['-e', 'bash', '-l', '-c', 'which gemini && gemini --version'], { timeout: 5000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'wsl gemini (bash login)', version: stdout.trim().split('\n').pop() || undefined };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
-
-    // Strategy 8: Try Windows cmd.exe 'where gemini'
-    execFileAsync('cmd.exe', ['/c', 'where gemini'], { timeout: 3000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) {
-          const winPath = stdout.trim().split('\n')[0];
-          return { installed: true, path: winPath, version: 'Windows CLI detected' };
-        }
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
-
-    // Strategy 9: Try PowerShell
-    execFileAsync('powershell.exe', ['-Command', 'Get-Command gemini -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source'], { timeout: 5000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: stdout.trim(), version: 'Windows PowerShell detected' };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
-
-    // Strategy 8: Try WSL with -d Ubuntu (specific distro) — longer timeout for WSL cold start
-    execFileAsync('wsl.exe', ['-d', 'Ubuntu', '-e', 'bash', '-l', '-c', 'which gemini && gemini --version'], { timeout: 8000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'wsl -d Ubuntu gemini', version: stdout.trim().split('\n').pop() || undefined };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
-
-    // Strategy 9: Try WSL with -- separator (works when default distro isn't Ubuntu)
-    execFileAsync('wsl.exe', ['--', 'bash', '-ic', 'gemini --version 2>/dev/null'], { timeout: 8000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'wsl bash gemini', version: stdout.trim().split('\n')[0] };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
-
-    // Strategy 10: Try WSL with explicit PATH expansion for nvm/npm global bins
-    execFileAsync('wsl.exe', ['--', 'bash', '-lc', 'export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && which gemini 2>/dev/null && gemini --version 2>/dev/null'], { timeout: 8000 })
-      .then(({ stdout }) => {
-        if (stdout.trim()) return { installed: true, path: 'wsl bash (expanded PATH) gemini', version: stdout.trim().split('\n').pop() || undefined };
-        return { installed: false };
-      })
-      .catch(() => ({ installed: false })),
+    // Strategy 7: Unix-only strategies (WSL)
+    ...(!IS_WIN ? [
+      // npx resolution
+      execFileAsync('npx', ['--yes', '@google/gemini-cli', '--version'], { timeout: 8000 })
+        .then(({ stdout }) => {
+          if (stdout.trim()) return { installed: true, path: 'npx @google/gemini-cli', version: stdout.trim().split('\n')[0] };
+          return { installed: false };
+        })
+        .catch(() => ({ installed: false })),
+    ] as Promise<{ installed: boolean; version?: string; path?: string }>[] : []),
   ];
 
   // Run all strategies in parallel, wait for all to settle
@@ -282,21 +315,32 @@ export async function POST(req: NextRequest) {
     case 'start': {
       // Try to start the Gemini CLI server
       try {
-        // Try multiple start strategies in parallel
-        const startStrategies = [
-          // Strategy 1: Direct 'gemini serve'
-          execAsync('gemini serve &', { timeout: 5000 })
-            .then(() => ({ started: true, method: 'gemini serve' }))
-            .catch(() => ({ started: false })),
-          // Strategy 2: npx
-          execAsync('npx --yes @anthropic-ai/gemini-cli serve &', { timeout: 8000 })
-            .then(() => ({ started: true, method: 'npx serve' }))
-            .catch(() => ({ started: false })),
-          // Strategy 3: WSL
-          execAsync('wsl.exe -e bash -l -c "gemini serve &"', { timeout: 5000 })
-            .then(() => ({ started: true, method: 'wsl gemini serve' }))
-            .catch(() => ({ started: false })),
-        ];
+        // Platform-aware start strategies
+        const startStrategies = IS_WIN
+          ? [
+              // Windows: start in background using start command
+              execAsync('start /B gemini serve', { timeout: 5000, windowsHide: true })
+                .then(() => ({ started: true, method: 'gemini serve (Windows)' }))
+                .catch(() => ({ started: false })),
+              // Windows: npx start
+              execAsync('start /B npx --yes @google/gemini-cli serve', { timeout: 8000, windowsHide: true })
+                .then(() => ({ started: true, method: 'npx serve (Windows)' }))
+                .catch(() => ({ started: false })),
+            ]
+          : [
+              // Unix: Direct 'gemini serve' in background
+              execAsync('gemini serve &', { timeout: 5000 })
+                .then(() => ({ started: true, method: 'gemini serve' }))
+                .catch(() => ({ started: false })),
+              // Unix: npx
+              execAsync('npx --yes @google/gemini-cli serve &', { timeout: 8000 })
+                .then(() => ({ started: true, method: 'npx serve' }))
+                .catch(() => ({ started: false })),
+              // Unix: WSL fallback (for Windows users running Agentic OS under WSL)
+              execAsync('wsl.exe -e bash -l -c "gemini serve &"', { timeout: 5000 })
+                .then(() => ({ started: true, method: 'wsl gemini serve' }))
+                .catch(() => ({ started: false })),
+            ];
 
         const results = await Promise.allSettled(startStrategies);
         const started = results.find(r => r.status === 'fulfilled' && r.value.started);
@@ -380,14 +424,15 @@ export async function POST(req: NextRequest) {
         console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
       }
 
-      // Strategy 3: Try CLI binary directly
+      // Strategy 3: Try CLI binary directly (cross-platform shell option)
       try {
-        const { stdout } = await execFileAsync('gemini', [
+        const binCmd = IS_WIN ? 'gemini.cmd' : 'gemini';
+        const { stdout } = await execFileAsync(binCmd, [
           'chat',
           '--model', model || 'gemini-2.5-pro',
           '--message', message,
           '--format', 'json',
-        ], { timeout: 30000 });
+        ], { timeout: 30000, ...(IS_WIN ? { shell: true } : {}) });
 
         if (stdout.trim()) {
           const latency = Date.now() - startTime;
@@ -408,36 +453,39 @@ export async function POST(req: NextRequest) {
         // CLI not available or failed
       }
 
-      // Strategy 4: Try WSL binary
-      const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
-      const wslStrategies = [
-        ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-        ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-        ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
-      ];
+      // Strategy 4: Platform-specific fallbacks
+      if (!IS_WIN) {
+        // Unix: Try WSL binary
+        const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+        const wslStrategies = [
+          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+        ];
 
-      for (const args of wslStrategies) {
-        try {
-          const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
-          if (stdout.trim()) {
-            const latency = Date.now() - startTime;
-            try {
-              const data = JSON.parse(stdout);
-              return NextResponse.json({ ...data, via: 'wsl', latency });
-            } catch {
-              return NextResponse.json({
-                response: stdout.trim(),
-                model: model || 'gemini-2.5-pro',
-                tokensUsed: Math.floor((message?.length || 0) * 1.2),
-                latency,
-                via: 'wsl',
-              });
+        for (const args of wslStrategies) {
+          try {
+            const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
+            if (stdout.trim()) {
+              const latency = Date.now() - startTime;
+              try {
+                const data = JSON.parse(stdout);
+                return NextResponse.json({ ...data, via: 'wsl', latency });
+              } catch {
+                return NextResponse.json({
+                  response: stdout.trim(),
+                  model: model || 'gemini-2.5-pro',
+                  tokensUsed: Math.floor((message?.length || 0) * 1.2),
+                  latency,
+                  via: 'wsl',
+                });
+              }
             }
+          } catch {
+            // try next strategy
           }
-        } catch {
-          // try next strategy
         }
-      }
+      } // end if (!IS_WIN)
 
       // All strategies failed — return honest error, not fake response
       return NextResponse.json({
