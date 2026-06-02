@@ -47,7 +47,7 @@ interface AgentTask {
    GEMINI CLI DASHBOARD — Main Export
    ═══════════════════════════════════════════════════════════ */
 export function GeminiCLIDashboard() {
-  const { geminiCLI, updateGeminiCLI, geminiConnection } = useOSStore();
+  const { geminiCLI, updateGeminiCLI, geminiConnection, agents, updateAgent } = useOSStore();
   const [activeTab, setActiveTab] = useState<TabId>('chat');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -125,6 +125,15 @@ export function GeminiCLIDashboard() {
     const interval = setInterval(detectGemini, 60000);
     return () => clearInterval(interval);
   }, [detectGemini]);
+
+  // Sync selected model to all layer agents
+  useEffect(() => {
+    if (geminiCLI.model) {
+      agents.filter(a => a.createdFrom === 'builtin' || a.id === 'gemini').forEach(a => {
+        updateAgent(a.id, { model: geminiCLI.model });
+      });
+    }
+  }, [geminiCLI.model]);
 
   const tabs: { id: TabId; label: string; icon: typeof MessageSquare }[] = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },

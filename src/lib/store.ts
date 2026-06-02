@@ -639,8 +639,8 @@ const defaultProviders: ProviderConfig[] = [
     type: 'cloud',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
     apiKey: '',
-    models: ['auto', 'pro', 'flash', 'flash-lite', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-    defaultModel: 'auto',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'],
+    defaultModel: 'gemini-2.5-pro',
     enabled: false,
     healthStatus: 'unknown',
     lastHealthCheck: 0,
@@ -649,7 +649,7 @@ const defaultProviders: ProviderConfig[] = [
     priority: 3,
     icon: '✨',
     color: '#4285f4',
-    description: 'Gemini models with multimodal capabilities — all 10 CLI models',
+    description: 'Gemini models with multimodal capabilities',
     website: 'https://ai.google.dev',
     supportsStreaming: true,
     supportsVision: true,
@@ -823,8 +823,8 @@ const defaultProviders: ProviderConfig[] = [
     type: 'cli',
     apiEndpoint: 'http://localhost:3100/api/gemini',
     apiKey: '',
-    models: ['auto', 'pro', 'flash', 'flash-lite', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-    defaultModel: 'auto',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+    defaultModel: 'gemini-2.5-pro',
     enabled: false,
     healthStatus: 'unknown',
     lastHealthCheck: 0,
@@ -833,7 +833,7 @@ const defaultProviders: ProviderConfig[] = [
     priority: 0, // Highest priority when available
     icon: '💎',
     color: '#4285f4',
-    description: 'Google Gemini CLI - local execution agent with all 10 CLI models',
+    description: 'Google Gemini CLI - local execution agent with multimodal capabilities',
     website: 'https://github.com/google-gemini/gemini-cli',
     supportsStreaming: true,
     supportsVision: true,
@@ -1121,7 +1121,7 @@ export const useOSStore = create<OSState>()(
         running: false,
         version: '',
         path: '',
-        model: 'auto',
+        model: 'gemini-2.5-pro',
         projectContext: '',
         sandboxEnabled: true,
         lastHealthCheck: 0,
@@ -1262,7 +1262,11 @@ export const useOSStore = create<OSState>()(
       knowledgeGraph: { nodes: [], edges: [] },
 
       // ─── Memory ───
-      memories: [],
+      memories: [
+        { id: 'mem-1', timestamp: new Date(Date.now() - 432000000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'Gemini CLI v0.44.1 installed at C:/Users/piopi/AppData/Roaming/npm/gemini.cmd. Supports models: gemini-3-pro-preview, gemini-3.1-flash-lite, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite. Use -p for prompts and -o json for JSON output.', agent: 'gemini', tags: ['cli', 'setup', 'gemini'], type: 'long-term', importance: 0.9, decayRate: 0.01, accessCount: 5 },
+        { id: 'mem-2', timestamp: new Date(Date.now() - 172800000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'The 7-layer architecture: L1 Intelligence, L2 Providers, L3 Agents, L4 Knowledge, L5 Execution, L6 Memory, L7 Governance. Each layer can be independently configured with different AI providers.', agent: 'openclaw', tags: ['architecture', 'layers', 'configuration'], type: 'semantic', importance: 0.85, decayRate: 0.02, accessCount: 3 },
+        { id: 'mem-3', timestamp: new Date(Date.now() - 86400000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'Agent Builder has 20 prebuilt templates including DevOps Engineer, Finance Analyst, Legal Researcher, Medical Assistant, UX Designer, and more. All agents can connect to the active AI provider model.', agent: 'brain', tags: ['agents', 'builder', 'templates'], type: 'episodic', importance: 0.8, decayRate: 0.03, accessCount: 2 },
+      ] as MemoryEntry[],
       addMemory: (memory) => set((s) => ({ memories: [memory, ...s.memories] })),
       updateMemory: (id, updates) => set((s) => ({
         memories: s.memories.map((m) => (m.id === id ? { ...m, ...updates } : m)),
@@ -1392,7 +1396,7 @@ export const useOSStore = create<OSState>()(
 
       // ─── Connections ───
       hermesConnection: { running: false, apiEndpoint: '', model: '', version: '', latency: 0 },
-      geminiConnection: { installed: false, running: false, version: '', model: 'auto' },
+      geminiConnection: { installed: false, running: false, version: '', model: 'gemini-2.5-pro' },
       sseConnectionStatus: 'disconnected',
 
       // ─── Agent Analytics ───
@@ -1404,7 +1408,11 @@ export const useOSStore = create<OSState>()(
       },
 
       // ─── Goals & Journal ───
-      goals: [],
+      goals: [
+        { id: 'goal-1', title: 'Set up Agentic OS dashboard', description: 'Install and configure the 7-layer Agentic OS dashboard with Gemini CLI integration', progress: 100, status: 'completed', category: 'Setup', createdAt: Date.now() - 604800000, updatedAt: Date.now() - 172800000, subtasks: [{ id: 'st-1', title: 'Clone repository', completed: true }, { id: 'st-2', title: 'Install dependencies', completed: true }, { id: 'st-3', title: 'Configure Gemini CLI', completed: true }], color: '#00ff88' },
+        { id: 'goal-2', title: 'Connect AI providers', description: 'Configure Gemini, OpenRouter, NVIDIA NIM, and other AI providers for model flexibility', progress: 60, status: 'active', category: 'Development', createdAt: Date.now() - 259200000, updatedAt: Date.now() - 3600000, subtasks: [{ id: 'st-4', title: 'Add Gemini API key', completed: true }, { id: 'st-5', title: 'Configure OpenRouter', completed: false }, { id: 'st-6', title: 'Test NVIDIA NIM', completed: false }], color: '#FFB627' },
+        { id: 'goal-3', title: 'Create custom AI agents', description: 'Build specialized agents for coding, research, and automation using the Agent Builder', progress: 30, status: 'active', category: 'Agents', createdAt: Date.now() - 86400000, updatedAt: Date.now() - 7200000, subtasks: [{ id: 'st-7', title: 'Create Code Agent', completed: true }, { id: 'st-8', title: 'Create Research Agent', completed: false }, { id: 'st-9', title: 'Configure Swarm Intelligence', completed: false }], color: '#9d4edd' },
+      ] as Goal[],
       addGoal: (goal) => set((s) => ({ goals: [goal, ...s.goals] })),
       updateGoal: (id, updates) => set((s) => ({
         goals: s.goals.map((g) => (g.id === id ? { ...g, ...updates, updatedAt: Date.now() } : g)),
@@ -1421,7 +1429,11 @@ export const useOSStore = create<OSState>()(
           return { ...g, subtasks, progress, updatedAt: Date.now() };
         }),
       })),
-      journal: [],
+      journal: [
+        { id: 'jrn-1', title: 'Agentic OS First Launch', content: 'Successfully launched the 7-layer dashboard. The Gemini CLI integration is working via the chat tab. Need to configure more AI providers for flexibility. The agent builder has great templates for quick setup.', mood: 'inspired', tags: ['launch', 'setup', 'gemini-cli'], createdAt: Date.now() - 172800000, agent: 'gemini' },
+        { id: 'jrn-2', title: 'Provider Configuration', content: 'Added Gemini as primary provider. Also exploring OpenRouter and NVIDIA NIM for additional model options. The self-contained architecture is impressive — no external API dependencies needed with Gemini CLI.', mood: 'focused', tags: ['providers', 'configuration', 'models'], createdAt: Date.now() - 86400000, agent: 'openclaw' },
+        { id: 'jrn-3', title: 'Memory System Working', content: 'The cross-session memory engine is preserving context across sessions. Agents can now share memory and build compound knowledge over time. This is the key differentiator from generic AI tools.', mood: 'energized', tags: ['memory', 'cross-session', 'knowledge'], createdAt: Date.now() - 43200000, agent: 'brain' },
+      ] as JournalEntry[],
       addJournalEntry: (entry) => set((s) => ({ journal: [entry, ...s.journal] })),
       updateJournalEntry: (id, updates) => set((s) => ({
         journal: s.journal.map((j) => (j.id === id ? { ...j, ...updates } : j)),
@@ -1497,18 +1509,6 @@ export const useOSStore = create<OSState>()(
     }),
     {
       name: 'agentic-os-store',
-      version: 1,
-      migrate: (persistedState: any, version: number) => {
-        // Force refresh geminiCLI defaults when store schema changes
-        if (version < 1) {
-          // Reset geminiCLI to use the new model definitions from code
-          persistedState.geminiCLI = {
-            ...persistedState.geminiCLI,
-            model: 'auto', // Reset to default so new dropdown shows correctly
-          };
-        }
-        return persistedState;
-      },
       partialize: (state) => ({
         providers: state.providers,
         brainConfig: state.brainConfig,
