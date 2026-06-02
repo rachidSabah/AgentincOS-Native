@@ -135,7 +135,7 @@ export function GeminiCLIDashboard() {
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* ─── Header Section ─── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-3">
@@ -258,9 +258,9 @@ export function GeminiCLIDashboard() {
       </div>
 
       {/* ─── Tab Content ─── */}
-      <div className="flex-1 overflow-hidden">
+      <div>
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
             {activeTab === 'chat' && <ChatTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
@@ -367,9 +367,9 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   }, [messages, streamingText]);
 
   return (
-    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+    <div>
       {/* Chat Messages */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+      <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3 custom-scrollbar">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}

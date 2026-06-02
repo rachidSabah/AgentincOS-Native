@@ -604,12 +604,11 @@ export default function HomePage() {
       // ─── Gemini CLI Dashboard (Enhanced) ───
       case 'gemini-dashboard':
         return (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <GeminiCLIDashboard />
           </motion.div>
         );
 
-      case 'gemini-dashboard':
       case 'terminal':
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
@@ -744,7 +743,7 @@ export default function HomePage() {
   };
 
   const isMissionControl3Col = activeView === 'mission-control';
-  const isHomeView = activeView === 'home' || activeView === 'observability' || activeView === 'updates' || activeView === 'gemini-dashboard' || activeView === 'terminal';
+  const isHomeView = activeView === 'home' || activeView === 'observability' || activeView === 'updates' || activeView === 'terminal';
 
   return (
     <HydrationGuard>
