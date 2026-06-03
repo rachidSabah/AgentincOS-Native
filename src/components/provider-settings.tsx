@@ -103,7 +103,7 @@ function ToggleSwitch({ checked, onChange, color = '#7B2CBF' }: { checked: boole
 // ═══════════════════════════════════════════════════════════
 
 export function ProviderSettingsPage() {
-  const { providers, addProvider, updateProvider, removeProvider, activeProviderId, geminiCLI, updateGeminiCLI } = useOSStore();
+  const { providers, addProvider, updateProvider, removeProvider, activeProviderId, setActiveProviderId, geminiCLI, updateGeminiCLI } = useOSStore();
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -251,7 +251,12 @@ export function ProviderSettingsPage() {
               provider={provider}
               isSelected={selectedProviderId === provider.id}
               onSelect={() => setSelectedProviderId(selectedProviderId === provider.id ? null : provider.id)}
-              onToggle={() => updateProvider(provider.id, { enabled: !provider.enabled })}
+              onToggle={() => {
+                const newEnabled = !provider.enabled;
+                updateProvider(provider.id, { enabled: newEnabled });
+                if (newEnabled) setActiveProviderId(provider.id);
+                else if (activeProviderId === provider.id) setActiveProviderId(null);
+              }}
               onHealthCheck={() => runHealthCheck(provider.id)}
               isTesting={testingId === provider.id}
               testResult={testResult[provider.id]}
