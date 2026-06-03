@@ -10,7 +10,7 @@ import {
   Eye, GitBranch, Zap, Brain, Clock, ChevronDown,
   FileCode, Bug, Cpu, Shield, BookOpen, ArrowRight,
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
-  Workflow, Puzzle, Network, Users, Cog,
+  Workflow, Puzzle, Network, Users, Cog, Database,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
