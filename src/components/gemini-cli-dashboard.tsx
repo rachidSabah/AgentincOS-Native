@@ -371,9 +371,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
-      // Route to correct API based on active provider
-      const activeProvider = activeProviderId ? providers.find(p => p.id === activeProviderId && p.enabled) : providers.find(p => p.enabled);
-      const isGeminiCli = !activeProvider || activeProvider.id === 'gemini-cli' || activeProvider.type === 'cli';
+      const isGeminiCli = !activeProvider || activeProvider.type === 'cli' || activeProvider.name.toLowerCase().includes('gemini');
       
       let res: Response;
       if (isGeminiCli) {
