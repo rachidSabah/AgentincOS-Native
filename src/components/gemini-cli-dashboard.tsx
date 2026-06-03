@@ -197,10 +197,10 @@ export function GeminiCLIDashboard() {
             onChange={(e) => updateGeminiCLI({ model: e.target.value })}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
-            {(providers || []).filter((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini')).slice(0,1).map((p: any) => (
-              (p.models || []).map((m: string) => <option key={m} value={m}>{m}</option>)
-            ))}
-            {(!(providers || []).some((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini')) || (providers || []).filter((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini')).length === 0) && (
+            {(providers || []).filter((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini')).flatMap((p: any) =>
+              (p.models || []).map((m: string, i: number) => <option key={`${p.id}-${m}-${i}`} value={m}>{m} ({p.name.split(' ')[0]})</option>)
+            )}
+            {(!(providers || []).some((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini'))) && (
               <>
                 <option value="auto">Auto (Default)</option>
                 <option value="pro">Pro Mode</option>
