@@ -56,8 +56,8 @@ const BLOCKED_PATTERNS = [
   ">>",
   "%0a",
   "%0d",
-  "\\x",
-  "\\u",
+  // Note: \\x and \\u removed — they block legitimate file paths on Windows.
+  // Shell-injection context should validate these separately if needed.
 ];
 
 // ---------------------------------------------------------------------------

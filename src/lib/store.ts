@@ -1069,6 +1069,8 @@ interface OSState {
   swarmScore: number;
   swarmTier: string;
   lastSwarmTrigger: string;
+  setSwarmScore: (score: number) => void;
+  setSwarmTier: (tier: string) => void;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1506,6 +1508,8 @@ export const useOSStore = create<OSState>()(
       swarmScore: 0,
       swarmTier: 'single-agent',
       lastSwarmTrigger: '',
+      setSwarmScore: (score: number) => set({ swarmScore: score }),
+      setSwarmTier: (tier: string) => set({ swarmTier: tier }),
     }),
     {
       name: 'agentic-os-store',

@@ -32,13 +32,8 @@ export interface SwarmRole {
 
 // Hard trigger keywords
 const HARD_TRIGGERS = [
-  'build', 'create', 'design system', 'architecture',
-  // Full applications
-  // Multi-page dashboards
-  // AI agents
-  // DevOps
-  // Repository-wide changes
-  // Data pipelines
+  'design system', 'architecture', 'microservice', 'multi-module',
+  'full-stack application', 'enterprise system', 'distributed system',
 ];
 
 // Domain pairs that trigger swarm

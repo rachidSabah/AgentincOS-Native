@@ -399,7 +399,7 @@ export async function POST(req: NextRequest) {
     case 'chat': {
       const startTime = Date.now();
       const geminiCmd = IS_WIN ? 'gemini' : 'gemini';
-      const escaped = (message || '').replace(/"/g, '\\"');
+      let escaped = (message || '').replace(/"/g, '\\"');
 
       // Quick path: Try CLI binary directly first (fastest when no server running)
       try {
@@ -462,7 +462,7 @@ export async function POST(req: NextRequest) {
 
       // Strategy 3: Try CLI binary with current (v0.44+) syntax
       try {
-        const escaped = (message || '').replace(/"/g, '\\"');
+        escaped = (message || '').replace(/"/g, '\\"');
         const cmd = IS_WIN
           ? `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json`
           : ['gemini', '-p', message || '', '-m', model || 'gemini-2.5-flash-lite', '-o', 'json'];
@@ -490,7 +490,7 @@ export async function POST(req: NextRequest) {
 
       // Strategy 4: Try WSL binary (uses same gemini CLI v0.44+ syntax)
       {
-        const escaped = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+        escaped = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
         const wslCmd = IS_WIN ? 'wsl.exe' : 'wsl';
         const wslStrategies = [
           ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],

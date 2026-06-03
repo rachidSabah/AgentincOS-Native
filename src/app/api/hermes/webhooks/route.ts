@@ -64,6 +64,17 @@ const MAX_DELIVERIES_STORED = 50;
 // Helpers
 // ---------------------------------------------------------------------------
 
+function isPrivateIP(hostname: string): boolean {
+  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  const match = hostname.match(ipv4Regex);
+  if (!match) return false;
+  const [, a, b] = match.map(Number);
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
 function generateId(): string {
   return `wh_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -88,6 +99,7 @@ function isValidWebhookUrl(url: string): boolean {
       return false;
     }
     const hostname = parsed.hostname.toLowerCase();
+    if (isPrivateIP(hostname)) return false;
     for (const blocked of BLOCKED_HOSTS) {
       if (hostname === blocked || hostname.endsWith(`.${blocked}`)) {
         return false;

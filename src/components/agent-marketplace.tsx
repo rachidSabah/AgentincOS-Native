@@ -24,6 +24,7 @@ const CATEGORIES: Array<{
   { id: 'seo', label: 'SEO', icon: <TrendingUp size={12} />, color: '#FFB627' },
   { id: 'marketing', label: 'Marketing', icon: <Palette size={12} />, color: '#E8751A' },
   { id: 'programming', label: 'Programming', icon: <FileCode size={12} />, color: '#00ff88' },
+  { id: 'coding', label: 'Coding', icon: <FileCode size={12} />, color: '#00ff88' },
   { id: 'education', label: 'Education', icon: <GraduationCap size={12} />, color: '#c084fc' },
   { id: 'aviation', label: 'Aviation', icon: <Plane size={12} />, color: '#38bdf8' },
   { id: 'legal', label: 'Legal', icon: <Scale size={12} />, color: '#E63946' },
@@ -499,7 +500,12 @@ export function AgentMarketplace() {
   }, [marketplaceAgents, setMarketplaceAgents]);
 
   const getCategoryMeta = (cat: MarketplaceAgent['category']) =>
-    CATEGORIES.find(c => c.id === cat) || CATEGORIES[CATEGORIES.length - 1];
+    CATEGORIES.find(c => c.id === cat) ?? {
+      id: 'custom' as MarketplaceAgent['category'],
+      label: cat || 'Unknown',
+      icon: <Wrench size={12} />,
+      color: '#8888aa',
+    };
 
   const getProviderName = (providerId: string) => {
     const provider = providers.find(p => p.id === providerId);

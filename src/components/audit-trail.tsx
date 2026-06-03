@@ -551,7 +551,7 @@ export function AuditTrail() {
         </AnimatePresence>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(18,18,42,0.3); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(157,78,221,0.3); border-radius: 2px; }

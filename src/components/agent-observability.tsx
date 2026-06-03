@@ -15,23 +15,51 @@ interface AgentDetail {
   id: string; name: string; activeTasks: number; pendingTasks: number;
   cpu: number; memory: number; rpm: number[]; lastAction: string; latencyMs: number;
 }
-const agentDetails: AgentDetail[] = [];
+const agentDetails: AgentDetail[] = [
+  { id: 'brain', name: 'Agentic OS Brain', activeTasks: 3, pendingTasks: 1, cpu: 42, memory: 38, rpm: [12, 15, 18, 14, 20, 16, 22, 19, 17, 21, 23, 18], lastAction: 'Planning task decomposition for code review swarm', latencyMs: 78 },
+  { id: 'code-agent', name: 'Code Agent', activeTasks: 2, pendingTasks: 4, cpu: 28, memory: 45, rpm: [8, 10, 12, 9, 14, 11, 13, 10, 15, 12, 9, 11], lastAction: 'Generated React component for dashboard', latencyMs: 124 },
+  { id: 'research-agent', name: 'Research Agent', activeTasks: 1, pendingTasks: 0, cpu: 15, memory: 22, rpm: [4, 6, 5, 8, 7, 5, 9, 6, 4, 7, 8, 5], lastAction: 'Synthesized market analysis report', latencyMs: 95 },
+  { id: 'task-agent', name: 'Task Agent', activeTasks: 5, pendingTasks: 2, cpu: 55, memory: 52, rpm: [18, 20, 22, 19, 24, 21, 26, 23, 20, 25, 22, 24], lastAction: 'Executed automated deployment workflow', latencyMs: 156 },
+];
 
 interface ToolCall {
   id: string; tool: string; agent: string; duration: number; status: 'success' | 'fail';
 }
-const toolCallsData: ToolCall[] = [];
+const toolCallsData: ToolCall[] = [
+  { id: 'tc-1', tool: 'web_search', agent: 'Hermes', duration: 3.2, status: 'success' },
+  { id: 'tc-2', tool: 'code_execute', agent: 'Claude', duration: 5.8, status: 'success' },
+  { id: 'tc-3', tool: 'browser_automation', agent: 'Hermes', duration: 12.4, status: 'fail' },
+  { id: 'tc-4', tool: 'memory_store', agent: 'Vault', duration: 0.3, status: 'success' },
+  { id: 'tc-5', tool: 'api_call', agent: 'OpenClaw', duration: 2.1, status: 'success' },
+  { id: 'tc-6', tool: 'code_review', agent: 'Claude', duration: 4.5, status: 'success' },
+  { id: 'tc-7', tool: 'data_analysis', agent: 'Hermes', duration: 7.2, status: 'success' },
+  { id: 'tc-8', tool: 'file_system', agent: 'Vault', duration: 0.8, status: 'success' },
+  { id: 'tc-9', tool: 'web_scrape', agent: 'Hermes', duration: 8.9, status: 'success' },
+  { id: 'tc-10', tool: 'code_generate', agent: 'OpenClaw', duration: 6.3, status: 'success' },
+];
 
 interface Workflow {
   id: string; name: string; progress: number; currentStep: string; status: 'running' | 'completed' | 'pending';
 }
-const workflowsData: Workflow[] = [];
+const workflowsData: Workflow[] = [
+  { id: 'wf-1', name: 'CI/CD Pipeline', progress: 68, currentStep: 'Running test suite...', status: 'running' },
+  { id: 'wf-2', name: 'Content Publishing', progress: 100, currentStep: 'Published to all channels', status: 'completed' },
+  { id: 'wf-3', name: 'Data Analysis', progress: 45, currentStep: 'Cleaning dataset (3 of 6 passes)', status: 'running' },
+  { id: 'wf-4', name: 'Security Audit', progress: 0, currentStep: 'Awaiting trigger', status: 'pending' },
+  { id: 'wf-5', name: 'Feature Development', progress: 100, currentStep: 'Deployed to production', status: 'completed' },
+  { id: 'wf-6', name: 'Incident Response', progress: 82, currentStep: 'Verifying fix across regions', status: 'running' },
+];
 
 const costData = {
-  totalTokens: { input: 0, output: 0 },
-  byAgent: [] as Array<{ name: string; cost: number; color: string }>,
-  dailyTrend: [] as number[],
-  budgetUsed: 0,
+  totalTokens: { input: 4200000, output: 1800000 },
+  byAgent: [
+    { name: 'Claude', cost: 12.45, color: '#E63946' },
+    { name: 'Hermes', cost: 8.32, color: '#FFB627' },
+    { name: 'OpenClaw', cost: 5.67, color: '#E8751A' },
+    { name: 'Vault', cost: 2.11, color: '#2E86AB' },
+  ] as Array<{ name: string; cost: number; color: string }>,
+  dailyTrend: [3.2, 4.1, 3.8, 5.2, 6.1, 4.9, 7.3, 5.8, 8.1, 6.4, 9.2, 7.5, 10.1, 8.3],
+  budgetUsed: 28.55,
   budgetTotal: 50,
 };
 

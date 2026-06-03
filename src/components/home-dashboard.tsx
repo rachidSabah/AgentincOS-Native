@@ -203,10 +203,11 @@ function AgentStatusRow() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
       {agents.map((agent, i) => (
-        <motion.button key={agent.id}
+        <GlassCard key={agent.id} className="p-0">
+        <motion.button
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
           onClick={() => setActiveView('mission-control')}
-          className="GlassCard bg-[rgba(18,18,42,0.6)] backdrop-blur-sm border border-[rgba(157,78,221,0.15)] rounded-xl p-3 text-left transition-all duration-300 hover:border-[rgba(157,78,221,0.3)] hover:shadow-[0_0_30px_rgba(157,78,221,0.08)] group">
+          className="bg-transparent p-3 text-left w-full group">
           <div className="flex items-center gap-2 mb-2">
             <StatusDot status={agent.status} color={STATUS_COLORS[agent.status] || agent.color} />
             <span className="text-white text-xs font-semibold">{agent.name}</span>
@@ -230,6 +231,7 @@ function AgentStatusRow() {
             <span>View</span> <ChevronRight size={8} />
           </div>
         </motion.button>
+        </GlassCard>
       ))}
     </div>
   );

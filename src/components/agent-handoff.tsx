@@ -36,7 +36,7 @@ const STATUS_COLORS: Record<HandoffStatus, string> = {
 
 const STATUS_ICONS: Record<HandoffStatus, typeof Clock> = {
   pending: Clock,
-  'in-transit:': Activity,
+  'in-transit': Activity,
   completed: CheckCircle,
   failed: XCircle,
 };

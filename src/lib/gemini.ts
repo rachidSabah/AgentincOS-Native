@@ -25,7 +25,7 @@ const IS_WIN = platform() === "win32";
 
 /** Possible binary names for the Gemini CLI (platform-aware). */
 export const GEMINI_BIN_NAMES: string[] = IS_WIN
-  ? ["gemini.cmd", "gemini.exe", "gemini", "gemini-cli.cmd", "gemini-cli"]
+  ? ["gemini.cmd", "gemini.exe", "gemini.ps1", "gemini", "gemini-cli.cmd", "gemini-cli"]
   : ["gemini", "gemini-cli"];
 
 /** Common binary locations for the Gemini CLI (platform-aware). */
@@ -52,100 +52,7 @@ export const GEMINI_NPM_PACKAGES = [
 ];
 
 /** Default model for Gemini CLI. */
-export const GEMINI_DEFAULT_MODEL = "auto";
-
-/** All 10 Gemini CLI models matching the actual CLI — single source of truth. */
-export const GEMINI_CLI_MODELS = [
-  {
-    id: "auto",
-    name: "Auto (Default)",
-    resolvesTo: "gemini-3-pro or 2.5-pro",
-    bestFor: "Automatic best model",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "pro",
-    name: "Pro Mode",
-    resolvesTo: "gemini-3-pro or 2.5-pro",
-    bestFor: "Deep reasoning, debugging",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "flash",
-    name: "Flash",
-    resolvesTo: "gemini-2.5-flash",
-    bestFor: "Balanced speed & quality",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "flash-lite",
-    name: "Flash Lite",
-    resolvesTo: "gemini-2.5-flash-lite",
-    bestFor: "Fastest, utility tasks",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "gemini-3-pro-preview",
-    name: "Gemini 3 Pro Preview",
-    resolvesTo: "gemini-3-pro-preview",
-    bestFor: "Architectural planning",
-    contextWindow: 2_000_000,
-  },
-  {
-    id: "gemini-3-flash-preview",
-    name: "Gemini 3 Flash Preview",
-    resolvesTo: "gemini-3-flash-preview",
-    bestFor: "Latest fast model",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "gemini-3.1-flash-lite",
-    name: "Gemini 3.1 Flash Lite",
-    resolvesTo: "gemini-3.1-flash-lite",
-    bestFor: "Utility speed",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "gemini-2.5-pro",
-    name: "Gemini 2.5 Pro",
-    resolvesTo: "gemini-2.5-pro",
-    bestFor: "Reasoning, code",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    resolvesTo: "gemini-2.5-flash",
-    bestFor: "Balanced, multimodal",
-    contextWindow: 1_048_576,
-  },
-  {
-    id: "gemini-2.5-flash-lite",
-    name: "Gemini 2.5 Flash Lite",
-    resolvesTo: "gemini-2.5-flash-lite",
-    bestFor: "Cost-efficient",
-    contextWindow: 1_048_576,
-  },
-] as const;
-
-/**
- * Resolves a model alias (e.g. "auto", "pro", "flash") to an actual model name
- * suitable for API calls (ZAI SDK, etc.). When using the real Gemini CLI,
- * aliases are passed through as-is since the CLI handles resolution natively.
- */
-export function resolveModelAlias(modelId: string): string {
-  const found = GEMINI_CLI_MODELS.find((m) => m.id === modelId);
-  if (!found) return modelId; // unknown model, pass through
-  // For the CLI aliases, the CLI resolves them natively.
-  // For non-CLI providers (ZAI SDK), we need to give an actual model name.
-  const resolutionMap: { [key: string]: string } = {
-    auto: "gemini-2.5-pro",
-    pro: "gemini-2.5-pro",
-    flash: "gemini-2.5-flash",
-    "flash-lite": "gemini-2.5-flash-lite",
-  };
-  return resolutionMap[modelId] ?? found.resolvesTo.split(" or ")[0];
-}
+export const GEMINI_DEFAULT_MODEL = "gemini-2.5-pro";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -212,7 +119,7 @@ export interface GeminiRequest {
 async function execBin(binPath: string, args: string[], opts?: { timeout?: number }) {
   const baseOpts: { timeout: number; shell?: boolean } = { timeout: opts?.timeout ?? 5000 };
   // On Windows, .cmd/.bat files MUST be executed with shell: true
-  if (IS_WIN || binPath.endsWith(".cmd") || binPath.endsWith(".bat")) {
+  if (IS_WIN || binPath.endsWith(".cmd") || binPath.endsWith(".bat") || binPath.endsWith(".ps1")) {
     baseOpts.shell = true;
   }
   return execFileAsync(binPath, args, baseOpts);
@@ -230,15 +137,24 @@ export async function findGeminiBinaryAsync(): Promise<string | null> {
         timeout: 3000,
         ...(IS_WIN ? { shell: true } : {}),
       });
-      const located = stdout.trim().split(/\r?\n/)[0]; // `where` may return multiple lines
-      if (located && existsSync(located)) return located;
+      const paths = stdout.trim().split(/\r?\n/);
+      for (const path of paths) {
+        const located = path.trim();
+        if (located && existsSync(located)) return located;
+      }
     } catch {
       // not on PATH — try next name
     }
   }
 
   // 2. Check well-known candidate locations
-  for (const candidate of GEMINI_BIN_CANDIDATES) {
+  const candidates = [...GEMINI_BIN_CANDIDATES];
+  if (IS_WIN && process.env.APPDATA) {
+    candidates.push(join(process.env.APPDATA, "npm", "gemini.cmd"));
+    candidates.push(join(process.env.APPDATA, "npm", "gemini"));
+  }
+
+  for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
 
@@ -310,7 +226,7 @@ export async function isGeminiProcessRunningAsync(): Promise<boolean> {
           'wmic process where "name=\'node.exe\'" get commandline /format:list 2>NUL',
           { timeout: 5000, windowsHide: true }
         );
-        return /gemini/i.test(wmicOut);
+        if (/gemini/i.test(wmicOut)) return true;
       } catch {
         // WMIC not available — fall back to PowerShell
         try {
@@ -318,12 +234,13 @@ export async function isGeminiProcessRunningAsync(): Promise<boolean> {
             'powershell.exe -NoProfile -Command "Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Path -match \'gemini\' -or $_.CommandLine -match \'gemini\' } | Select-Object -First 1"',
             { timeout: 5000, windowsHide: true }
           );
-          return psOut.trim().length > 0;
+          if (psOut.trim().length > 0) return true;
         } catch {
           // Last resort: check if any node process is running (broad heuristic)
           return /node\.exe/i.test(stdout);
         }
       }
+      return false;
     } catch {
       return false;
     }
@@ -425,14 +342,21 @@ export async function performGeminiHealthCheck(): Promise<GeminiHealthCheck> {
   // Try to ping the CLI if installed
   if (installed && binPath) {
     try {
-      const { stdout } = await execBin(binPath, ["--version"], { timeout: 5000 });
+      console.log(`[gemini/health] Pinging CLI: ${binPath} --version`);
+      const { stdout, stderr } = await execBin(binPath, ["--version"], { timeout: 5000 });
+      console.log(`[gemini/health] CLI output: ${stdout.trim()}`);
+      if (stderr) console.error(`[gemini/health] CLI error: ${stderr.trim()}`);
       cliResponsive = stdout.trim().length > 0;
-    } catch {
+    } catch (e) {
+      console.error(`[gemini/health] CLI ping failed:`, e);
       cliResponsive = false;
     }
   }
 
-  // Try to check API connection
+  const healthy = installed && cliResponsive;
+
+  console.log(`[gemini/health] Status: installed=${installed}, responsive=${cliResponsive}, healthy=${healthy}`);
+
   if (running) {
     try {
       const controller = new AbortController();
@@ -447,8 +371,6 @@ export async function performGeminiHealthCheck(): Promise<GeminiHealthCheck> {
       apiConnection = false;
     }
   }
-
-  const healthy = installed && cliResponsive;
 
   let details: string;
   if (!installed) {
@@ -566,47 +488,88 @@ export function buildGeminiCommand(
   const model = request.model || GEMINI_DEFAULT_MODEL;
   args.push("--model", model);
 
+  // Add context to prompt if provided (CLI doesn't have native --context flag)
+  let prompt = request.message;
+  if (request.context) {
+    prompt = `Context:\n${request.context}\n\nTask:\n${prompt}`;
+  }
+
   // Add the prompt/message
   // Different actions get different framing
   switch (request.action) {
     case "chat":
-      args.push("--prompt", request.message);
+      args.push("--prompt", prompt);
       break;
     case "generate":
-      args.push("--prompt", `Generate code for: ${request.message}`);
+      args.push("--prompt", `Generate code for: ${prompt}`);
       break;
     case "review":
-      args.push("--prompt", `Review this code: ${request.message}`);
+      args.push("--prompt", `Review this code: ${prompt}`);
       break;
     case "refactor":
-      args.push("--prompt", `Refactor this code: ${request.message}`);
+      args.push("--prompt", `Refactor this code: ${prompt}`);
       break;
     case "plan":
-      args.push("--prompt", `Create a plan for: ${request.message}`);
+      args.push("--prompt", `Create a plan for: ${prompt}`);
       break;
     case "research":
-      args.push("--prompt", `Research: ${request.message}`);
+      args.push("--prompt", `Research: ${prompt}`);
       break;
     case "reason":
-      args.push("--prompt", `Reason about: ${request.message}`);
+      args.push("--prompt", `Reason about: ${prompt}`);
       break;
     case "analyze":
-      args.push("--prompt", `Analyze: ${request.message}`);
+      args.push("--prompt", `Analyze: ${prompt}`);
       break;
     case "execute":
-      args.push("--prompt", `Execute: ${request.message}`);
+      args.push("--prompt", `Execute: ${prompt}`);
       break;
     default:
-      args.push("--prompt", request.message);
-  }
-
-  // Add context if provided
-  if (request.context) {
-    args.push("--context", request.context);
+      args.push("--prompt", prompt);
   }
 
   return [binPath, ...args];
 }
+
+/**
+ * Lists available models from the Gemini CLI by parsing stats or using a heuristic.
+ * Since there's no direct 'list models' headless command, we use a fallback list
+ * but try to verify them.
+ */
+export async function listGeminiModelsAsync(): Promise<string[]> {
+  // Common models as fallback
+  const fallbackModels = [
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
+    "gemma-2-27b-it",
+    "gemma-2-9b-it"
+  ];
+
+  try {
+    const bin = await findGeminiBinaryAsync();
+    if (!bin) return fallbackModels;
+
+    // Run a simple prompt to get stats which contain model names
+    const { stdout } = await execBin(bin, ["--prompt", "list models", "--output-format", "json"], { timeout: 10000 });
+    let data: { stats?: { models?: Record<string, unknown> } } = {};
+    try {
+      data = JSON.parse(stdout);
+    } catch {
+      // JSON parse failed — fall through to fallback
+    }
+    if (data.stats && data.stats.models) {
+      return Object.keys(data.stats.models);
+    }
+  } catch {
+    // Fallback to static list
+  }
+
+  return fallbackModels;
+}
+
 
 // ---------------------------------------------------------------------------
 // Status Cache

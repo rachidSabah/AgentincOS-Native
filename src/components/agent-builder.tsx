@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useOSStore, type BrainProfile, type Agent, type AgentStatus } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,9 +14,9 @@ import {
 } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    CONSTANTS & TYPES
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const NEON_COLORS = [
   '#9d4edd', '#00ffff', '#00ff88', '#FFB627', '#E63946', '#E8751A',
@@ -24,12 +24,12 @@ const NEON_COLORS = [
 ];
 
 const EMOJI_OPTIONS = [
-  '🤖', '🧠', '💻', '🔍', '⚡', '🚀', '📊', '✍️', '🛡️',
-  '🎯', '🔮', '💡', '🔬', '⚙️', '🦾', '🐙', '🦊', '🐉',
-  '🌟', '💎', '🔧', '🧪', '📝', '🎨', '🎪', '🦅', '🐺',
+  'ðŸ¤–', 'ðŸ§ ', 'ðŸ’»', 'ðŸ”', 'âš¡', 'ðŸš€', 'ðŸ“Š', 'âœï¸', 'ðŸ›¡ï¸',
+  'ðŸŽ¯', 'ðŸ”®', 'ðŸ’¡', 'ðŸ”¬', 'âš™ï¸', 'ðŸ¦¾', 'ðŸ™', 'ðŸ¦Š', 'ðŸ‰',
+  'ðŸŒŸ', 'ðŸ’Ž', 'ðŸ”§', 'ðŸ§ª', 'ðŸ“', 'ðŸŽ¨', 'ðŸŽª', 'ðŸ¦…', 'ðŸº',
 ];
 
-type AgentCategory = 'business' | 'coding' | 'research' | 'marketing' | 'education' | 'custom' | 'recruitment' | 'seo' | 'devops' | 'data' | 'writing' | 'productivity';
+type AgentCategory = 'business' | 'coding' | 'research' | 'marketing' | 'education' | 'custom' | 'recruitment' | 'seo' | 'devops' | 'data' | 'writing' | 'productivity' | 'legal' | 'medical';
 
 interface CategoryMeta {
   id: AgentCategory;
@@ -54,13 +54,13 @@ const CATEGORIES: CategoryMeta[] = [
 ];
 
 const BRAIN_META: Record<BrainProfile, { label: string; color: string; icon: string; desc: string }> = {
-  claude: { label: 'Claude', color: '#E63946', icon: '🧠', desc: 'Strong reasoning & safety' },
-  gemini: { label: 'Gemini', color: '#4285F4', icon: '💎', desc: 'Multimodal & long context' },
-  hermes: { label: 'Hermes', color: '#FFB627', icon: '⚡', desc: 'Fast & creative generation' },
-  openclaw: { label: 'OpenClaw', color: '#E8751A', icon: '🐾', desc: 'Open-source & flexible' },
-  vault: { label: 'Vault', color: '#2E86AB', icon: '🔐', desc: 'Secure & enterprise-grade' },
-  opencode: { label: 'OpenCode', color: '#00ff88', icon: '💻', desc: 'Code-specialized reasoning' },
-  custom: { label: 'Custom', color: '#c084fc', icon: '⚙️', desc: 'Your own configuration' },
+  claude: { label: 'Claude', color: '#E63946', icon: 'ðŸ§ ', desc: 'Strong reasoning & safety' },
+  gemini: { label: 'Gemini', color: '#4285F4', icon: 'ðŸ’Ž', desc: 'Multimodal & long context' },
+  hermes: { label: 'Hermes', color: '#FFB627', icon: 'âš¡', desc: 'Fast & creative generation' },
+  openclaw: { label: 'OpenClaw', color: '#E8751A', icon: 'ðŸ¾', desc: 'Open-source & flexible' },
+  vault: { label: 'Vault', color: '#2E86AB', icon: 'ðŸ”', desc: 'Secure & enterprise-grade' },
+  opencode: { label: 'OpenCode', color: '#00ff88', icon: 'ðŸ’»', desc: 'Code-specialized reasoning' },
+  custom: { label: 'Custom', color: '#c084fc', icon: 'âš™ï¸', desc: 'Your own configuration' },
 };
 
 type ToolPermission = 'read' | 'write' | 'execute' | 'network' | 'filesystem';
@@ -83,7 +83,7 @@ const LAYER_OPTIONS = [
   { num: 7, name: 'Governance', color: '#1B998B' },
 ];
 
-/* ─── Prebuilt Agent Templates ─── */
+/* â”€â”€â”€ Prebuilt Agent Templates â”€â”€â”€ */
 interface AgentTemplate {
   id: string;
   name: string;
@@ -106,7 +106,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-code-assistant',
     name: 'Code Assistant',
     description: 'Full-stack code generation, debugging, review, and refactoring with multi-language support.',
-    icon: '💻', color: '#00ff88', category: 'coding', brainProfile: 'claude',
+    icon: 'ðŸ’»', color: '#00ff88', category: 'coding', brainProfile: 'claude',
     tags: ['CODE', 'DEBUG', 'REVIEW', 'REFACTOR'],
     systemPrompt: 'You are an expert code assistant. Write clean, efficient, well-documented code. Follow best practices, suggest improvements, and catch bugs before they happen.',
     temperature: 0.3, topP: 0.9, maxTokens: 8192,
@@ -117,7 +117,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-research-analyst',
     name: 'Research Analyst',
     description: 'Deep research agent that synthesizes information from multiple sources and produces comprehensive analyses.',
-    icon: '🔍', color: '#FFB627', category: 'research', brainProfile: 'gemini',
+    icon: 'ðŸ”', color: '#FFB627', category: 'research', brainProfile: 'gemini',
     tags: ['RESEARCH', 'ANALYSIS', 'SYNTHESIS'],
     systemPrompt: 'You are a research analyst. Conduct thorough research, verify facts from multiple sources, and synthesize findings into clear, actionable insights.',
     temperature: 0.5, topP: 0.85, maxTokens: 8192,
@@ -128,7 +128,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-marketing-copywriter',
     name: 'Marketing Copywriter',
     description: 'Creates compelling marketing copy, ad campaigns, and brand messaging with creative flair.',
-    icon: '✍️', color: '#E8751A', category: 'marketing', brainProfile: 'hermes',
+    icon: 'âœï¸', color: '#E8751A', category: 'marketing', brainProfile: 'hermes',
     tags: ['MARKETING', 'COPY', 'CREATIVE', 'BRAND'],
     systemPrompt: 'You are a creative marketing copywriter. Craft compelling, persuasive copy that resonates with target audiences. Adapt tone and style for different platforms and demographics.',
     temperature: 0.8, topP: 0.95, maxTokens: 4096,
@@ -139,7 +139,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-data-scientist',
     name: 'Data Scientist',
     description: 'Analyzes datasets, builds models, creates visualizations, and extracts actionable insights from data.',
-    icon: '📊', color: '#38bdf8', category: 'data', brainProfile: 'openclaw',
+    icon: 'ðŸ“Š', color: '#38bdf8', category: 'data', brainProfile: 'openclaw',
     tags: ['DATA', 'ML', 'ANALYTICS', 'VISUALIZATION'],
     systemPrompt: 'You are a data scientist. Analyze data methodically, build statistical models, create clear visualizations, and communicate findings in accessible language.',
     temperature: 0.4, topP: 0.9, maxTokens: 8192,
@@ -150,7 +150,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-devops-engineer',
     name: 'DevOps Engineer',
     description: 'Manages CI/CD pipelines, infrastructure, deployment, monitoring, and incident response.',
-    icon: '🚀', color: '#E63946', category: 'devops', brainProfile: 'vault',
+    icon: 'ðŸš€', color: '#E63946', category: 'devops', brainProfile: 'vault',
     tags: ['DEVOPS', 'CI/CD', 'INFRASTRUCTURE', 'DEPLOY'],
     systemPrompt: 'You are a DevOps engineer. Automate infrastructure, optimize CI/CD pipelines, ensure system reliability, and respond to incidents with precision.',
     temperature: 0.2, topP: 0.85, maxTokens: 4096,
@@ -161,7 +161,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-content-writer',
     name: 'Content Writer',
     description: 'Produces high-quality long-form content, articles, documentation, and educational material.',
-    icon: '📝', color: '#1B998B', category: 'writing', brainProfile: 'gemini',
+    icon: 'ðŸ“', color: '#1B998B', category: 'writing', brainProfile: 'gemini',
     tags: ['WRITING', 'CONTENT', 'ARTICLES', 'DOCS'],
     systemPrompt: 'You are a skilled content writer. Create engaging, well-structured content that educates and informs. Adapt complexity for the target audience.',
     temperature: 0.7, topP: 0.9, maxTokens: 8192,
@@ -172,7 +172,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-seo-specialist',
     name: 'SEO Specialist',
     description: 'Optimizes content for search engines with keyword research, technical SEO, and content strategy.',
-    icon: '📈', color: '#FFB627', category: 'seo', brainProfile: 'hermes',
+    icon: 'ðŸ“ˆ', color: '#FFB627', category: 'seo', brainProfile: 'hermes',
     tags: ['SEO', 'KEYWORDS', 'OPTIMIZATION', 'RANKING'],
     systemPrompt: 'You are an SEO specialist. Optimize content for search visibility, conduct keyword research, analyze competitors, and implement technical SEO best practices.',
     temperature: 0.5, topP: 0.9, maxTokens: 4096,
@@ -183,7 +183,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-product-manager',
     name: 'Product Manager',
     description: 'Drives product strategy, roadmap planning, user research, and cross-functional coordination.',
-    icon: '💼', color: '#7B2CBF', category: 'business', brainProfile: 'claude',
+    icon: 'ðŸ’¼', color: '#7B2CBF', category: 'business', brainProfile: 'claude',
     tags: ['PRODUCT', 'STRATEGY', 'ROADMAP', 'PRIORITIZATION'],
     systemPrompt: 'You are a product manager. Prioritize features based on impact and effort, create clear product specifications, and coordinate between stakeholders.',
     temperature: 0.5, topP: 0.9, maxTokens: 4096,
@@ -194,7 +194,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-qa-tester',
     name: 'QA Tester',
     description: 'Creates test plans, writes automated tests, identifies edge cases, and ensures software quality.',
-    icon: '🐛', color: '#2E86AB', category: 'coding', brainProfile: 'opencode',
+    icon: 'ðŸ›', color: '#2E86AB', category: 'coding', brainProfile: 'opencode',
     tags: ['TESTING', 'QA', 'AUTOMATION', 'BUGS'],
     systemPrompt: 'You are a QA engineer. Write comprehensive test plans, identify edge cases, create automated test suites, and ensure software meets quality standards.',
     temperature: 0.3, topP: 0.85, maxTokens: 4096,
@@ -205,7 +205,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-customer-support',
     name: 'Customer Support',
     description: 'Handles customer inquiries, troubleshoots issues, and provides helpful, empathetic responses.',
-    icon: '🎧', color: '#f472b6', category: 'productivity', brainProfile: 'gemini',
+    icon: 'ðŸŽ§', color: '#f472b6', category: 'productivity', brainProfile: 'gemini',
     tags: ['SUPPORT', 'HELP', 'TROUBLESHOOT', 'EMPATHY'],
     systemPrompt: 'You are a customer support specialist. Provide helpful, empathetic, and accurate responses. Escalate complex issues appropriately and document solutions.',
     temperature: 0.6, topP: 0.9, maxTokens: 2048,
@@ -216,7 +216,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-devops-engineer',
     name: 'DevOps Engineer',
     description: 'CI/CD pipeline automation, infrastructure-as-code, container orchestration, and deployment strategy.',
-    icon: '⚙️', color: '#06b6d4', category: 'devops', brainProfile: 'openclaw',
+    icon: 'âš™ï¸', color: '#06b6d4', category: 'devops', brainProfile: 'openclaw',
     tags: ['DEVOPS', 'CI/CD', 'INFRASTRUCTURE', 'CONTAINERS'],
     systemPrompt: 'You are a senior DevOps engineer. Design and implement robust CI/CD pipelines, manage cloud infrastructure, and ensure deployment reliability. Use Infrastructure-as-Code principles.',
     temperature: 0.3, topP: 0.85, maxTokens: 8192,
@@ -227,7 +227,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-finance-analyst',
     name: 'Finance Analyst',
     description: 'Financial modeling, portfolio analysis, risk assessment, and investment strategy recommendations.',
-    icon: '📊', color: '#22c55e', category: 'business', brainProfile: 'gemini',
+    icon: 'ðŸ“Š', color: '#22c55e', category: 'business', brainProfile: 'gemini',
     tags: ['FINANCE', 'ANALYSIS', 'PORTFOLIO', 'INVESTMENT'],
     systemPrompt: 'You are a quantitative finance analyst. Build financial models, analyze market data, assess risk factors, and provide data-driven investment insights with clear reasoning.',
     temperature: 0.2, topP: 0.8, maxTokens: 8192,
@@ -238,7 +238,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-legal-researcher',
     name: 'Legal Researcher',
     description: 'Case law research, contract analysis, compliance checking, and legal document drafting assistance.',
-    icon: '⚖️', color: '#64748b', category: 'legal', brainProfile: 'claude',
+    icon: 'âš–ï¸', color: '#64748b', category: 'legal', brainProfile: 'claude',
     tags: ['LEGAL', 'CONTRACTS', 'COMPLIANCE', 'RESEARCH'],
     systemPrompt: 'You are a legal research assistant. Analyze case law, review contracts for risk, check regulatory compliance, and draft legal documents with precision and attention to jurisdiction.',
     temperature: 0.1, topP: 0.7, maxTokens: 16384,
@@ -249,7 +249,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-medical-assistant',
     name: 'Medical Assistant',
     description: 'Medical literature review, patient record summarization, drug interaction checking, and clinical decision support.',
-    icon: '🏥', color: '#ef4444', category: 'medical', brainProfile: 'gemini',
+    icon: 'ðŸ¥', color: '#ef4444', category: 'medical', brainProfile: 'gemini',
     tags: ['MEDICAL', 'CLINICAL', 'RESEARCH', 'DIAGNOSIS'],
     systemPrompt: 'You are a medical AI assistant. Summarize patient records, review medical literature, check drug interactions, and provide clinical decision support. Always note that you are not a substitute for professional medical judgment.',
     temperature: 0.1, topP: 0.7, maxTokens: 8192,
@@ -260,7 +260,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-ux-designer',
     name: 'UX Designer',
     description: 'User experience design, wireframing, usability analysis, design system creation, and accessibility auditing.',
-    icon: '🎨', color: '#d946ef', category: 'productivity', brainProfile: 'claude',
+    icon: 'ðŸŽ¨', color: '#d946ef', category: 'productivity', brainProfile: 'claude',
     tags: ['UX', 'DESIGN', 'WIREFRAME', 'ACCESSIBILITY'],
     systemPrompt: 'You are a senior UX designer. Create wireframes, analyze usability, design component systems, and ensure WCAG accessibility compliance. Think in terms of user journeys and interaction patterns.',
     temperature: 0.6, topP: 0.9, maxTokens: 4096,
@@ -271,7 +271,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-data-engineer',
     name: 'Data Engineer',
     description: 'ETL pipeline design, data warehouse architecture, SQL optimization, and big data processing workflows.',
-    icon: '🗄️', color: '#0ea5e9', category: 'data', brainProfile: 'openclaw',
+    icon: 'ðŸ—„ï¸', color: '#0ea5e9', category: 'data', brainProfile: 'openclaw',
     tags: ['DATA', 'ETL', 'SQL', 'WAREHOUSE'],
     systemPrompt: 'You are a data engineer. Design efficient ETL pipelines, architect data warehouses, optimize SQL queries, and manage big data processing workflows. Focus on scalability and data quality.',
     temperature: 0.2, topP: 0.85, maxTokens: 8192,
@@ -282,7 +282,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-security-analyst',
     name: 'Security Analyst',
     description: 'Vulnerability assessment, threat hunting, incident response planning, and security audit automation.',
-    icon: '🔐', color: '#dc2626', category: 'devops', brainProfile: 'openclaw',
+    icon: 'ðŸ”', color: '#dc2626', category: 'devops', brainProfile: 'openclaw',
     tags: ['SECURITY', 'THREAT', 'AUDIT', 'INCIDENT'],
     systemPrompt: 'You are a cybersecurity analyst. Perform vulnerability assessments, hunt for threats, plan incident responses, and automate security audits. Follow OWASP and NIST frameworks.',
     temperature: 0.2, topP: 0.8, maxTokens: 8192,
@@ -290,10 +290,10 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     layer: 5,
   },
   {
-    id: 'tpl-seo-specialist',
-    name: 'SEO Specialist',
+    id: 'tpl-seo-specialist2',
+    name: 'SEO Strategist',
     description: 'Keyword research, on-page optimization, technical SEO audits, link building strategy, and content gap analysis.',
-    icon: '🎯', color: '#f97316', category: 'seo', brainProfile: 'gemini',
+    icon: 'ðŸŽ¯', color: '#f97316', category: 'seo', brainProfile: 'gemini',
     tags: ['SEO', 'KEYWORDS', 'OPTIMIZATION', 'ANALYTICS'],
     systemPrompt: 'You are an SEO specialist. Conduct keyword research, perform technical SEO audits, develop content strategies, analyze competitor backlinks, and track ranking performance with actionable recommendations.',
     temperature: 0.5, topP: 0.9, maxTokens: 4096,
@@ -304,7 +304,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-sales-automator',
     name: 'Sales Automator',
     description: 'Lead qualification, email sequence automation, CRM enrichment, meeting scheduling, and pipeline analytics.',
-    icon: '📈', color: '#84cc16', category: 'business', brainProfile: 'hermes',
+    icon: 'ðŸ“ˆ', color: '#84cc16', category: 'business', brainProfile: 'hermes',
     tags: ['SALES', 'LEADS', 'CRM', 'AUTOMATION'],
     systemPrompt: 'You are a sales automation agent. Qualify leads, craft personalized outreach sequences, enrich CRM data, schedule meetings, and analyze pipeline metrics for conversion optimization.',
     temperature: 0.4, topP: 0.9, maxTokens: 4096,
@@ -315,7 +315,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
     id: 'tpl-video-producer',
     name: 'Video Producer',
     description: 'Scriptwriting, storyboard creation, editing guidance, caption generation, and thumbnail optimization.',
-    icon: '🎬', color: '#ec4899', category: 'writing', brainProfile: 'gemini',
+    icon: 'ðŸŽ¬', color: '#ec4899', category: 'writing', brainProfile: 'gemini',
     tags: ['VIDEO', 'SCRIPTING', 'EDITING', 'CAPTIONS'],
     systemPrompt: 'You are a video production assistant. Write compelling scripts, create storyboards, guide editing decisions, generate accurate captions, and optimize thumbnails for engagement.',
     temperature: 0.7, topP: 0.95, maxTokens: 4096,
@@ -324,7 +324,7 @@ const PREBUILT_TEMPLATES: AgentTemplate[] = [
   },
 ];
 
-/* ─── Swarm Configurations ─── */
+/* â”€â”€â”€ Swarm Configurations â”€â”€â”€ */
 interface SwarmConfig {
   id: string;
   name: string;
@@ -337,15 +337,15 @@ interface SwarmConfig {
 }
 
 const SWARM_CONFIGS: SwarmConfig[] = [
-  { id: 'sw-code-review', name: 'Code Review Swarm', description: 'Multi-agent code review with diverse perspectives catching more issues.', agentCount: 3, strategy: 'consensus', agents: ['Claude Reviewer', 'Security Scanner', 'Style Enforcer'], color: '#00ff88', icon: '🔍' },
-  { id: 'sw-research-sprint', name: 'Research Sprint', description: 'Parallel research agents covering different angles for comprehensive analysis.', agentCount: 4, strategy: 'majority', agents: ['Deep Researcher', 'Fact Checker', 'Synthesizer', 'Critic'], color: '#FFB627', icon: '🔬' },
-  { id: 'sw-security-audit', name: 'Security Audit', description: 'Delegated security review with specialized vulnerability scanners.', agentCount: 3, strategy: 'delegation', agents: ['Lead Auditor', 'Pen Tester', 'Compliance Checker'], color: '#E63946', icon: '🛡️' },
-  { id: 'sw-product-launch', name: 'Product Launch', description: 'Full product launch coordination across all disciplines.', agentCount: 5, strategy: 'consensus', agents: ['Product Lead', 'Marketing', 'Engineering', 'Design', 'QA'], color: '#7B2CBF', icon: '🚀' },
-  { id: 'sw-bug-triage', name: 'Bug Triage', description: 'Race to diagnose and prioritize bugs for fastest resolution.', agentCount: 3, strategy: 'race', agents: ['Bug Hunter', 'Root Analyzer', 'Fix Suggester'], color: '#E8751A', icon: '🐛' },
-  { id: 'sw-data-pipeline', name: 'Data Pipeline', description: 'Delegated data processing with specialized transformation agents.', agentCount: 4, strategy: 'delegation', agents: ['Pipeline Lead', 'ETL Worker', 'Quality Gate', 'Schema Validator'], color: '#38bdf8', icon: '🔄' },
+  { id: 'sw-code-review', name: 'Code Review Swarm', description: 'Multi-agent code review with diverse perspectives catching more issues.', agentCount: 3, strategy: 'consensus', agents: ['Claude Reviewer', 'Security Scanner', 'Style Enforcer'], color: '#00ff88', icon: 'ðŸ”' },
+  { id: 'sw-research-sprint', name: 'Research Sprint', description: 'Parallel research agents covering different angles for comprehensive analysis.', agentCount: 4, strategy: 'majority', agents: ['Deep Researcher', 'Fact Checker', 'Synthesizer', 'Critic'], color: '#FFB627', icon: 'ðŸ”¬' },
+  { id: 'sw-security-audit', name: 'Security Audit', description: 'Delegated security review with specialized vulnerability scanners.', agentCount: 3, strategy: 'delegation', agents: ['Lead Auditor', 'Pen Tester', 'Compliance Checker'], color: '#E63946', icon: 'ðŸ›¡ï¸' },
+  { id: 'sw-product-launch', name: 'Product Launch', description: 'Full product launch coordination across all disciplines.', agentCount: 5, strategy: 'consensus', agents: ['Product Lead', 'Marketing', 'Engineering', 'Design', 'QA'], color: '#7B2CBF', icon: 'ðŸš€' },
+  { id: 'sw-bug-triage', name: 'Bug Triage', description: 'Race to diagnose and prioritize bugs for fastest resolution.', agentCount: 3, strategy: 'race', agents: ['Bug Hunter', 'Root Analyzer', 'Fix Suggester'], color: '#E8751A', icon: 'ðŸ›' },
+  { id: 'sw-data-pipeline', name: 'Data Pipeline', description: 'Delegated data processing with specialized transformation agents.', agentCount: 4, strategy: 'delegation', agents: ['Pipeline Lead', 'ETL Worker', 'Quality Gate', 'Schema Validator'], color: '#38bdf8', icon: 'ðŸ”„' },
 ];
 
-/* ─── Workflow Configurations ─── */
+/* â”€â”€â”€ Workflow Configurations â”€â”€â”€ */
 interface WorkflowStep {
   name: string;
   icon: React.ReactNode;
@@ -436,7 +436,7 @@ const WORKFLOW_CONFIGS: WorkflowConfig[] = [
   },
 ];
 
-/* ─── Strategy Colors ─── */
+/* â”€â”€â”€ Strategy Colors â”€â”€â”€ */
 const STRATEGY_COLORS: Record<string, string> = {
   consensus: '#00ff88',
   majority: '#FFB627',
@@ -444,9 +444,9 @@ const STRATEGY_COLORS: Record<string, string> = {
   race: '#E63946',
 };
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    FORM STATE TYPE
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 interface AgentFormState {
   name: string;
@@ -468,7 +468,7 @@ interface AgentFormState {
 const DEFAULT_FORM: AgentFormState = {
   name: '',
   description: '',
-  icon: '🤖',
+  icon: 'ðŸ¤–',
   color: '#9d4edd',
   brainProfile: 'claude',
   category: 'custom',
@@ -482,9 +482,9 @@ const DEFAULT_FORM: AgentFormState = {
   layer: 3,
 };
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SLIDER COMPONENT
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function NeonSlider({
   label, value, min, max, step, onChange, icon, color = '#9d4edd',
@@ -516,9 +516,9 @@ function NeonSlider({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   AGENT BUILDER — Main Export
-   ═══════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   AGENT BUILDER â€” Main Export
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 type BuilderTab = 'create' | 'templates' | 'my-agents' | 'swarms' | 'workflows';
 
@@ -533,7 +533,7 @@ export function AgentBuilder() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ─── My Agents ───
+  // â”€â”€â”€ My Agents â”€â”€â”€
   const myAgents = useMemo(() =>
     agents.filter(a => a.createdFrom === 'custom'),
     [agents]
@@ -549,13 +549,13 @@ export function AgentBuilder() {
     );
   }, [myAgents, searchQuery]);
 
-  // ─── Toast helper ───
+  // â”€â”€â”€ Toast helper â”€â”€â”€
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // ─── Form handlers ───
+  // â”€â”€â”€ Form handlers â”€â”€â”€
   const updateForm = useCallback(<K extends keyof AgentFormState>(key: K, value: AgentFormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
   }, []);
@@ -588,7 +588,7 @@ export function AgentBuilder() {
     );
   }, [form.requiredProviders, updateForm]);
 
-  // ─── Save agent ───
+  // â”€â”€â”€ Save agent â”€â”€â”€
   const handleSave = useCallback(() => {
     if (!form.name.trim()) {
       showToast('Agent name is required', 'error');
@@ -637,7 +637,7 @@ export function AgentBuilder() {
     setActiveTab('my-agents');
   }, [form, editingId, addAgent, updateAgent, showToast]);
 
-  // ─── Edit agent ───
+  // â”€â”€â”€ Edit agent â”€â”€â”€
   const handleEdit = useCallback((agent: Agent) => {
     setForm({
       name: agent.name,
@@ -659,13 +659,13 @@ export function AgentBuilder() {
     setActiveTab('create');
   }, []);
 
-  // ─── Delete agent ───
+  // â”€â”€â”€ Delete agent â”€â”€â”€
   const handleDelete = useCallback((id: string) => {
     removeAgent(id);
     showToast('Agent deleted', 'info');
   }, [removeAgent, showToast]);
 
-  // ─── Use template ───
+  // â”€â”€â”€ Use template â”€â”€â”€
   const handleUseTemplate = useCallback((template: AgentTemplate) => {
     setForm({
       name: template.name,
@@ -685,10 +685,10 @@ export function AgentBuilder() {
     });
     setEditingId(null);
     setActiveTab('create');
-    showToast('Template loaded — customize and save!', 'info');
+    showToast('Template loaded â€” customize and save!', 'info');
   }, [showToast]);
 
-  // ─── Tab metadata ───
+  // â”€â”€â”€ Tab metadata â”€â”€â”€
   const tabs: { id: BuilderTab; label: string; icon: React.ReactNode; color: string }[] = [
     { id: 'create', label: 'Create Agent', icon: <Plus size={13} />, color: '#9d4edd' },
     { id: 'templates', label: 'Templates', icon: <Package size={13} />, color: '#FFB627' },
@@ -699,7 +699,7 @@ export function AgentBuilder() {
 
   return (
     <div className="space-y-4">
-      {/* ─── Toast ─── */}
+      {/* â”€â”€â”€ Toast â”€â”€â”€ */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -723,7 +723,7 @@ export function AgentBuilder() {
         )}
       </AnimatePresence>
 
-      {/* ─── Header ─── */}
+      {/* â”€â”€â”€ Header â”€â”€â”€ */}
       <div className="flex items-center justify-between">
         <h2 className="text-white font-bold text-sm tracking-wider uppercase flex items-center gap-2">
           <Wand2 size={16} className="text-[#9d4edd]" />
@@ -744,7 +744,7 @@ export function AgentBuilder() {
         </div>
       </div>
 
-      {/* ─── Tab Navigation ─── */}
+      {/* â”€â”€â”€ Tab Navigation â”€â”€â”€ */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
         {tabs.map(tab => (
           <button
@@ -762,9 +762,9 @@ export function AgentBuilder() {
         ))}
       </div>
 
-      {/* ═══════════════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          TAB 1: CREATE AGENT
-         ═══════════════════════════════════════════════════ */}
+         â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       <AnimatePresence mode="wait">
         {activeTab === 'create' && (
           <motion.div
@@ -774,7 +774,7 @@ export function AgentBuilder() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-4"
           >
-            {/* ─── Section: Basic Info ─── */}
+            {/* â”€â”€â”€ Section: Basic Info â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Bot size={10} className="text-[#9d4edd]" /> Basic Information
@@ -863,7 +863,7 @@ export function AgentBuilder() {
               </div>
             </div>
 
-            {/* ─── Section: Brain & Category ─── */}
+            {/* â”€â”€â”€ Section: Brain & Category â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Brain size={10} className="text-[#00ffff]" /> Brain & Category
@@ -919,7 +919,7 @@ export function AgentBuilder() {
               </div>
             </div>
 
-            {/* ─── Section: Providers & Tags ─── */}
+            {/* â”€â”€â”€ Section: Providers & Tags â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Layers size={10} className="text-[#FFB627]" /> Providers & Tags
@@ -985,7 +985,7 @@ export function AgentBuilder() {
               </div>
             </div>
 
-            {/* ─── Section: System Prompt ─── */}
+            {/* â”€â”€â”€ Section: System Prompt â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Sparkles size={10} className="text-[#00ff88]" /> System Prompt *
@@ -999,7 +999,7 @@ export function AgentBuilder() {
               />
             </div>
 
-            {/* ─── Section: Parameters ─── */}
+            {/* â”€â”€â”€ Section: Parameters â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Gauge size={10} className="text-[#E8751A]" /> Parameters
@@ -1033,7 +1033,7 @@ export function AgentBuilder() {
               </div>
             </div>
 
-            {/* ─── Section: Tool Permissions ─── */}
+            {/* â”€â”€â”€ Section: Tool Permissions â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Lock size={10} className="text-[#E63946]" /> Tool Permissions
@@ -1062,7 +1062,7 @@ export function AgentBuilder() {
               </div>
             </div>
 
-            {/* ─── Section: Layer Assignment ─── */}
+            {/* â”€â”€â”€ Section: Layer Assignment â”€â”€â”€ */}
             <div className="rounded-xl border border-[rgba(157,78,221,0.15)] bg-[rgba(18,18,42,0.6)] backdrop-blur-sm p-4">
               <div className="text-[10px] text-[#8888aa] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                 <Layers size={10} className="text-[#2E86AB]" /> Layer Assignment (L1-L7)
@@ -1093,7 +1093,7 @@ export function AgentBuilder() {
               </div>
             </div>
 
-            {/* ─── Save Button ─── */}
+            {/* â”€â”€â”€ Save Button â”€â”€â”€ */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSave}
@@ -1119,7 +1119,7 @@ export function AgentBuilder() {
                 <div>
                   <div className="text-[10px] text-white font-medium">{form.name || 'New Agent'}</div>
                   <div className="text-[8px] text-[#8888aa]">
-                    {BRAIN_META[form.brainProfile].label} · L{form.layer} · {form.category}
+                    {BRAIN_META[form.brainProfile].label} Â· L{form.layer} Â· {form.category}
                   </div>
                 </div>
               </div>
@@ -1127,9 +1127,9 @@ export function AgentBuilder() {
           </motion.div>
         )}
 
-        {/* ═══════════════════════════════════════════════════
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
            TAB 2: PREBUILT TEMPLATES
-           ═══════════════════════════════════════════════════ */}
+           â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === 'templates' && (
           <motion.div
             key="templates"
@@ -1140,7 +1140,7 @@ export function AgentBuilder() {
           >
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider flex items-center gap-1.5">
               <Package size={10} className="text-[#FFB627]" />
-              Prebuilt Agent Templates — Click to use as a starting point
+              Prebuilt Agent Templates â€” Click to use as a starting point
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -1223,9 +1223,9 @@ export function AgentBuilder() {
           </motion.div>
         )}
 
-        {/* ═══════════════════════════════════════════════════
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
            TAB 3: MY AGENTS
-           ═══════════════════════════════════════════════════ */}
+           â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === 'my-agents' && (
           <motion.div
             key="my-agents"
@@ -1349,9 +1349,9 @@ export function AgentBuilder() {
           </motion.div>
         )}
 
-        {/* ═══════════════════════════════════════════════════
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
            TAB 4: SWARM INTELLIGENCE CONFIGURATIONS
-           ═══════════════════════════════════════════════════ */}
+           â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === 'swarms' && (
           <motion.div
             key="swarms"
@@ -1362,7 +1362,7 @@ export function AgentBuilder() {
           >
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider flex items-center gap-1.5">
               <Users size={10} className="text-[#E63946]" />
-              Prebuilt Swarm Configurations — Multi-agent collaborative intelligence
+              Prebuilt Swarm Configurations â€” Multi-agent collaborative intelligence
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -1451,9 +1451,9 @@ export function AgentBuilder() {
           </motion.div>
         )}
 
-        {/* ═══════════════════════════════════════════════════
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
            TAB 5: WORKFLOW CONFIGURATIONS
-           ═══════════════════════════════════════════════════ */}
+           â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === 'workflows' && (
           <motion.div
             key="workflows"
@@ -1464,7 +1464,7 @@ export function AgentBuilder() {
           >
             <div className="text-[10px] text-[#8888aa] uppercase tracking-wider flex items-center gap-1.5">
               <Workflow size={10} className="text-[#2E86AB]" />
-              Prebuilt Workflow Configurations — Automated multi-step processes
+              Prebuilt Workflow Configurations â€” Automated multi-step processes
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1532,7 +1532,7 @@ export function AgentBuilder() {
                   {/* Footer */}
                   <div className="flex items-center justify-between pt-2 border-t border-[rgba(157,78,221,0.08)]">
                     <div className="text-[8px] text-[#8888aa]">
-                      {config.steps.length} steps · Automated pipeline
+                      {config.steps.length} steps Â· Automated pipeline
                     </div>
                     <button
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold transition-all"
@@ -1550,3 +1550,4 @@ export function AgentBuilder() {
     </div>
   );
 }
+

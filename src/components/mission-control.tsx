@@ -221,7 +221,7 @@ export function LiveWorkspace() {
         agentId,
       });
     }
-  }, [agentId]);
+  }, [agentId, isHermesLive, isGeminiLive, addChatMessage]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
