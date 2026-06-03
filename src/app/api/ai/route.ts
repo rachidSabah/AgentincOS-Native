@@ -38,7 +38,36 @@ function detectProvider(apiKey: string, providerName?: string): string | null {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, apiKey, provider: providerName } = body;
+    const { action, apiKey, provider: providerName, message, model: clientModel, baseUrl } = body;
+
+    // Support chat action for provider-based chatting
+    if (action === 'chat') {
+      if (!apiKey) return NextResponse.json({ error: 'API key is required' }, { status: 400 });
+      if (!message) return NextResponse.json({ error: 'message is required' }, { status: 400 });
+
+      const provider = detectProvider(apiKey, providerName);
+      if (!provider) return NextResponse.json({ error: 'Could not detect provider from API key' }, { status: 400 });
+
+      const config = PROVIDERS[provider];
+      const endpoint = baseUrl || config.baseUrl;
+
+      try {
+        const res = await fetch(`${endpoint}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({ model: clientModel || config.defaultModel, messages: [{ role: 'user', content: message }], max_tokens: 4096 }),
+          signal: AbortSignal.timeout(60000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return NextResponse.json({ response: data.choices?.[0]?.message?.content || JSON.stringify(data), provider: config.name, model: clientModel || config.defaultModel });
+        }
+        const err = await res.text().catch(() => 'Unknown error');
+        return NextResponse.json({ response: `Provider error (${res.status}): ${err.slice(0, 300)}`, error: true });
+      } catch (e: any) {
+        return NextResponse.json({ response: `Connection error: ${e.message}`, error: true });
+      }
+    }
 
     if (action !== 'fetch-models') {
       return NextResponse.json({ error: 'Invalid action. Use: fetch-models' }, { status: 400 });

@@ -277,7 +277,7 @@ export function GeminiCLIDashboard() {
    CHAT TAB
    ═══════════════════════════════════════════════════════════ */
 function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
-  const { addChatMessage, chatHistories, addLog } = useOSStore();
+  const { addChatMessage, chatHistories, addLog, providers, activeProviderId } = useOSStore();
   const messages = (chatHistories['gemini-cli-dashboard'] || []) as GeminiChatMsg[];
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -351,11 +351,27 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
-      const res = await fetch('/api/hermes/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: fullContent, model }),
-      });
+      // Route to correct API based on active provider
+      const activeProvider = activeProviderId ? providers.find(p => p.id === activeProviderId && p.enabled) : providers.find(p => p.enabled);
+      const isGeminiCli = !activeProvider || activeProvider.id === 'gemini-cli' || activeProvider.type === 'cli';
+      
+      let res: Response;
+      if (isGeminiCli) {
+        res = await fetch('/api/hermes/gemini', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'chat', message: fullContent, model }),
+        });
+      } else if (activeProvider) {
+        res = await fetch('/api/ai', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'chat', message: fullContent, provider: activeProvider.name, apiKey: activeProvider.apiKey, baseUrl: activeProvider.apiEndpoint, model: activeProvider.defaultModel }),
+        });
+      } else {
+        res = await fetch('/api/hermes/gemini', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'chat', message: fullContent, model }),
+        });
+      }
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
 

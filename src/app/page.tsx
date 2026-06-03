@@ -57,6 +57,7 @@ import { LiveExecutionViewer } from '@/components/live-execution-viewer';
 import { AgentBuilder } from '@/components/agent-builder';
 import { CoworkersPanel } from '@/components/coworkers';
 import { SkillImporter } from '@/components/skill-importer';
+import { OSDoctor } from '@/components/os-doctor';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, Component } from 'react';
 
@@ -430,6 +431,14 @@ export default function HomePage() {
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
             <CoworkersPanel />
+          </motion.div>
+        );
+
+      // ─── OS Doctor ───
+      case 'os-doctor':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <OSDoctor />
           </motion.div>
         );
 
