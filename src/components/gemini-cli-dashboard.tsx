@@ -292,8 +292,8 @@ export function GeminiCLIDashboard() {
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
             {activeTab === 'files' && <FilesTab isRunning={isRunning} />}
-            {activeTab === 'browser' && <BrowserTab />
-            activeTab === 'agent' && <AgentTab isRunning={isRunning} brainMode={brainMode} autonomousMode={autonomousMode} setAutonomousMode={setAutonomousMode} />}
+            {activeTab === 'browser' && <BrowserTab />}
+            {activeTab === 'agent' && <AgentTab isRunning={isRunning} brainMode={brainMode} autonomousMode={autonomousMode} setAutonomousMode={setAutonomousMode} />}
           </motion.div>
         </AnimatePresence>
       </div>
