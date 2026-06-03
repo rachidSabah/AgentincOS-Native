@@ -297,6 +297,10 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const messages = (chatHistories['gemini-cli-dashboard'] || []) as GeminiChatMsg[];
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [teamMode, setTeamMode] = useState(false);
+  const activeProvider = providers.find(p => (p.id === activeProviderId || p.name.toLowerCase().includes('gemini')) && p.enabled);
+  const coworkerModels = teamMode ? (activeProvider?.models || []).filter((m: string) => m !== model && m !== 'auto').slice(0, 3) : [];
+  const [coworkerResults, setCoworkerResults] = useState<{ model: string; response: string }[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -403,6 +407,37 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       });
       extractArtifacts(agentContent);
       setAttachmentPreview(null);
+
+      // Team Mode: run coworker models in parallel for consensus
+      if (teamMode && coworkerModels.length > 0) {
+        setCoworkerResults([]);
+        const coworkerPromises = coworkerModels.map(async (cm: string) => {
+          try {
+            const cmRes = await fetch('/api/ai', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'chat', message: `Review and refine this response for the task "${fullContent.slice(0, 100)}...". Provide your perspective:\n\n${agentContent.slice(0, 2000)}`, provider: activeProvider?.name, apiKey: activeProvider?.apiKey, baseUrl: activeProvider?.apiEndpoint, model: cm }),
+            });
+            if (cmRes.ok) {
+              const cmData = await cmRes.json();
+              return { model: cm, response: cmData.response || '' };
+            }
+          } catch {}
+          return { model: cm, response: '' };
+        });
+        const results = await Promise.all(coworkerPromises);
+        const validResults = results.filter(r => r.response);
+        if (validResults.length > 0) {
+          setCoworkerResults(validResults);
+          const combinedFeedback = validResults.map(r => `**${r.model}**: ${r.response.slice(0, 200)}`).join('\n\n');
+          addChatMessage('gemini-cli-dashboard', {
+            id: `cli-chat-team-${Date.now()}`,
+            role: 'agent',
+            content: `Team Review (${validResults.length} coworkers):\n\n${combinedFeedback}`,
+            timestamp: Date.now(),
+            agentId: 'gemini-team',
+          });
+        }
+      }
     } catch {
       const errMsg = isRunning
         ? 'Failed to reach Gemini CLI. Check your connection.'
@@ -498,6 +533,19 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
           </div>
         )}
       </div>
+
+      {/* Team Mode Toggle */}
+      {activeProvider && activeProvider.models?.length > 1 && (
+        <div className="px-4 py-1.5 border-t border-[rgba(157,78,221,0.1)] flex items-center gap-2 bg-[rgba(157,78,221,0.03)]">
+          <button onClick={() => setTeamMode(!teamMode)} className={`flex items-center gap-1.5 px-2 py-1 rounded text-[8px] font-bold transition-colors ${teamMode ? 'bg-[rgba(157,78,221,0.15)] text-[#9d4edd] border border-[rgba(157,78,221,0.3)]' : 'text-[#8888aa] border border-[rgba(157,78,221,0.1)] hover:text-white'}`}>
+            {teamMode ? <ToggleRight size={10} /> : <ToggleLeft size={10} />}
+            Team Mode {teamMode && `(+${coworkerModels.length} coworkers)`}
+          </button>
+          {coworkerResults.length > 0 && (
+            <span className="text-[7px] text-[#00ff88] ml-auto">{coworkerResults.length} reviews done</span>
+          )}
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="px-4 py-2 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.3)]">
