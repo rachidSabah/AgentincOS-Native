@@ -10,7 +10,7 @@ import {
   Eye, GitBranch, Zap, Brain, Clock, ChevronDown,
   FileCode, Bug, Cpu, Shield, BookOpen, ArrowRight,
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
-  Workflow, Puzzle, Network, Users, Cog, Database,
+  Workflow, Puzzle, Network, Users, Cog, Database, Globe,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -292,7 +292,8 @@ export function GeminiCLIDashboard() {
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
             {activeTab === 'files' && <FilesTab isRunning={isRunning} />}
-            {activeTab === 'agent' && <AgentTab isRunning={isRunning} brainMode={brainMode} autonomousMode={autonomousMode} setAutonomousMode={setAutonomousMode} />}
+            {activeTab === 'browser' && <BrowserTab />
+            activeTab === 'agent' && <AgentTab isRunning={isRunning} brainMode={brainMode} autonomousMode={autonomousMode} setAutonomousMode={setAutonomousMode} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -301,7 +302,57 @@ export function GeminiCLIDashboard() {
 }
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   CHAT TAB
+   
+/* BROWSER TAB */
+function BrowserTab() {
+  const [url, setUrl] = useState('');
+  const [content, setContent] = useState('');
+  const [title, setTitle] = useState('');
+  const [links, setLinks] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const navigate = async () => {
+    if (!url.trim()) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'navigate', url: url.trim() }) });
+      const data = await res.json();
+      if (data.success) { setTitle(data.title); setContent(data.content); setLinks(data.links || []); }
+    } catch { setContent('Failed to load page'); }
+    setIsLoading(false);
+  };
+
+  const analyze = async () => {
+    if (!url.trim()) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'analyze', url: url.trim() }) });
+      const data = await res.json();
+      if (data.analysis) { setTitle(data.analysis.title); setContent(JSON.stringify(data.analysis, null, 2)); }
+    } catch {}
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="flex flex-col h-full p-4 gap-3">
+      <div className="flex gap-2">
+        <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && navigate()} placeholder="https://example.com" className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(66,133,244,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder-[#8888aa] outline-none font-mono" />
+        <button onClick={navigate} disabled={isLoading} className="px-4 py-2 rounded-lg text-[10px] font-bold bg-[rgba(66,133,244,0.15)] border border-[rgba(66,133,244,0.3)] text-[#4285f4] disabled:opacity-30">{isLoading ? 'Loading...' : 'Go'}</button>
+        <button onClick={analyze} disabled={isLoading} className="px-4 py-2 rounded-lg text-[10px] font-bold bg-[rgba(157,78,221,0.15)] border border-[rgba(157,78,221,0.3)] text-[#9d4edd] disabled:opacity-30">Analyze</button>
+      </div>
+      {title && <div className="text-[11px] text-white font-bold">{title}</div>}
+      {content && <div className="flex-1 overflow-y-auto custom-scrollbar bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-[10px] text-[#ccccdd] font-mono whitespace-pre-wrap">{content.slice(0, 5000)}</div>}
+      {links.length > 0 && (
+        <div className="max-h-32 overflow-y-auto custom-scrollbar">
+          <div className="text-[9px] text-[#8888aa] uppercase mb-1">{links.length} links</div>
+          {links.slice(0, 15).map((l, i) => <div key={i} className="text-[9px] text-[#4285f4] font-mono truncate hover:text-white cursor-pointer" onClick={() => setUrl(l)}>{l}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* CHAT TAB
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const { addChatMessage, chatHistories, addLog, providers, activeProviderId } = useOSStore();
