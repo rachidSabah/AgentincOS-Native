@@ -309,7 +309,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [teamMode, setTeamMode] = useState(false);
-  const activeProvider = providers.find(p => (p.id === activeProviderId || p.name.toLowerCase().includes('gemini')) && p.enabled);
+  const activeProvider = providers.find(p => p.id === activeProviderId && p.enabled) || null;
   const coworkerModels = teamMode ? (activeProvider?.models || []).filter((m: string) => m !== model && m !== 'auto').slice(0, 3) : [];
   const [coworkerResults, setCoworkerResults] = useState<{ model: string; response: string }[]>([]);
   const [streamingText, setStreamingText] = useState('');
