@@ -59,6 +59,7 @@ import { CoworkersPanel } from '@/components/coworkers';
 import { SkillImporter } from '@/components/skill-importer';
 import { OSDoctor } from '@/components/os-doctor';
 import { ModelsDashboard } from '@/components/models-dashboard';
+import { ArtifactPanel } from '@/components/artifact-panel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, Component } from 'react';
 
@@ -124,6 +125,7 @@ export default function HomePage() {
   const {
     activeView, agents, controlRoomAgent,
     setControlRoomAgent, commandPaletteOpen, setCommandPaletteOpen,
+    artifacts, addArtifact,
   } = useOSStore();
 
   useSystemDetection();
@@ -792,6 +794,8 @@ export default function HomePage() {
             <AnimatePresence mode="wait"><div key={activeView}>{renderView()}</div></AnimatePresence>
           </ViewErrorBoundary>
         </main>
+
+        <ArtifactPanel artifacts={artifacts.map(a => ({ language: a.type || 'text', code: a.content || '', title: a.name }))} onClear={() => useOSStore.setState({ artifacts: [] })} />
 
         {!isMissionControl3Col && !isHomeView && (
           <div className="h-12 flex items-center justify-center gap-2 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.8)] backdrop-blur-md" role="toolbar" aria-label="Agent Quick Access">

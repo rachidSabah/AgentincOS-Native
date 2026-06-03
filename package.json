@@ -10,6 +10,8 @@
     "stop": "node scripts/stop.js",
     "restart": "npm run stop && node scripts/sleep.js && npm run start",
     "lint": "eslint .",
+    "test": "echo \"No tests configured yet. Install vitest: bun add -d vitest @testing-library/react\" && exit 0",
+    "test:watch": "echo \"No tests configured yet\" && exit 0",
     "install-agentic": "node scripts/install.js",
     "uninstall-agentic": "node scripts/uninstall.js"
   },
@@ -77,7 +79,6 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
-    "z-ai-web-dev-sdk": "^0.0.17",
     "zod": "^4.0.2",
     "zustand": "^5.0.6"
   },

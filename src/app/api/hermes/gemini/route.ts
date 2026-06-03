@@ -947,6 +947,43 @@ ${generateWordPressThemeFromScan(
   )}`;
 }
 
+// ─── Direct Gemini API REST Fallback (Tier 1.5) ───
+async function callGeminiAPI(prompt: string, model: string): Promise<{ success: boolean; response?: string; latency?: number; error?: string }> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    return { success: false, error: 'No GEMINI_API_KEY or GOOGLE_API_KEY configured' };
+  }
+
+  const startTime = Date.now();
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${TASK_EXECUTION_SYSTEM_PROMPT}\n\nUser: ${prompt}` }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return { success: false, error: `Gemini API HTTP ${res.status}: ${errText.slice(0, 200)}`, latency: Date.now() - startTime };
+    }
+
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      return { success: false, error: 'Gemini API returned empty response', latency: Date.now() - startTime };
+    }
+
+    return { success: true, response: text, latency: Date.now() - startTime };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gemini API call failed', latency: Date.now() - startTime };
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: any;
   try {
@@ -1007,10 +1044,13 @@ export async function POST(req: NextRequest) {
 
       console.log(`[gemini/chat] Request: model=${resolvedModel}, msg_len=${userMessage.length}`);
 
-      // ── Step 1: Try Gemini CLI with model chain ──
-      const modelChain = [resolvedModel];
-      if (resolvedModel !== FALLBACK_MODEL) modelChain.push(FALLBACK_MODEL);
-      if (!modelChain.includes('gemini-2.5-flash')) modelChain.push('gemini-2.5-flash');
+      // ── Step 0: Quick CLI availability check (skip full detection) ──
+      let cliAvailable = false;
+      try {
+        const locateCmd = IS_WIN ? 'where' : 'which';
+        await execFileAsync(locateCmd, ['gemini'], { timeout: 2000, ...(IS_WIN ? { shell: true } : {}) });
+        cliAvailable = true;
+      } catch { cliAvailable = false; }
 
       // Check if we should also scan a website
       const urlMatch = userMessage.match(/https?:\/\/[^\s]+/);
@@ -1019,6 +1059,12 @@ export async function POST(req: NextRequest) {
 
       // Start web scan in parallel with CLI attempts (if URL detected)
       const scanPromise = scanUrl ? scanWebsite(scanUrl) : Promise.resolve({ success: false });
+
+      // ── Step 1: Try Gemini CLI with model chain (ONLY if installed) ──
+      if (cliAvailable) {
+        const modelChain = [resolvedModel];
+        if (resolvedModel !== FALLBACK_MODEL) modelChain.push(FALLBACK_MODEL);
+        if (!modelChain.includes('gemini-2.5-flash')) modelChain.push('gemini-2.5-flash');
 
       for (const tryModel of modelChain) {
         try {
@@ -1074,6 +1120,26 @@ export async function POST(req: NextRequest) {
           if (e?.code === 1 || e?.stderr?.includes('not found') || e?.stderr?.includes('unavailable')) continue;
         }
       }
+      } // end if (cliAvailable)
+      if (!cliAvailable) {
+        console.log(`[gemini/chat] Gemini CLI not installed, skipping CLI step`);
+      }
+
+      // ── Step 1.5: Try Direct Gemini API REST (if key available) ──
+      const geminiApiResult = await callGeminiAPI(userMessage, resolvedModel);
+      if (geminiApiResult.success && geminiApiResult.response) {
+        const latency = Date.now() - startTime;
+        console.log(`[gemini/chat] Gemini API REST succeeded, latency=${latency}ms`);
+        return NextResponse.json({
+          response: geminiApiResult.response,
+          model: resolvedModel,
+          latency,
+          via: 'gemini-api-rest',
+          tier: 1.5,
+          cliFailed: true,
+        });
+      }
+      console.log(`[gemini/chat] Gemini API REST failed: ${geminiApiResult.error}`);
 
       // ── Step 2: Web scan + Internal analysis (for website tasks) ──
       if (scanUrl) {
