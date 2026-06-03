@@ -1454,7 +1454,7 @@ export const useOSStore = create<OSState>()(
       removeJournalEntry: (id) => set((s) => ({ journal: s.journal.filter((j) => j.id !== id) })),
 
       // ─── Hermes ───
-      hermesSkills: [] as HermesSkill[],
+      hermesSkills: BUILTIN_SKILLS as unknown as HermesSkill[],
       skillExecutions: [] as SkillExecution[],
       addSkillExecution: (exec) => set((s) => ({ skillExecutions: [exec, ...s.skillExecutions].slice(0, 50) })),
 
@@ -1465,7 +1465,10 @@ export const useOSStore = create<OSState>()(
       clearChatAttachments: () => set({ chatAttachments: [] }),
 
       // ─── Swarm Intelligence ───
-      activeSwarms: [] as SwarmSession[],
+      activeSwarms: [
+        { id: 'swarm-1', task: 'Optimize system performance across all layers', agents: ['code-agent', 'research-agent', 'task-agent'], strategy: 'consensus', maxRounds: 3, currentRound: 1, proposals: [], status: 'forming', winningProposal: null, consensusPercentage: 0, createdAt: Date.now() - 3600000 },
+        { id: 'swarm-2', task: 'Research competitor architectures and propose improvements', agents: ['research-agent', 'brain'], strategy: 'majority', maxRounds: 2, currentRound: 1, proposals: [], status: 'forming', winningProposal: null, consensusPercentage: 0, createdAt: Date.now() - 7200000 },
+      ] as SwarmSession[],
       swarmHistory: [] as SwarmSession[],
       addSwarm: (swarm) => set((s) => ({ activeSwarms: [...s.activeSwarms, swarm] })),
       updateSwarm: (id, updates) => set((s) => ({
