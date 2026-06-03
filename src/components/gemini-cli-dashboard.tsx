@@ -55,7 +55,7 @@ export function GeminiCLIDashboard() {
   const [brainMode, setBrainMode] = useState('gemini');
   const [autonomousMode, setAutonomousMode] = useState(false);
 
-  const isRunning = geminiCLI.running || geminiConnection.running;
+  const isRunning = geminiCLI.running || geminiConnection.running || geminiCLI.installed || geminiConnection.installed;
   const isInstalled = geminiCLI.installed || geminiConnection.installed;
 
   // Auto-detect Gemini CLI
