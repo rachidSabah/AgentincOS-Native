@@ -581,7 +581,7 @@ function ProviderDetailPanel({
               {/* Model list */}
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {(draft.models || provider.models).map((m, i) => (
-                  <div key={m} className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)]">
+                  <div key={`model-${m}-${i}`} className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)]">
                     <span className={m === draft.defaultModel ? 'text-[#9d4edd] font-semibold' : 'text-[#ccccdd]'}>{m}</span>
                     <button onClick={() => removeModel(m)} className="text-[#8888aa] hover:text-[#E63946] transition-colors">
                       <X size={8} />
