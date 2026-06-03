@@ -51,22 +51,25 @@ export async function POST(request: NextRequest) {
       const config = PROVIDERS[provider];
       const endpoint = baseUrl || config.baseUrl;
 
-      try {
-        const res = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify({ model: clientModel || config.defaultModel, messages: [{ role: 'user', content: message }], max_tokens: 4096 }),
-          signal: AbortSignal.timeout(60000),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return NextResponse.json({ response: data.choices?.[0]?.message?.content || JSON.stringify(data), provider: config.name, model: clientModel || config.defaultModel });
-        }
-        const err = await res.text().catch(() => 'Unknown error');
-        return NextResponse.json({ response: `Provider error (${res.status}): ${err.slice(0, 300)}`, error: true });
-      } catch (e: any) {
-        return NextResponse.json({ response: `Connection error: ${e.message}`, error: true });
+      // Model chain fallback
+      const modelChain = [clientModel || config.defaultModel, ...config.models.filter(m => m !== (clientModel || config.defaultModel)).slice(0, 3)];
+
+      for (const tryModel of modelChain) {
+        try {
+          const res = await fetch(`${endpoint}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: tryModel, messages: [{ role: 'user', content: message }], max_tokens: 4096 }),
+            signal: AbortSignal.timeout(60000),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            return NextResponse.json({ response: data.choices?.[0]?.message?.content || JSON.stringify(data), provider: config.name, model: tryModel, fallback: tryModel !== (clientModel || config.defaultModel) });
+          }
+          if (res.status === 401 || res.status === 403) break; // Don't retry auth errors
+        } catch { /* try next model */ }
       }
+      return NextResponse.json({ response: `All models failed for ${config.name}. Check your API key and try again.`, error: true });
     }
 
     if (action !== 'fetch-models') {
