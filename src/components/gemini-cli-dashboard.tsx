@@ -382,20 +382,16 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
-      const isGeminiCli = !activeProvider || activeProvider.type === 'cli' || activeProvider.name.toLowerCase().includes('gemini');
+      // Use Brain Orchestrator for all prompts — primary model + Gemini CLI co-pilot
+      const orchBody: any = { message: fullContent, selectedModel: model, providers: providers.filter((p: any) => p.enabled && p.apiKey).map((p: any) => ({ name: p.name, apiEndpoint: p.apiEndpoint, apiKey: p.apiKey, defaultModel: p.defaultModel })) };
       
-      let res: Response;
-      if (isGeminiCli) {
-        res = await fetch('/api/hermes/gemini', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'chat', message: fullContent, model }),
-        });
-      } else if (activeProvider) {
-        res = await fetch('/api/ai', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'chat', message: fullContent, provider: activeProvider.name, apiKey: activeProvider.apiKey, baseUrl: activeProvider.apiEndpoint, model: activeProvider.defaultModel }),
-        });
-      } else {
+      let res = await fetch('/api/brain/orchestrate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orchBody),
+      });
+
+      if (!res.ok) {
+        // Fallback: try direct Gemini CLI
         res = await fetch('/api/hermes/gemini', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'chat', message: fullContent, model }),
@@ -405,8 +401,9 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       if (!res.ok) throw new Error(`API error: ${res.status}`);
 
       const data = await res.json();
-      const agentContent = data.response || 'No response received.';
+      const agentContent = data.finalSynthesis || data.response || 'No response received.';
 
+      const modelInfo = data.modelsUsed?.length ? ` [${data.modelsUsed.join(', ')}]` : '';
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-a-${Date.now()}`,
         role: 'agent',
