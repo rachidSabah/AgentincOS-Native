@@ -515,6 +515,23 @@ function ProviderDetailPanel({
                   {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
                 </button>
               </div>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!draft.apiKey) return;
+                  try {
+                    const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'fetch-models', apiKey: draft.apiKey, provider: provider.name }) });
+                    const data = await res.json();
+                    if (data.success && data.models?.length > 0) {
+                      setDraft(prev => ({ ...prev, models: data.models.map((m: any) => m.id || m.name), defaultModel: data.models[0]?.id || data.models[0]?.name || prev.defaultModel }));
+                    }
+                  } catch { /* ignore */ }
+                }}
+                disabled={!draft.apiKey}
+                className="mt-1.5 px-3 py-1 rounded text-[9px] font-medium bg-[rgba(0,255,136,0.1)] border border-[rgba(0,255,136,0.2)] text-[#00ff88] hover:bg-[rgba(0,255,136,0.2)] disabled:opacity-30 transition-colors"
+              >
+                Fetch Models
+              </button>
             </div>
 
             {/* API Endpoint */}
@@ -1204,16 +1221,9 @@ export function GeminiCLISetup() {
               onChange={(e) => updateGeminiCLI({ model: e.target.value })}
               className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(66,133,244,0.2)] rounded-lg px-3 py-2 text-[11px] text-white font-mono focus:outline-none focus:border-[rgba(66,133,244,0.4)] transition-colors"
             >
-              <option value="auto">Auto (Default)</option>
-              <option value="pro">Pro Mode</option>
-              <option value="flash">Flash</option>
-              <option value="flash-lite">Flash Lite</option>
-              <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-              <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-              <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.0-flash">gemini-2.0-flash</option>
             </select>
           </div>
 
