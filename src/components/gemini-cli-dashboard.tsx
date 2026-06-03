@@ -47,7 +47,7 @@ interface AgentTask {
    GEMINI CLI DASHBOARD — Main Export
    ═══════════════════════════════════════════════════════════ */
 export function GeminiCLIDashboard() {
-  const { geminiCLI, updateGeminiCLI, geminiConnection, agents, updateAgent } = useOSStore();
+  const { geminiCLI, updateGeminiCLI, geminiConnection } = useOSStore();
   const [activeTab, setActiveTab] = useState<TabId>('chat');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -126,15 +126,6 @@ export function GeminiCLIDashboard() {
     return () => clearInterval(interval);
   }, [detectGemini]);
 
-  // Sync selected model to all layer agents
-  useEffect(() => {
-    if (geminiCLI.model) {
-      agents.filter(a => a.createdFrom === 'builtin' || a.id === 'gemini').forEach(a => {
-        updateAgent(a.id, { model: geminiCLI.model });
-      });
-    }
-  }, [geminiCLI.model]);
-
   const tabs: { id: TabId; label: string; icon: typeof MessageSquare }[] = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'code', label: 'Code', icon: Code },
@@ -144,7 +135,7 @@ export function GeminiCLIDashboard() {
   ];
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* ─── Header Section ─── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-3">
@@ -206,16 +197,9 @@ export function GeminiCLIDashboard() {
             onChange={(e) => updateGeminiCLI({ model: e.target.value })}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
-            <option value="auto">Auto (Default)</option>
-            <option value="pro">Pro Mode</option>
-            <option value="flash">Flash</option>
-            <option value="flash-lite">Flash Lite</option>
-            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
             <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
             <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
           </select>
 
           {/* Auto-detect */}
@@ -274,9 +258,9 @@ export function GeminiCLIDashboard() {
       </div>
 
       {/* ─── Tab Content ─── */}
-      <div>
+      <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
             {activeTab === 'chat' && <ChatTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
@@ -300,30 +284,6 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<{ name: string; content: string } | null>(null);
-  const [artifacts, setArtifacts] = useState<{ language: string; code: string; title: string }[]>([]);
-
-  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      setAttachmentPreview({ name: file.name, content: text.slice(0, 8000) });
-    } catch {
-      setAttachmentPreview({ name: file.name, content: `[Binary file: ${file.name} - ${(file.size / 1024).toFixed(1)}KB]` });
-    }
-    e.target.value = '';
-  };
-
-  const extractArtifacts = (content: string) => {
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    const newArtifacts: { language: string; code: string; title: string }[] = [];
-    let match;
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      newArtifacts.push({ language: match[1] || 'text', code: match[2].trim(), title: `${match[1] || 'code'} snippet` });
-    }
-    if (newArtifacts.length > 0) setArtifacts(prev => [...prev, ...newArtifacts]);
-  };
 
   const quickActions = [
     { label: 'Explain', icon: Eye, prompt: 'Explain the following code or concept:' },
@@ -336,22 +296,12 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
 
   const handleSend = useCallback(async (customPrompt?: string) => {
     const text = customPrompt || input;
-    if ((!text.trim() && !attachmentPreview) || isLoading) return;
-
-    // Build message: include attachment content if present
-    let fullContent = text.trim();
-    let displayContent = text.trim();
-    if (attachmentPreview) {
-      fullContent = attachmentPreview.content.includes('[Binary')
-        ? `${text}\n\n[Attached file: ${attachmentPreview.name}]\n${attachmentPreview.content}`
-        : `${text ? text + '\n\n' : ''}Context from attached file "${attachmentPreview.name}":\n\`\`\`\n${attachmentPreview.content}\n\`\`\``;
-      displayContent = attachmentPreview.name;
-    }
+    if (!text.trim() || isLoading) return;
 
     const userMsg: GeminiChatMsg = {
       id: `cli-chat-u-${Date.now()}`,
       role: 'user',
-      content: displayContent || fullContent,
+      content: text,
       timestamp: Date.now(),
     };
 
@@ -370,46 +320,14 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: fullContent, model, stream: true }),
+        body: JSON.stringify({ action: 'chat', message: text, model }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let agentContent = '';
-      let buffer = '';
+      const data = await res.json();
+      const agentContent = data.response || 'No response received.';
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const parsed = JSON.parse(line.slice(6));
-                if (parsed.delta) {
-                  agentContent += parsed.delta;
-                  setStreamingText(agentContent);
-                } else if (parsed.done) {
-                  // Streaming complete
-                }
-              } catch { /* skip */ }
-            }
-          }
-        }
-      }
-
-      // Fallback to JSON response if streaming fails
-      if (!agentContent) {
-        const data = await res.clone().json().catch(() => null);
-        agentContent = data?.response || 'No response received.';
-      }
-
-      setStreamingText('');
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-a-${Date.now()}`,
         role: 'agent',
@@ -417,8 +335,6 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         timestamp: Date.now(),
         agentId: 'gemini',
       });
-      extractArtifacts(agentContent);
-      setAttachmentPreview(null);
     } catch {
       const errMsg = isRunning
         ? 'Failed to reach Gemini CLI. Check your connection.'
@@ -451,9 +367,9 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   }, [messages, streamingText]);
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       {/* Chat Messages */}
-      <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3 custom-scrollbar">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
@@ -529,43 +445,10 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         </div>
       </div>
 
-      {/* Attachment Preview */}
-      {attachmentPreview && (
-        <div className="px-4 py-2 border-t border-[rgba(66,133,244,0.1)] bg-[rgba(66,133,244,0.05)]">
-          <div className="flex items-center gap-2">
-            <Paperclip size={10} style={{ color: GOOGLE_BLUE }} />
-            <span className="text-[10px] text-[#ccccdd] font-mono truncate">{attachmentPreview.name}</span>
-            <button onClick={() => setAttachmentPreview(null)} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">✕</button>
-          </div>
-        </div>
-      )}
-
-      {/* Artifact Panel */}
-      {artifacts.length > 0 && (
-        <div className="px-4 py-2 border-t border-[rgba(0,255,136,0.1)] bg-[rgba(0,255,136,0.03)]">
-          <div className="flex items-center gap-2 mb-2">
-            <FileCode size={10} style={{ color: '#00ff88' }} />
-            <span className="text-[9px] font-bold uppercase tracking-wider text-[#00ff88]">Artifacts</span>
-            <button onClick={() => setArtifacts([])} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">Clear</button>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-            {artifacts.map((a, i) => (
-              <div key={i} className="bg-[rgba(10,10,26,0.5)] border border-[rgba(0,255,136,0.15)] rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-[rgba(0,255,136,0.1)]">
-                  <span className="text-[8px] text-[#00ff88] font-mono uppercase">{a.language}</span>
-                  <button onClick={() => navigator.clipboard.writeText(a.code)} className="text-[8px] text-[#8888aa] hover:text-white">Copy</button>
-                </div>
-                <pre className="p-2 text-[9px] text-[#ccccdd] font-mono whitespace-pre-wrap overflow-x-auto max-h-32">{a.code.slice(0, 500)}</pre>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="px-4 py-3 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} accept=".txt,.md,.json,.js,.ts,.py,.css,.html,.xml,.csv,.log" />
+          <input ref={fileInputRef} type="file" className="hidden" />
           <button onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center w-9 h-9 rounded-lg border transition-colors hover:border-[rgba(66,133,244,0.4)] hover:text-white"
             style={{ borderColor: `${GOOGLE_BLUE}20`, color: `${GOOGLE_BLUE}99`, background: `${GOOGLE_BLUE}08` }}

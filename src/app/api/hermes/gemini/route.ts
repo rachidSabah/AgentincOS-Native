@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile, exec, spawn } from 'child_process';
+import { execFile, exec } from 'child_process';
 import { promisify } from 'util';
 import { platform } from 'os';
 import { existsSync } from 'fs';
@@ -37,7 +37,7 @@ Respond with thorough, well-structured answers. When writing code, use proper fo
 // Handles: chat, execute, detect, models, sandbox, start
 // Supports both HTTP server mode AND CLI direct execution
 
-const GEMINI_CLI_PORTS = [3001, 3002, 3100, 8080, 4000, 3000, 5000, 8000]; // Common ports to try including default gemini serve
+const GEMINI_CLI_PORTS = [3001, 3002, 8080, 4000]; // Common ports to try
 
 async function geminiRequest(path: string, options?: RequestInit, port = 3001) {
   try {
@@ -245,24 +245,14 @@ export async function GET(req: NextRequest) {
       const binaryInfo = await detectGeminiBinary();
 
       if (binaryInfo.installed) {
-        // Quick CLI test to verify it actually works
-        let cliWorking = false;
-        try {
-          const testCmd = IS_WIN ? 'gemini --version' : 'gemini --version';
-          const execFn = IS_WIN ? execAsync : execFileAsync;
-          const { stdout } = await execFn(testCmd, { timeout: 5000, ...(IS_WIN ? { shell: true } : {}) });
-          cliWorking = stdout.trim().length > 0;
-        } catch { /* CLI not responding */ }
-
         return NextResponse.json({
           installed: true,
-          running: cliWorking,
-          cliReady: cliWorking,
+          running: false,
           version: binaryInfo.version || 'unknown',
           path: binaryInfo.path,
           latency,
           lastChecked: Date.now(),
-          message: cliWorking ? 'Gemini CLI is ready — direct chat available via CLI' : 'Gemini CLI is installed but not responding. Run: gemini serve',
+          message: 'Gemini CLI is installed but not running as a server. Click "Start Gemini" or run: gemini serve',
         });
       }
 
@@ -275,18 +265,12 @@ export async function GET(req: NextRequest) {
     }
 
     case 'models': {
+      // Return available Gemini models
       return NextResponse.json({
         models: [
-          { id: 'auto', name: 'Auto (Default)', provider: 'Google', contextWindow: 1048576, strengths: ['auto', 'best-model', 'adaptive'] },
-          { id: 'pro', name: 'Pro Mode', provider: 'Google', contextWindow: 1048576, strengths: ['reasoning', 'deep-research', 'complex-debugging'] },
-          { id: 'flash', name: 'Flash', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'code', 'balanced'] },
-          { id: 'flash-lite', name: 'Flash Lite', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'cost', 'fastest'] },
-          { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview', provider: 'Google', contextWindow: 2000000, strengths: ['reasoning', 'deep-research', 'architectural-planning'] },
-          { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'code', 'latest'] },
-          { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'cost', 'utility'] },
-          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', contextWindow: 1048576, strengths: ['reasoning', 'code', 'multimodal'] },
-          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'code', 'multimodal', 'balanced'] },
-          { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'Google', contextWindow: 1048576, strengths: ['speed', 'cost', 'fastest'] },
+          { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00125, costPer1kOutput: 0.005, strengths: ['reasoning', 'code', 'multimodal', 'long-context'] },
+          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.00015, costPer1kOutput: 0.0006, strengths: ['speed', 'code', 'multimodal'] },
+          { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', contextWindow: 1048576, costPer1kInput: 0.0001, costPer1kOutput: 0.0004, strengths: ['speed', 'chat'] },
         ],
       });
     }
@@ -398,79 +382,14 @@ export async function POST(req: NextRequest) {
 
     case 'chat': {
       const startTime = Date.now();
-      const geminiCmd = IS_WIN ? 'gemini' : 'gemini';
-      let escaped = (message || '').replace(/"/g, '\\"');
-      const effectiveModel = model || 'gemini-2.5-flash-lite';
 
-      // Streaming mode: real-time token streaming via gemini -o stream-json
-      const stream = body.stream !== false;
-      if (stream) {
-        try {
-          const proc = spawn(geminiCmd, ['-p', message || '', '-m', effectiveModel, '-o', 'stream-json'], {
-            shell: IS_WIN,
-            stdio: ['ignore', 'pipe', 'pipe'],
-          });
-          const encoder = new TextEncoder();
-          const streamResponse = new ReadableStream({
-            start(controller) {
-              let buffer = '';
-              proc.stdout.on('data', (chunk: Buffer) => {
-                buffer += chunk.toString();
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-                for (const line of lines) {
-                  try {
-                    const parsed = JSON.parse(line.trim());
-                    if (parsed.type === 'content' && parsed.content) {
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: parsed.content })}\n\n`));
-                    } else if (parsed.type === 'done') {
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, stats: parsed.stats })}\n\n`));
-                    }
-                  } catch { /* skip malformed lines */ }
-                }
-              });
-              proc.stdout.on('end', () => {
-                try { controller.close(); } catch {}
-              });
-              proc.on('error', () => {
-                try { controller.close(); } catch {}
-              });
-            },
-            cancel() { proc.kill(); },
-          });
-          return new Response(streamResponse, {
-            headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
-          });
-        } catch {
-          // Fall through to non-streaming mode
-        }
-      }
-
-      // Non-streaming mode: full response
-      try {
-        const cmd = IS_WIN
-          ? `"${geminiCmd}" -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json`
-          : [geminiCmd, '-p', message || '', '-m', model || 'gemini-2.5-flash-lite', '-o', 'json'];
-        const execFn = IS_WIN ? execAsync : execFileAsync;
-        const { stdout } = await execFn(cmd, { timeout: 60000, ...(IS_WIN ? { shell: true } : {}) });
-
-        if (stdout?.trim()) {
-          const latency = Date.now() - startTime;
-          try {
-            const data = JSON.parse(stdout);
-            return NextResponse.json({ ...data, via: 'gemini-cli', latency });
-          } catch {
-            return NextResponse.json({ response: stdout.trim(), model: model || 'gemini-2.5-flash-lite', latency, via: 'gemini-cli' });
-          }
-        }
-      } catch { /* fall through to other strategies */ }
-
-      // Strategy 2: Try Gemini CLI server on common ports
+      // Strategy 1: Try real Gemini CLI server (try all ports)
       for (const port of GEMINI_CLI_PORTS) {
         const res = await geminiRequest('/api/chat', {
           method: 'POST',
           body: JSON.stringify({ message, model: model || 'gemini-2.5-pro' }),
         }, port);
+
         if (res?.ok) {
           const data = await res.json();
           return NextResponse.json({ ...data, via: 'gemini-cli-server' });
@@ -505,16 +424,17 @@ export async function POST(req: NextRequest) {
         console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
       }
 
-      // Strategy 3: Try CLI binary with current (v0.44+) syntax
+      // Strategy 3: Try CLI binary directly (cross-platform shell option)
       try {
-        escaped = (message || '').replace(/"/g, '\\"');
-        const cmd = IS_WIN
-          ? `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json`
-          : ['gemini', '-p', message || '', '-m', model || 'gemini-2.5-flash-lite', '-o', 'json'];
-        const execFn = IS_WIN ? execAsync : execFileAsync;
-        const { stdout } = await execFn(cmd, { timeout: 60000, ...(IS_WIN ? { shell: true } : {}) });
+        const binCmd = IS_WIN ? 'gemini.cmd' : 'gemini';
+        const { stdout } = await execFileAsync(binCmd, [
+          'chat',
+          '--model', model || 'gemini-2.5-pro',
+          '--message', message,
+          '--format', 'json',
+        ], { timeout: 30000, ...(IS_WIN ? { shell: true } : {}) });
 
-        if (stdout?.trim()) {
+        if (stdout.trim()) {
           const latency = Date.now() - startTime;
           try {
             const data = JSON.parse(stdout);
@@ -522,7 +442,7 @@ export async function POST(req: NextRequest) {
           } catch {
             return NextResponse.json({
               response: stdout.trim(),
-              model: model || 'gemini-2.5-flash-lite',
+              model: model || 'gemini-2.5-pro',
               tokensUsed: Math.floor((message?.length || 0) * 1.2),
               latency,
               via: 'gemini-cli',
@@ -533,19 +453,20 @@ export async function POST(req: NextRequest) {
         // CLI not available or failed
       }
 
-      // Strategy 4: Try WSL binary (uses same gemini CLI v0.44+ syntax)
-      {
-        escaped = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
-        const wslCmd = IS_WIN ? 'wsl.exe' : 'wsl';
+      // Strategy 4: Platform-specific fallbacks
+      if (!IS_WIN) {
+        // Unix: Try WSL binary
+        const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
         const wslStrategies = [
-          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],
-          ['-e', 'bash', '-l', '-c', `gemini -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json 2>/dev/null`],
+          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
         ];
 
         for (const args of wslStrategies) {
           try {
-            const { stdout } = await execFileAsync(wslCmd, args, { timeout: 60000 });
-            if (stdout?.trim()) {
+            const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
+            if (stdout.trim()) {
               const latency = Date.now() - startTime;
               try {
                 const data = JSON.parse(stdout);
@@ -553,7 +474,7 @@ export async function POST(req: NextRequest) {
               } catch {
                 return NextResponse.json({
                   response: stdout.trim(),
-                  model: model || 'gemini-2.5-flash-lite',
+                  model: model || 'gemini-2.5-pro',
                   tokensUsed: Math.floor((message?.length || 0) * 1.2),
                   latency,
                   via: 'wsl',
@@ -564,7 +485,7 @@ export async function POST(req: NextRequest) {
             // try next strategy
           }
         }
-      }
+      } // end if (!IS_WIN)
 
       // All strategies failed — return honest error, not fake response
       return NextResponse.json({
