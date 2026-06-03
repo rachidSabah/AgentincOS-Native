@@ -10,7 +10,7 @@ import {
   Eye, GitBranch, Zap, Brain, Clock, ChevronDown,
   FileCode, Bug, Cpu, Shield, BookOpen, ArrowRight,
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
-  Workflow, Puzzle, Network, Users, Cog, Database, Globe,
+  Workflow, Puzzle, Network, Users, Cog,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -47,16 +47,14 @@ interface AgentTask {
    GEMINI CLI DASHBOARD â€” Main Export
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export function GeminiCLIDashboard() {
-  const { geminiCLI, updateGeminiCLI, geminiConnection, providers, activeProviderId } = useOSStore();
-  const activeProvider = activeProviderId ? providers.find(p => p.id === activeProviderId && p.enabled) : null;
-  const isUsingNonGeminiProvider = activeProvider && activeProvider.type !== 'cli' && !activeProvider.id?.includes('gemini');
+  const { geminiCLI, updateGeminiCLI, geminiConnection } = useOSStore();
   const [activeTab, setActiveTab] = useState<TabId>('chat');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [brainMode, setBrainMode] = useState('gemini');
   const [autonomousMode, setAutonomousMode] = useState(false);
 
-  const isRunning = geminiCLI.running || geminiConnection.running || geminiCLI.installed || geminiConnection.installed;
+  const isRunning = geminiCLI.running || geminiConnection.running;
   const isInstalled = geminiCLI.installed || geminiConnection.installed;
 
   // Auto-detect Gemini CLI
@@ -107,16 +105,6 @@ export function GeminiCLIDashboard() {
       setIsConnecting(false);
     }
   }, [isRunning, detectGemini, updateGeminiCLI]);
-
-  // Auto-set activeProviderId if null but providers are enabled
-  useEffect(() => {
-    if (!activeProviderId) {
-      const enabled = providers.find(p => p.enabled && p.type !== 'cli');
-      if (enabled && useOSStore.getState().setActiveProviderId) {
-        useOSStore.getState().setActiveProviderId(enabled.id);
-      }
-    }
-  }, []);
 
   // Auto-install
   const autoInstall = useCallback(async () => {
@@ -209,24 +197,9 @@ export function GeminiCLIDashboard() {
             onChange={(e) => updateGeminiCLI({ model: e.target.value })}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
-            {isUsingNonGeminiProvider && activeProvider?.models?.length ? (
-              activeProvider.models.map((m: string, i: number) => (
-                <option key={`${m}-${i}`} value={m}>{m}</option>
-              ))
-            ) : (
-              <>
-                <option value="auto">Auto (Default)</option>
-                <option value="pro">Pro Mode</option>
-                <option value="flash">Flash</option>
-                <option value="flash-lite">Flash Lite</option>
-                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-              </>
-            )}
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
           </select>
 
           {/* Auto-detect */}
@@ -284,7 +257,9 @@ export function GeminiCLIDashboard() {
         ))}
       </div>
 
-      {/* â”€â”€â”€ Tab Content â”€â”€â”€ */}
+      {/* â”€â”€â”€ <OrchestrationPanel />
+
+      {/* Tab Content â”€â”€â”€ */}
       <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
@@ -292,7 +267,6 @@ export function GeminiCLIDashboard() {
             {activeTab === 'code' && <CodeTab isRunning={isRunning} model={geminiCLI.model} />}
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
             {activeTab === 'files' && <FilesTab isRunning={isRunning} />}
-            {activeTab === 'browser' && <BrowserTab />}
             {activeTab === 'agent' && <AgentTab isRunning={isRunning} brainMode={brainMode} autonomousMode={autonomousMode} setAutonomousMode={setAutonomousMode} />}
           </motion.div>
         </AnimatePresence>
@@ -302,95 +276,16 @@ export function GeminiCLIDashboard() {
 }
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   
-/* BROWSER TAB */
-function BrowserTab() {
-  const [url, setUrl] = useState('');
-  const [content, setContent] = useState('');
-  const [title, setTitle] = useState('');
-  const [links, setLinks] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const navigate = async () => {
-    if (!url.trim()) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'navigate', url: url.trim() }) });
-      const data = await res.json();
-      if (data.success) { setTitle(data.title); setContent(data.content); setLinks(data.links || []); }
-    } catch { setContent('Failed to load page'); }
-    setIsLoading(false);
-  };
-
-  const analyze = async () => {
-    if (!url.trim()) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/browser', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'analyze', url: url.trim() }) });
-      const data = await res.json();
-      if (data.analysis) { setTitle(data.analysis.title); setContent(JSON.stringify(data.analysis, null, 2)); }
-    } catch {}
-    setIsLoading(false);
-  };
-
-  return (
-    <div className="flex flex-col h-full p-4 gap-3">
-      <div className="flex gap-2">
-        <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && navigate()} placeholder="https://example.com" className="flex-1 bg-[rgba(10,10,26,0.5)] border border-[rgba(66,133,244,0.2)] rounded-lg px-3 py-2 text-[11px] text-white placeholder-[#8888aa] outline-none font-mono" />
-        <button onClick={navigate} disabled={isLoading} className="px-4 py-2 rounded-lg text-[10px] font-bold bg-[rgba(66,133,244,0.15)] border border-[rgba(66,133,244,0.3)] text-[#4285f4] disabled:opacity-30">{isLoading ? 'Loading...' : 'Go'}</button>
-        <button onClick={analyze} disabled={isLoading} className="px-4 py-2 rounded-lg text-[10px] font-bold bg-[rgba(157,78,221,0.15)] border border-[rgba(157,78,221,0.3)] text-[#9d4edd] disabled:opacity-30">Analyze</button>
-      </div>
-      {title && <div className="text-[11px] text-white font-bold">{title}</div>}
-      {content && <div className="flex-1 overflow-y-auto custom-scrollbar bg-[rgba(10,10,26,0.5)] rounded-lg p-3 text-[10px] text-[#ccccdd] font-mono whitespace-pre-wrap">{content.slice(0, 5000)}</div>}
-      {links.length > 0 && (
-        <div className="max-h-32 overflow-y-auto custom-scrollbar">
-          <div className="text-[9px] text-[#8888aa] uppercase mb-1">{links.length} links</div>
-          {links.slice(0, 15).map((l, i) => <div key={i} className="text-[9px] text-[#4285f4] font-mono truncate hover:text-white cursor-pointer" onClick={() => setUrl(l)}>{l}</div>)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* CHAT TAB
+   CHAT TAB
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
-  const { addChatMessage, chatHistories, addLog, providers, activeProviderId } = useOSStore();
+  const { addChatMessage, chatHistories, addLog } = useOSStore();
   const messages = (chatHistories['gemini-cli-dashboard'] || []) as GeminiChatMsg[];
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [teamMode, setTeamMode] = useState(false);
-  const activeProvider = providers.find(p => p.id === activeProviderId && p.enabled) || null;
-  const coworkerModels = teamMode ? (activeProvider?.models || []).filter((m: string) => m !== model && m !== 'auto').slice(0, 3) : [];
-  const [coworkerResults, setCoworkerResults] = useState<{ model: string; response: string }[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<{ name: string; content: string } | null>(null);
-  const [artifacts, setArtifacts] = useState<{ language: string; code: string }[]>([]);
-  const [showObsidian, setShowObsidian] = useState(false);
-
-  const extractArtifacts = (content: string) => {
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    const newArtifacts: { language: string; code: string }[] = [];
-    let match;
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      newArtifacts.push({ language: match[1] || 'text', code: match[2].trim() });
-    }
-    if (newArtifacts.length > 0) setArtifacts(prev => [...prev, ...newArtifacts]);
-  };
-
-  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      setAttachmentPreview({ name: file.name, content: text.slice(0, 8000) });
-    } catch {
-      setAttachmentPreview({ name: file.name, content: `[Binary: ${file.name}]` });
-    }
-    e.target.value = '';
-  };
 
   const quickActions = [
     { label: 'Explain', icon: Eye, prompt: 'Explain the following code or concept:' },
@@ -403,21 +298,12 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
 
   const handleSend = useCallback(async (customPrompt?: string) => {
     const text = customPrompt || input;
-    if ((!text.trim() && !attachmentPreview) || isLoading) return;
-
-    let fullContent = text.trim();
-    let displayContent = text.trim();
-    if (attachmentPreview) {
-      fullContent = attachmentPreview.content.includes('[Binary')
-        ? `${text}\n\n[File: ${attachmentPreview.name}]`
-        : `${text ? text + '\n\n' : ''}File "${attachmentPreview.name}":\n\`\`\`\n${attachmentPreview.content}\n\`\`\``;
-      displayContent = attachmentPreview.name;
-    }
+    if (!text.trim() || isLoading) return;
 
     const userMsg: GeminiChatMsg = {
       id: `cli-chat-u-${Date.now()}`,
       role: 'user',
-      content: displayContent || fullContent,
+      content: text,
       timestamp: Date.now(),
     };
 
@@ -433,31 +319,10 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
-      // Auto-fetch URLs from prompt for context enrichment
-      const urlRegex = /https?:\/\/[^\s]+/g;
-      const urls = fullContent.match(urlRegex) || [];
-      let enrichedContent = fullContent;
-      
-      if (urls.length > 0 && !fullContent.includes('[Fetched:')) {
-        setIsLoading(true);
-        try {
-          const fetchRes = await fetch('/api/hermes/web', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'extract', url: urls[0] }),
-          });
-          if (fetchRes.ok) {
-            const fetchData = await fetchRes.json();
-            if (fetchData.content) {
-              enrichedContent = `${fullContent}\n\n[Fetched from ${urls[0]}]:\n${fetchData.content.slice(0, 8000)}`;
-            }
-          }
-        } catch { /* fetch failed, continue with original prompt */ }
-      }
-
-      // Direct Gemini CLI — proven reliable path
-      let res = await fetch('/api/hermes/gemini', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: enrichedContent, model }),
+      const res = await fetch('/api/hermes/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'chat', message: text, model }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -465,7 +330,6 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       const data = await res.json();
       const agentContent = data.response || 'No response received.';
 
-      const modelInfo = data.modelsUsed?.length ? ` [${data.modelsUsed.join(', ')}]` : '';
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-a-${Date.now()}`,
         role: 'agent',
@@ -473,41 +337,10 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         timestamp: Date.now(),
         agentId: 'gemini',
       });
-      extractArtifacts(agentContent);
-      setAttachmentPreview(null);
-
-      // Team Mode: run coworker models in parallel for consensus
-      if (teamMode && coworkerModels.length > 0) {
-        setCoworkerResults([]);
-        const coworkerPromises = coworkerModels.map(async (cm: string) => {
-          try {
-            const cmRes = await fetch('/api/ai', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'chat', message: `Review and refine this response for the task "${fullContent.slice(0, 100)}...". Provide your perspective:\n\n${agentContent.slice(0, 2000)}`, provider: activeProvider?.name, apiKey: activeProvider?.apiKey, baseUrl: activeProvider?.apiEndpoint, model: cm }),
-            });
-            if (cmRes.ok) {
-              const cmData = await cmRes.json();
-              return { model: cm, response: cmData.response || '' };
-            }
-          } catch {}
-          return { model: cm, response: '' };
-        });
-        const results = await Promise.all(coworkerPromises);
-        const validResults = results.filter(r => r.response);
-        if (validResults.length > 0) {
-          setCoworkerResults(validResults);
-          const combinedFeedback = validResults.map(r => `**${r.model}**: ${r.response.slice(0, 200)}`).join('\n\n');
-          addChatMessage('gemini-cli-dashboard', {
-            id: `cli-chat-team-${Date.now()}`,
-            role: 'agent',
-            content: `Team Review (${validResults.length} coworkers):\n\n${combinedFeedback}`,
-            timestamp: Date.now(),
-            agentId: 'gemini-team',
-          });
-        }
-      }
-    } catch (err: any) {
-      const errMsg = `Chat failed: ${err?.message || 'Unknown error'}. Try refreshing or check Settings > Providers.`;
+    } catch {
+      const errMsg = isRunning
+        ? 'Failed to reach Gemini CLI. Check your connection.'
+        : 'Gemini CLI is not running. The built-in AI SDK will provide responses, or connect Gemini CLI for direct access.';
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-e-${Date.now()}`,
         role: 'system',
@@ -600,19 +433,6 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         )}
       </div>
 
-      {/* Team Mode Toggle */}
-      {activeProvider && activeProvider.models?.length > 1 && (
-        <div className="px-4 py-1.5 border-t border-[rgba(157,78,221,0.1)] flex items-center gap-2 bg-[rgba(157,78,221,0.03)]">
-          <button onClick={() => setTeamMode(!teamMode)} className={`flex items-center gap-1.5 px-2 py-1 rounded text-[8px] font-bold transition-colors ${teamMode ? 'bg-[rgba(157,78,221,0.15)] text-[#9d4edd] border border-[rgba(157,78,221,0.3)]' : 'text-[#8888aa] border border-[rgba(157,78,221,0.1)] hover:text-white'}`}>
-            {teamMode ? <ToggleRight size={10} /> : <ToggleLeft size={10} />}
-            Team Mode {teamMode && `(+${coworkerModels.length} coworkers)`}
-          </button>
-          {coworkerResults.length > 0 && (
-            <span className="text-[7px] text-[#00ff88] ml-auto">{coworkerResults.length} reviews done</span>
-          )}
-        </div>
-      )}
-
       {/* Quick Actions */}
       <div className="px-4 py-2 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.3)]">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
@@ -627,41 +447,10 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         </div>
       </div>
 
-      {/* Attachment Preview */}
-      {attachmentPreview && (
-        <div className="px-4 py-1.5 border-t border-[rgba(66,133,244,0.1)] bg-[rgba(66,133,244,0.03)] flex items-center gap-2">
-          <Paperclip size={10} style={{ color: GOOGLE_BLUE }} />
-          <span className="text-[10px] text-[#ccccdd] font-mono truncate">{attachmentPreview.name}</span>
-          <button onClick={() => setAttachmentPreview(null)} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">Remove</button>
-        </div>
-      )}
-
-      {/* Artifact Panel */}
-      {artifacts.length > 0 && (
-        <div className="border-t border-[rgba(0,255,136,0.1)] bg-[rgba(0,255,136,0.02)]">
-          <div className="flex items-center gap-2 px-4 py-1.5">
-            <FileCode size={10} style={{ color: '#00ff88' }} />
-            <span className="text-[9px] font-bold uppercase tracking-wider text-[#00ff88]">Generated Artifacts ({artifacts.length})</span>
-            <button onClick={() => setArtifacts([])} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">Clear</button>
-          </div>
-          <div className="max-h-40 overflow-y-auto custom-scrollbar px-4 pb-2 space-y-1">
-            {artifacts.map((a, i) => (
-              <div key={i} className="bg-[rgba(10,10,26,0.5)] border border-[rgba(0,255,136,0.1)] rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-2 py-0.5 border-b border-[rgba(0,255,136,0.05)]">
-                  <span className="text-[8px] text-[#00ff88] font-mono uppercase">{a.language}</span>
-                  <button onClick={() => navigator.clipboard.writeText(a.code)} className="text-[7px] text-[#8888aa] hover:text-white">Copy</button>
-                </div>
-                <pre className="p-1.5 text-[8px] text-[#ccccdd] font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">{a.code.slice(0, 300)}</pre>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="px-4 py-3 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} accept=".txt,.md,.json,.js,.ts,.py,.css,.csv,.log,.xml,.html" />
+          <input ref={fileInputRef} type="file" className="hidden" />
           <button onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center w-9 h-9 rounded-lg border transition-colors hover:border-[rgba(66,133,244,0.4)] hover:text-white"
             style={{ borderColor: `${GOOGLE_BLUE}20`, color: `${GOOGLE_BLUE}99`, background: `${GOOGLE_BLUE}08` }}
@@ -1184,23 +973,6 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
     security: { active: false, version: '1.0.0' },
   });
 
-  // Execute a task through Gemini CLI
-  const executeTask = async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task || task.status === 'running') return;
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'running' as const, progress: 10 } : t));
-    try {
-      const res = await fetch('/api/hermes/gemini', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `You are a ${task.name} agent. Execute this task: ${task.name}. Be thorough and provide actionable output.`, model: geminiCLI.model || 'gemini-2.5-flash-lite' }),
-      });
-      const data = await res.json();
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed' as const, progress: 100, output: data.response?.slice(0, 300) } : t));
-    } catch {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'failed' as const, progress: 0 } : t));
-    }
-  };
-
   // Autonomous planning steps
   const [planningSteps, setPlanningSteps] = useState<Array<{ id: string; label: string; status: 'pending' | 'running' | 'completed' | 'failed' }>>([
     { id: 'ps1', label: 'Analyze task requirements', status: 'pending' },
@@ -1319,7 +1091,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
   const brainInfo = BRAIN_MODE_LABELS[brainMode] || BRAIN_MODE_LABELS.gemini;
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Brain Mode Info Bar */}
       <div className="px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -1335,36 +1107,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
         )}
       </div>
 
-      {/* Prebuilt Agents + Background Agent */}
-      <div className="px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(0,255,136,0.02)] flex items-center gap-2 overflow-x-auto">
-        <span className="text-[8px] text-[#8888aa] uppercase tracking-wider flex-shrink-0">Agents:</span>
-        {['Code Reviewer', 'Doc Writer', 'Security Scanner', 'Researcher'].map(name => (
-          <button key={name} onClick={() => {
-            setAgentRunning(!agentRunning);
-            setTasks(prev => [...prev, { id: `t-${Date.now()}`, name, status: 'pending', progress: 0, startedAt: Date.now() }]);
-          }} className="text-[8px] px-2 py-1 rounded border border-[rgba(0,255,136,0.15)] text-[#ccccdd] hover:border-[rgba(0,255,136,0.3)] hover:text-white transition-colors whitespace-nowrap flex-shrink-0">
-            {name}
-          </button>
-        ))}
-        <div className="w-px h-4 bg-[rgba(157,78,221,0.15)] flex-shrink-0" />
-        <button onClick={() => setAgentRunning(!agentRunning)}
-          className={`flex items-center gap-1 text-[8px] px-2 py-1 rounded border transition-colors whitespace-nowrap flex-shrink-0 ${agentRunning ? 'bg-[rgba(0,255,136,0.1)] border-[rgba(0,255,136,0.3)] text-[#00ff88]' : 'border-[rgba(157,78,221,0.1)] text-[#8888aa] hover:text-white'}`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${agentRunning ? 'animate-pulse bg-[#00ff88]' : 'bg-[#8888aa]'}`} />
-          {agentRunning ? 'Background Agent ON' : 'Background Agent OFF'}
-        </button>
-        {agentRunning && <span className="text-[7px] text-[#00ff88] flex-shrink-0">Running...</span>}
-      </div>
-
-      {/* Agent Sub-
-      {/* Live Orchestration Panel */}
-      <div className="px-4 py-1.5 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(255,182,39,0.03)] flex items-center gap-2 text-[8px]">
-        <span className="text-[#FFB627] font-bold uppercase tracking-wider">Orch:</span>
-        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse" /> CLI Lead</span>
-        {isUsingNonGeminiProvider && <span className="text-[#8888aa]">+ Worker</span>}
-        <span className="text-[#8888aa] ml-auto">Multi-Model Active</span>
-      </div>
-
-      {/* Tabs */}
+      {/* Agent Sub-Tabs */}
       <div className="flex items-center gap-1 px-4 py-1.5 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.3)]">
         {([
           { id: 'control' as const, label: 'Control', icon: Play },
@@ -1479,9 +1222,6 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
                 <span className="text-[9px] font-mono uppercase tracking-wider" style={{ color: statusColor(task.status) }}>
                   {task.status}
                 </span>
-                {task.status === 'pending' && (
-                  <button onClick={() => executeTask(task.id)} className="text-[8px] px-2 py-0.5 rounded bg-[rgba(0,255,136,0.1)] border border-[rgba(0,255,136,0.2)] text-[#00ff88] hover:bg-[rgba(0,255,136,0.2)]">Run</button>
-                )}
               </div>
               {task.status === 'running' && (
                 <div className="w-full h-1.5 rounded-full bg-[rgba(10,10,26,0.5)] overflow-hidden">
