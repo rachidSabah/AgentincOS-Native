@@ -398,6 +398,17 @@ export async function performGeminiHealthCheck(): Promise<GeminiHealthCheck> {
 // Config Management
 // ---------------------------------------------------------------------------
 
+// Model alias resolver
+export function resolveModelAlias(alias: string): string {
+  const aliases: Record<string, string> = {
+    'auto': 'gemini-2.5-flash-lite',
+    'pro': 'gemini-3-pro-preview',
+    'flash': 'gemini-2.5-flash',
+    'flash-lite': 'gemini-2.5-flash-lite',
+  };
+  return aliases[alias] || alias;
+}
+
 /**
  * Reads and parses the Gemini config from `~/.gemini/config.json`.
  */
