@@ -48,7 +48,8 @@ interface AgentTask {
    ═══════════════════════════════════════════════════════════ */
 export function GeminiCLIDashboard() {
   const { geminiCLI, updateGeminiCLI, geminiConnection, providers, activeProviderId } = useOSStore();
-  const activeProvider = providers.find(p => p.id === activeProviderId && p.enabled) || providers.find(p => p.enabled && p.type === 'cli') || providers.find(p => p.enabled);
+  const activeProvider = activeProviderId ? providers.find(p => p.id === activeProviderId && p.enabled) : null;
+  const isUsingNonGeminiProvider = activeProvider && activeProvider.type !== 'cli' && !activeProvider.id?.includes('gemini');
   const [activeTab, setActiveTab] = useState<TabId>('chat');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -106,6 +107,16 @@ export function GeminiCLIDashboard() {
       setIsConnecting(false);
     }
   }, [isRunning, detectGemini, updateGeminiCLI]);
+
+  // Auto-set activeProviderId if null but providers are enabled
+  useEffect(() => {
+    if (!activeProviderId) {
+      const enabled = providers.find(p => p.enabled && p.type !== 'cli');
+      if (enabled && useOSStore.getState().setActiveProviderId) {
+        useOSStore.getState().setActiveProviderId(enabled.id);
+      }
+    }
+  }, []);
 
   // Auto-install
   const autoInstall = useCallback(async () => {
@@ -198,10 +209,10 @@ export function GeminiCLIDashboard() {
             onChange={(e) => updateGeminiCLI({ model: e.target.value })}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
-            {activeProvider && activeProvider.models?.length > 0 && !activeProvider.id?.includes('gemini') ? (
+            {isUsingNonGeminiProvider && activeProvider?.models?.length ? (
               activeProvider.models.map((m: string) => (
                 <option key={m} value={m}>{m}</option>
-              )) || <option value={activeProvider.defaultModel}>{activeProvider.defaultModel}</option>
+              ))
             ) : (
               <>
                 <option value="auto">Auto (Default)</option>
