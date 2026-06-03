@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile, exec } from 'child_process';
+import { execFile, exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { platform } from 'os';
 import { existsSync } from 'fs';
@@ -400,8 +400,53 @@ export async function POST(req: NextRequest) {
       const startTime = Date.now();
       const geminiCmd = IS_WIN ? 'gemini' : 'gemini';
       let escaped = (message || '').replace(/"/g, '\\"');
+      const effectiveModel = model || 'gemini-2.5-flash-lite';
 
-      // Quick path: Try CLI binary directly first (fastest when no server running)
+      // Streaming mode: real-time token streaming via gemini -o stream-json
+      const stream = body.stream !== false;
+      if (stream) {
+        try {
+          const proc = spawn(geminiCmd, ['-p', message || '', '-m', effectiveModel, '-o', 'stream-json'], {
+            shell: IS_WIN,
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          const encoder = new TextEncoder();
+          const streamResponse = new ReadableStream({
+            start(controller) {
+              let buffer = '';
+              proc.stdout.on('data', (chunk: Buffer) => {
+                buffer += chunk.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                  try {
+                    const parsed = JSON.parse(line.trim());
+                    if (parsed.type === 'content' && parsed.content) {
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ delta: parsed.content })}\n\n`));
+                    } else if (parsed.type === 'done') {
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, stats: parsed.stats })}\n\n`));
+                    }
+                  } catch { /* skip malformed lines */ }
+                }
+              });
+              proc.stdout.on('end', () => {
+                try { controller.close(); } catch {}
+              });
+              proc.on('error', () => {
+                try { controller.close(); } catch {}
+              });
+            },
+            cancel() { proc.kill(); },
+          });
+          return new Response(streamResponse, {
+            headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+          });
+        } catch {
+          // Fall through to non-streaming mode
+        }
+      }
+
+      // Non-streaming mode: full response
       try {
         const cmd = IS_WIN
           ? `"${geminiCmd}" -p "${escaped}" -m ${model || 'gemini-2.5-flash-lite'} -o json`

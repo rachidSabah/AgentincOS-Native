@@ -336,14 +336,46 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: text, model }),
+        body: JSON.stringify({ action: 'chat', message: text, model, stream: true }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
 
-      const data = await res.json();
-      const agentContent = data.response || 'No response received.';
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let agentContent = '';
+      let buffer = '';
 
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                if (parsed.delta) {
+                  agentContent += parsed.delta;
+                  setStreamingText(agentContent);
+                } else if (parsed.done) {
+                  // Streaming complete
+                }
+              } catch { /* skip */ }
+            }
+          }
+        }
+      }
+
+      // Fallback to JSON response if streaming fails
+      if (!agentContent) {
+        const data = await res.clone().json().catch(() => null);
+        agentContent = data?.response || 'No response received.';
+      }
+
+      setStreamingText('');
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-a-${Date.now()}`,
         role: 'agent',
