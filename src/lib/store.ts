@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { createDefaultAgentIntelligence, type AgentIntelligence, type BrainMode } from './intelligence-layer';
 import { BUILTIN_SKILLS, type Skill } from './skill-system';
 import { type Artifact } from './artifact-system';
+import { type Coworker, type TeamTask, type SubTask, DEFAULT_COWORKERS, decomposeTask, findBestCoworker, getEscalationPath, learnFromTask } from './coworker-system';
 
 // ═══════════════════════════════════════════════════════════
 // AGENTIC OS — Provider-Independent AI Operating System
@@ -1034,6 +1035,16 @@ interface OSState {
   swarmHistory: SwarmSession[];
   addSwarm: (swarm: SwarmSession) => void;
   updateSwarm: (id: string, updates: Partial<SwarmSession>) => void;
+  // ─── Coworkers ───
+  coworkers: Coworker[];
+  teamTasks: TeamTask[];
+  addCoworker: (c: Coworker) => void;
+  updateCoworker: (id: string, updates: Partial<Coworker>) => void;
+  removeCoworker: (id: string) => void;
+  addTeamTask: (task: TeamTask) => void;
+  updateTeamTask: (id: string, updates: Partial<TeamTask>) => void;
+  updateSubTask: (taskId: string, subTaskId: string, updates: Partial<SubTask>) => void;
+  executeTeamTask: (taskId: string, model: string) => Promise<void>;
 
   // ─── Logs ───
   logs: LogEntry[];
@@ -1461,6 +1472,98 @@ export const useOSStore = create<OSState>()(
         activeSwarms: s.activeSwarms.map(sw => sw.id === id ? { ...sw, ...updates } : sw),
       })),
 
+      // ─── Coworkers ───
+      coworkers: DEFAULT_COWORKERS as Coworker[],
+      teamTasks: [] as TeamTask[],
+      addCoworker: (c) => set((s) => ({ coworkers: [...s.coworkers, c] })),
+      updateCoworker: (id, updates) => set((s) => ({
+        coworkers: s.coworkers.map(c => c.id === id ? { ...c, ...updates, lastActiveAt: Date.now() } : c),
+      })),
+      removeCoworker: (id) => set((s) => ({ coworkers: s.coworkers.filter(c => c.id !== id) })),
+      addTeamTask: (task) => set((s) => ({ teamTasks: [task, ...s.teamTasks] })),
+      updateTeamTask: (id, updates) => set((s) => ({
+        teamTasks: s.teamTasks.map(t => t.id === id ? { ...t, ...updates } : t),
+      })),
+      updateSubTask: (taskId, subTaskId, updates) => set((s) => ({
+        teamTasks: s.teamTasks.map(t => {
+          if (t.id !== taskId) return t;
+          return { ...t, subtasks: t.subtasks.map(st => st.id === subTaskId ? { ...st, ...updates } : st) };
+        }),
+      })),
+      executeTeamTask: async (taskId, taskModel) => {
+        const state = get();
+        const task = state.teamTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        set((s) => ({ teamTasks: s.teamTasks.map(t => t.id === taskId ? { ...t, status: 'in-progress' as TaskStatus } : t) }));
+
+        // Process each subtask through coworkers
+        for (const st of task.subtasks) {
+          const best = findBestCoworker(state.coworkers, st.role, st.description);
+          if (!best) {
+            const esc = getEscalationPath(state.coworkers, '', st.role);
+            set((s) => ({
+              teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'failed' as TaskStatus, result: esc.reason } : sub),
+              } : t),
+            }));
+            continue;
+          }
+
+          // Assign to coworker
+          set((s) => ({
+            coworkers: s.coworkers.map(c => c.id === best.id ? { ...c, status: 'working' as CoworkerStatus } : c),
+            teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+              ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'assigned' as TaskStatus, assignedTo: best.id } : sub),
+            } : t),
+          }));
+
+          // Simulate execution — in production this would call the Gemini API
+          await new Promise(r => setTimeout(r, 1000));
+
+          const success = Math.random() > 0.15; // 85% success rate
+          if (success) {
+            const updated = learnFromTask(best, st, `Completed ${st.title} with output analysis`, true);
+            set((s) => ({
+              coworkers: s.coworkers.map(c => c.id === best.id ? { ...updated, status: 'idle' as CoworkerStatus } : c),
+              teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'completed' as TaskStatus, result: `Completed by ${best.name}` } : sub),
+              } : t),
+            }));
+          } else {
+            // Retry with escalation
+            const esc = getEscalationPath(state.coworkers, best.id, st.role);
+            set((s) => ({
+              coworkers: s.coworkers.map(c => c.id === best.id ? { ...c, status: 'idle' as CoworkerStatus, failureCount: c.failureCount + 1 } : c),
+            }));
+
+            if (!esc.escalate && esc.delegateTo) {
+              const delegate = state.coworkers.find(c => c.id === esc.delegateTo);
+              if (delegate) {
+                const updatedDel = learnFromTask(delegate, st, `Delegated retry — completed ${st.title}`, true);
+                set((s) => ({
+                  coworkers: s.coworkers.map(c => c.id === delegate.id ? updatedDel : c),
+                  teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                    ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'completed' as TaskStatus, delegatedFrom: best.id, result: `Delegated to ${delegate.name} — ${esc.reason}` } : sub),
+                  } : t),
+                }));
+              } else {
+                set((s) => ({
+                  teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                    ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'failed' as TaskStatus, result: esc.reason } : sub),
+                  } : t),
+                }));
+              }
+            }
+          }
+        }
+
+        // Mark task as completed
+        set((s) => ({
+          teamTasks: s.teamTasks.map(t => t.id === taskId ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() } : t),
+        }));
+      },
+
       // ─── Logs ───
       logs: [] as LogEntry[],
       addLog: (log) => set((s) => ({ logs: [log, ...s.logs].slice(0, 200) })),
@@ -1547,6 +1650,8 @@ export const useOSStore = create<OSState>()(
         skillExecutions: state.skillExecutions,
         chatAttachments: state.chatAttachments,
         activeSwarms: state.activeSwarms,
+        coworkers: state.coworkers,
+        teamTasks: state.teamTasks,
         swarmHistory: state.swarmHistory,
         logs: state.logs,
         kanbanTasks: state.kanbanTasks,
