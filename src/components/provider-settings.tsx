@@ -553,8 +553,8 @@ function ProviderDetailPanel({
                 onChange={(e) => setDraft(prev => ({ ...prev, defaultModel: e.target.value }))}
                 className="w-full bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.2)] rounded-lg px-3 py-2 text-[11px] text-white font-mono focus:outline-none focus:border-[rgba(157,78,221,0.4)] transition-colors"
               >
-                {(draft.models || provider.models).map(m => (
-                  <option key={m} value={m}>{m}</option>
+                {(draft.models || provider.models).map((m, i) => (
+                  <option key={`${m}-${i}`} value={m}>{m}</option>
                 ))}
               </select>
             </div>
@@ -580,7 +580,7 @@ function ProviderDetailPanel({
               </div>
               {/* Model list */}
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {(draft.models || provider.models).map(m => (
+                {(draft.models || provider.models).map((m, i) => (
                   <div key={m} className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] bg-[rgba(10,10,26,0.5)] border border-[rgba(157,78,221,0.15)]">
                     <span className={m === draft.defaultModel ? 'text-[#9d4edd] font-semibold' : 'text-[#ccccdd]'}>{m}</span>
                     <button onClick={() => removeModel(m)} className="text-[#8888aa] hover:text-[#E63946] transition-colors">
@@ -630,8 +630,8 @@ function ProviderDetailPanel({
                 <p className="text-[8px] text-[#8888aa]">Enable extended reasoning for complex tasks</p>
               </div>
               <ToggleSwitch
-                checked={false}
-                onChange={() => {}}
+                checked={!!(draft as any).reasoningMode}
+                onChange={(v) => setDraft((prev: any) => ({ ...prev, reasoningMode: v }))}
                 color="#9d4edd"
               />
             </div>
@@ -805,7 +805,7 @@ function ProviderDetailPanel({
               </button>
               <button
                 onClick={saveDraft}
-                className="flex items-center gap-1 px-3 py-2 rounded-lg text-[10px] font-medium text-white transition-all"
+                className="flex items-center gap-1 px-3 py-2 rounded-lg text-[10px] font-medium text-white transition-all hover:opacity-90 active:scale-95"
                 style={{ background: `linear-gradient(135deg, ${provider.color}cc, ${provider.color}88)`, border: `1px solid ${provider.color}40` }}
               >
                 <Save size={10} /> Save
