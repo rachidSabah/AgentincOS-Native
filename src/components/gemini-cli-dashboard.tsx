@@ -284,6 +284,31 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<{ name: string; content: string } | null>(null);
+  const [artifacts, setArtifacts] = useState<{ language: string; code: string }[]>([]);
+  const [showObsidian, setShowObsidian] = useState(false);
+
+  const extractArtifacts = (content: string) => {
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    const newArtifacts: { language: string; code: string }[] = [];
+    let match;
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      newArtifacts.push({ language: match[1] || 'text', code: match[2].trim() });
+    }
+    if (newArtifacts.length > 0) setArtifacts(prev => [...prev, ...newArtifacts]);
+  };
+
+  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setAttachmentPreview({ name: file.name, content: text.slice(0, 8000) });
+    } catch {
+      setAttachmentPreview({ name: file.name, content: `[Binary: ${file.name}]` });
+    }
+    e.target.value = '';
+  };
 
   const quickActions = [
     { label: 'Explain', icon: Eye, prompt: 'Explain the following code or concept:' },
@@ -296,12 +321,21 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
 
   const handleSend = useCallback(async (customPrompt?: string) => {
     const text = customPrompt || input;
-    if (!text.trim() || isLoading) return;
+    if ((!text.trim() && !attachmentPreview) || isLoading) return;
+
+    let fullContent = text.trim();
+    let displayContent = text.trim();
+    if (attachmentPreview) {
+      fullContent = attachmentPreview.content.includes('[Binary')
+        ? `${text}\n\n[File: ${attachmentPreview.name}]`
+        : `${text ? text + '\n\n' : ''}File "${attachmentPreview.name}":\n\`\`\`\n${attachmentPreview.content}\n\`\`\``;
+      displayContent = attachmentPreview.name;
+    }
 
     const userMsg: GeminiChatMsg = {
       id: `cli-chat-u-${Date.now()}`,
       role: 'user',
-      content: text,
+      content: displayContent || fullContent,
       timestamp: Date.now(),
     };
 
@@ -320,7 +354,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: text, model }),
+        body: JSON.stringify({ action: 'chat', message: fullContent, model }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -335,6 +369,8 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         timestamp: Date.now(),
         agentId: 'gemini',
       });
+      extractArtifacts(agentContent);
+      setAttachmentPreview(null);
     } catch {
       const errMsg = isRunning
         ? 'Failed to reach Gemini CLI. Check your connection.'
@@ -445,10 +481,41 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         </div>
       </div>
 
+      {/* Attachment Preview */}
+      {attachmentPreview && (
+        <div className="px-4 py-1.5 border-t border-[rgba(66,133,244,0.1)] bg-[rgba(66,133,244,0.03)] flex items-center gap-2">
+          <Paperclip size={10} style={{ color: GOOGLE_BLUE }} />
+          <span className="text-[10px] text-[#ccccdd] font-mono truncate">{attachmentPreview.name}</span>
+          <button onClick={() => setAttachmentPreview(null)} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">Remove</button>
+        </div>
+      )}
+
+      {/* Artifact Panel */}
+      {artifacts.length > 0 && (
+        <div className="border-t border-[rgba(0,255,136,0.1)] bg-[rgba(0,255,136,0.02)]">
+          <div className="flex items-center gap-2 px-4 py-1.5">
+            <FileCode size={10} style={{ color: '#00ff88' }} />
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#00ff88]">Generated Artifacts ({artifacts.length})</span>
+            <button onClick={() => setArtifacts([])} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">Clear</button>
+          </div>
+          <div className="max-h-40 overflow-y-auto custom-scrollbar px-4 pb-2 space-y-1">
+            {artifacts.map((a, i) => (
+              <div key={i} className="bg-[rgba(10,10,26,0.5)] border border-[rgba(0,255,136,0.1)] rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-2 py-0.5 border-b border-[rgba(0,255,136,0.05)]">
+                  <span className="text-[8px] text-[#00ff88] font-mono uppercase">{a.language}</span>
+                  <button onClick={() => navigator.clipboard.writeText(a.code)} className="text-[7px] text-[#8888aa] hover:text-white">Copy</button>
+                </div>
+                <pre className="p-1.5 text-[8px] text-[#ccccdd] font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">{a.code.slice(0, 300)}</pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="px-4 py-3 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" />
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} accept=".txt,.md,.json,.js,.ts,.py,.css,.csv,.log,.xml,.html" />
           <button onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center w-9 h-9 rounded-lg border transition-colors hover:border-[rgba(66,133,244,0.4)] hover:text-white"
             style={{ borderColor: `${GOOGLE_BLUE}20`, color: `${GOOGLE_BLUE}99`, background: `${GOOGLE_BLUE}08` }}
