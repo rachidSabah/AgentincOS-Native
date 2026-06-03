@@ -382,10 +382,31 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
+      // Auto-fetch URLs from prompt for context enrichment
+      const urlRegex = /https?:\/\/[^\s]+/g;
+      const urls = fullContent.match(urlRegex) || [];
+      let enrichedContent = fullContent;
+      
+      if (urls.length > 0 && !fullContent.includes('[Fetched:')) {
+        setIsLoading(true);
+        try {
+          const fetchRes = await fetch('/api/hermes/web', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'extract', url: urls[0] }),
+          });
+          if (fetchRes.ok) {
+            const fetchData = await fetchRes.json();
+            if (fetchData.content) {
+              enrichedContent = `${fullContent}\n\n[Fetched from ${urls[0]}]:\n${fetchData.content.slice(0, 8000)}`;
+            }
+          }
+        } catch { /* fetch failed, continue with original prompt */ }
+      }
+
       // Direct Gemini CLI — proven reliable path
       let res = await fetch('/api/hermes/gemini', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: fullContent, model }),
+        body: JSON.stringify({ action: 'chat', message: enrichedContent, model }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
