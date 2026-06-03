@@ -210,8 +210,8 @@ export function GeminiCLIDashboard() {
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
             {isUsingNonGeminiProvider && activeProvider?.models?.length ? (
-              activeProvider.models.map((m: string) => (
-                <option key={m} value={m}>{m}</option>
+              activeProvider.models.map((m: string, i: number) => (
+                <option key={`${m}-${i}`} value={m}>{m}</option>
               ))
             ) : (
               <>
