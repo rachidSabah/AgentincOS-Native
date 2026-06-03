@@ -1243,7 +1243,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
   const brainInfo = BRAIN_MODE_LABELS[brainMode] || BRAIN_MODE_LABELS.gemini;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
       {/* Brain Mode Info Bar */}
       <div className="px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(18,18,42,0.4)] flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -1257,6 +1257,26 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
             <span className="text-[9px] font-mono" style={{ color: CYBER_GREEN }}>AUTONOMOUS</span>
           </div>
         )}
+      </div>
+
+      {/* Prebuilt Agents + Background Agent */}
+      <div className="px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(0,255,136,0.02)] flex items-center gap-2 overflow-x-auto">
+        <span className="text-[8px] text-[#8888aa] uppercase tracking-wider flex-shrink-0">Agents:</span>
+        {['Code Reviewer', 'Doc Writer', 'Security Scanner', 'Researcher'].map(name => (
+          <button key={name} onClick={() => {
+            setAgentRunning(!agentRunning);
+            setTasks(prev => [...prev, { id: `t-${Date.now()}`, name, status: 'pending', progress: 0, startedAt: Date.now() }]);
+          }} className="text-[8px] px-2 py-1 rounded border border-[rgba(0,255,136,0.15)] text-[#ccccdd] hover:border-[rgba(0,255,136,0.3)] hover:text-white transition-colors whitespace-nowrap flex-shrink-0">
+            {name}
+          </button>
+        ))}
+        <div className="w-px h-4 bg-[rgba(157,78,221,0.15)] flex-shrink-0" />
+        <button onClick={() => setAgentRunning(!agentRunning)}
+          className={`flex items-center gap-1 text-[8px] px-2 py-1 rounded border transition-colors whitespace-nowrap flex-shrink-0 ${agentRunning ? 'bg-[rgba(0,255,136,0.1)] border-[rgba(0,255,136,0.3)] text-[#00ff88]' : 'border-[rgba(157,78,221,0.1)] text-[#8888aa] hover:text-white'}`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${agentRunning ? 'animate-pulse bg-[#00ff88]' : 'bg-[#8888aa]'}`} />
+          {agentRunning ? 'Background Agent ON' : 'Background Agent OFF'}
+        </button>
+        {agentRunning && <span className="text-[7px] text-[#00ff88] flex-shrink-0">Running...</span>}
       </div>
 
       {/* Agent Sub-Tabs */}
