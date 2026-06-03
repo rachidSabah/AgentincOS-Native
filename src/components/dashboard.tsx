@@ -17,7 +17,7 @@ import {
   Gem, Hexagon, Webhook, Plug, Type, GitBranch,
   LayoutDashboard, BrainCircuit, Box, Boxes, Share2,
   Atom, Fingerprint, Scan, CircuitBoard, Cable,
-  MonitorSmartphone, Siren,
+  MonitorSmartphone, Siren, Stethoscope, Download,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
@@ -243,6 +243,7 @@ export function Sidebar() {
       items: [
         { id: 'terminal', label: 'Terminal Center', icon: Terminal },
         { id: 'system', label: 'System Manager', icon: Settings2 },
+        { id: 'os-doctor', label: 'OS Doctor', icon: Stethoscope },
         { id: 'file-explorer', label: 'File Explorer', icon: FolderOpen },
         { id: 'execution-viewer', label: 'Execution Viewer', icon: Activity },
       ],
@@ -263,6 +264,7 @@ export function Sidebar() {
         { id: 'memory-engine', label: 'Memory Engine', icon: Database },
         { id: 'knowledge-graph', label: 'Knowledge Graph', icon: Network },
         { id: 'rag-engine', label: 'RAG Engine', icon: Zap },
+        { id: 'skill-importer', label: 'Skill Importer', icon: Download },
       ],
     },
     {
@@ -271,6 +273,7 @@ export function Sidebar() {
         { id: 'agents', label: 'Agents', icon: Bot },
         { id: 'agent-builder', label: 'Agent Builder', icon: Wrench },
         { id: 'agent-marketplace', label: 'Agent Marketplace', icon: Store },
+        { id: 'coworkers', label: 'Coworkers', icon: Users },
         { id: 'swarm-intelligence', label: 'Swarm Intelligence', icon: BrainCircuit },
       ],
     },

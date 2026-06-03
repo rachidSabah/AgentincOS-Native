@@ -778,7 +778,7 @@ export default function HomePage() {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {!isMissionControl3Col && !isHomeView && <TopBar />}
-        <main className={`flex-1 overflow-hidden ${isMissionControl3Col || isHomeView ? '' : 'overflow-y-auto p-6'}`} role="main" aria-label="Dashboard Content">
+        <main className="flex-1 overflow-y-auto p-6" role="main" aria-label="Dashboard Content">
           <ViewErrorBoundary>
             <AnimatePresence mode="wait"><div key={activeView}>{renderView()}</div></AnimatePresence>
           </ViewErrorBoundary>
