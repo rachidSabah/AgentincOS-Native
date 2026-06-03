@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useOSStore } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-// ─── Color Constants ───
+// â”€â”€â”€ Color Constants â”€â”€â”€
 const GOOGLE_BLUE = '#4285f4';
 const CYBER_GREEN = '#00ff88';
 const CYBER_CYAN = '#00ffff';
@@ -22,7 +22,7 @@ const CYBER_RED = '#E63946';
 const CYBER_AMBER = '#FFB627';
 const CYBER_PURPLE = '#9d4edd';
 
-// ─── Types ───
+// â”€â”€â”€ Types â”€â”€â”€
 type TabId = 'chat' | 'code' | 'terminal' | 'files' | 'agent';
 type CodeAction = 'generate' | 'review' | 'refactor' | 'debug' | 'optimize' | 'document';
 
@@ -43,9 +43,9 @@ interface AgentTask {
   output?: string;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   GEMINI CLI DASHBOARD — Main Export
-   ═══════════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   GEMINI CLI DASHBOARD â€” Main Export
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export function GeminiCLIDashboard() {
   const { geminiCLI, updateGeminiCLI, geminiConnection, providers, activeProviderId } = useOSStore();
   const activeProvider = activeProviderId ? providers.find(p => p.id === activeProviderId && p.enabled) : null;
@@ -148,7 +148,7 @@ export function GeminiCLIDashboard() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ─── Header Section ─── */}
+      {/* â”€â”€â”€ Header Section â”€â”€â”€ */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -169,8 +169,8 @@ export function GeminiCLIDashboard() {
             </h2>
             <div className="text-[10px] text-[#8888aa] flex items-center gap-2">
               {geminiCLI.version && <span>v{geminiCLI.version}</span>}
-              {geminiCLI.model && <span>· {geminiCLI.model}</span>}
-              {geminiCLI.sandboxEnabled && <span className="text-[#00ff88]">· Sandbox</span>}
+              {geminiCLI.model && <span>Â· {geminiCLI.model}</span>}
+              {geminiCLI.sandboxEnabled && <span className="text-[#00ff88]">Â· Sandbox</span>}
             </div>
           </div>
         </div>
@@ -267,7 +267,7 @@ export function GeminiCLIDashboard() {
         </div>
       </div>
 
-      {/* ─── Tab Navigation ─── */}
+      {/* â”€â”€â”€ Tab Navigation â”€â”€â”€ */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.5)]">
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -284,7 +284,7 @@ export function GeminiCLIDashboard() {
         ))}
       </div>
 
-      {/* ─── Tab Content ─── */}
+      {/* â”€â”€â”€ Tab Content â”€â”€â”€ */}
       <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
@@ -300,9 +300,9 @@ export function GeminiCLIDashboard() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    CHAT TAB
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const { addChatMessage, chatHistories, addLog, providers, activeProviderId } = useOSStore();
   const messages = (chatHistories['gemini-cli-dashboard'] || []) as GeminiChatMsg[];
@@ -382,7 +382,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
-      // Use Brain Orchestrator for all prompts — primary model + Gemini CLI co-pilot
+      // Use Brain Orchestrator for all prompts â€” primary model + Gemini CLI co-pilot
       const orchBody: any = { message: fullContent, selectedModel: model, providers: providers.filter((p: any) => p.enabled && p.apiKey).map((p: any) => ({ name: p.name, apiEndpoint: p.apiEndpoint, apiKey: p.apiKey, defaultModel: p.defaultModel })) };
       
       let res = await fetch('/api/brain/orchestrate', {
@@ -490,7 +490,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
             </div>
             {!isRunning && (
               <div className="text-[10px] px-3 py-1.5 rounded-lg border border-[rgba(255,182,39,0.2)] bg-[rgba(255,182,39,0.05)] text-[#FFB627]">
-                AI SDK active — Connect Gemini CLI for direct CLI features
+                AI SDK active â€” Connect Gemini CLI for direct CLI features
               </div>
             )}
           </div>
@@ -522,7 +522,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
           <div className="flex justify-start">
             <div className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.12)] rounded-xl p-3">
               {streamingText ? (
-                <div className="text-[11px] text-[#ccccdd] whitespace-pre-wrap">{streamingText}<span className="animate-pulse">▌</span></div>
+                <div className="text-[11px] text-[#ccccdd] whitespace-pre-wrap">{streamingText}<span className="animate-pulse">â–Œ</span></div>
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1">
@@ -626,9 +626,9 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    CODE TAB
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const [code, setCode] = useState('');
   const [output, setOutput] = useState('');
@@ -751,9 +751,9 @@ function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    TERMINAL TAB
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function TerminalTab({ isRunning }: { isRunning: boolean }) {
   const [command, setCommand] = useState('');
   const [output, setOutput] = useState<Array<{ type: 'input' | 'output' | 'error'; text: string }>>([]);
@@ -856,8 +856,8 @@ function TerminalTab({ isRunning }: { isRunning: boolean }) {
         {output.length === 0 && (
           <div className="text-[#8888aa] text-[10px]">
             <div className="mb-1" style={{ color: CYBER_CYAN }}>Gemini CLI Terminal</div>
-            <div>Shell: {shellType} · Type commands and press Enter to execute</div>
-            <div className="mt-2 text-[#666688]">Tip: Use ↑/↓ to navigate command history</div>
+            <div>Shell: {shellType} Â· Type commands and press Enter to execute</div>
+            <div className="mt-2 text-[#666688]">Tip: Use â†‘/â†“ to navigate command history</div>
           </div>
         )}
         {output.map((line, i) => (
@@ -901,9 +901,9 @@ function TerminalTab({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    FILES TAB
-   ═══════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function FilesTab({ isRunning }: { isRunning: boolean }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -951,7 +951,7 @@ function FilesTab({ isRunning }: { isRunning: boolean }) {
         const data = await res.json();
         setFileContent(data.content || `// Content of ${path}`);
       } else {
-        setFileContent(`// File: ${path}\n// Content not available — connect Gemini CLI for file access`);
+        setFileContent(`// File: ${path}\n// Content not available â€” connect Gemini CLI for file access`);
       }
     } catch {
       setFileContent(`// File: ${path}\n// Could not load file content`);
@@ -1071,10 +1071,10 @@ function FilesTab({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    AGENT TAB
-   ═══════════════════════════════════════════════════════════ */
-// ─── Brain Mode Labels ───
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// â”€â”€â”€ Brain Mode Labels â”€â”€â”€
 const BRAIN_MODE_LABELS: Record<string, { label: string; role: string; color: string }> = {
   claude: { label: 'Claude Brain', role: 'Analytical reasoning & safety', color: '#d4a574' },
   gemini: { label: 'Gemini Brain', role: 'Multimodal understanding', color: GOOGLE_BLUE },
@@ -1263,7 +1263,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
         <div className="flex items-center gap-2">
           <Brain size={12} style={{ color: brainInfo.color }} />
           <span className="text-[10px] font-semibold" style={{ color: brainInfo.color }}>{brainInfo.label}</span>
-          <span className="text-[9px] text-[#8888aa]">— {brainInfo.role}</span>
+          <span className="text-[9px] text-[#8888aa]">â€” {brainInfo.role}</span>
         </div>
         {autonomousMode && (
           <div className="flex items-center gap-1.5">
@@ -1293,7 +1293,16 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
         {agentRunning && <span className="text-[7px] text-[#00ff88] flex-shrink-0">Running...</span>}
       </div>
 
-      {/* Agent Sub-Tabs */}
+      {/* Agent Sub-
+      {/* Live Orchestration Panel */}
+      <div className="px-4 py-1.5 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(255,182,39,0.03)] flex items-center gap-2 text-[8px]">
+        <span className="text-[#FFB627] font-bold uppercase tracking-wider">Orch:</span>
+        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse" /> CLI Lead</span>
+        {isUsingNonGeminiProvider && <span className="text-[#8888aa]">+ Worker</span>}
+        <span className="text-[#8888aa] ml-auto">Multi-Model Active</span>
+      </div>
+
+      {/* Tabs */}
       <div className="flex items-center gap-1 px-4 py-1.5 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.3)]">
         {([
           { id: 'control' as const, label: 'Control', icon: Play },
@@ -1357,7 +1366,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
                   style={{ backgroundColor: agentRunning ? CYBER_GREEN : '#8888aa' }} />
               </div>
               <div className="text-[10px] text-[#8888aa]">
-                {agentRunning ? 'Running and processing tasks' : 'Stopped — click Start to begin'}
+                {agentRunning ? 'Running and processing tasks' : 'Stopped â€” click Start to begin'}
               </div>
             </div>
           </div>
