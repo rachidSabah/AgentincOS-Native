@@ -539,7 +539,10 @@ function ProviderDetailPanel({
                     const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'fetch-models', apiKey: draft.apiKey, provider: provider.name }) });
                     const data = await res.json();
                     if (data.success && data.models?.length > 0) {
-                      setDraft(prev => ({ ...prev, models: data.models.map((m: any) => m.id || m.name), defaultModel: data.models[0]?.id || data.models[0]?.name || prev.defaultModel }));
+                      const modelNames = data.models.map((m: any) => m.id || m.name);
+                      setDraft(prev => ({ ...prev, models: modelNames, defaultModel: data.models[0]?.id || data.models[0]?.name || prev.defaultModel }));
+                      // Also update the actual provider so models show in dropdowns immediately
+                      updateProvider(provider.id, { models: modelNames, defaultModel: modelNames[0] || provider.defaultModel });
                     }
                   } catch { /* ignore */ }
                 }}
