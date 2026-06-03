@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Call Gemini CLI chat API (always runs as co-pilot)
     try {
-      const cliRes = await fetch(`${request.nextUrl.origin}/api/hermes/gemini`, {
+      const cliRes = await fetch(`http://localhost:${process.env.PORT || '3100'}/api/hermes/gemini`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'chat', message: `Plan and analyze: ${message.slice(0, 500)}`, model: selectedModel || 'gemini-2.5-flash-lite' }),
