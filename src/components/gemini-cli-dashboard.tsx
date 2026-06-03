@@ -53,6 +53,8 @@ export function GeminiCLIDashboard() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [brainMode, setBrainMode] = useState('gemini');
   const [autonomousMode, setAutonomousMode] = useState(false);
+  const [dynamicModels, setDynamicModels] = useState<{id: string; name: string; provider: string}[]>([]);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
 
   const isRunning = geminiCLI.running || geminiConnection.running;
   const isInstalled = geminiCLI.installed || geminiConnection.installed;
@@ -120,11 +122,27 @@ export function GeminiCLIDashboard() {
     }
   }, [detectGemini]);
 
+  // Fetch dynamic models from API
+  const fetchDynamicModels = useCallback(async () => {
+    try {
+      const res = await fetch('/api/hermes/gemini?action=dynamic-models');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && Array.isArray(data.models)) {
+          setDynamicModels(data.models.map((m: any) => ({ id: m.id, name: m.name || m.id, provider: m.provider || 'CLI' })));
+        }
+      }
+    } catch { /* use static fallback */ }
+    setModelsLoaded(true);
+  }, []);
+
   useEffect(() => {
     detectGemini();
+    fetchDynamicModels();
     const interval = setInterval(detectGemini, 60000);
-    return () => clearInterval(interval);
-  }, [detectGemini]);
+    const modelRefresh = setInterval(fetchDynamicModels, 300000); // Refresh models every 5 min
+    return () => { clearInterval(interval); clearInterval(modelRefresh); };
+  }, [detectGemini, fetchDynamicModels]);
 
   const tabs: { id: TabId; label: string; icon: typeof MessageSquare }[] = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
@@ -197,22 +215,25 @@ export function GeminiCLIDashboard() {
             onChange={(e) => updateGeminiCLI({ model: e.target.value })}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
-            {(providers || []).filter((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini')).flatMap((p: any) =>
-              (p.models || []).map((m: string, i: number) => <option key={`${p.id}-${m}-${i}`} value={m}>{m} ({p.name.split(' ')[0]})</option>)
-            )}
-            {(!(providers || []).some((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini'))) && (
+            {/* Dynamic models from API (CLI + server models merged) */}
+            {dynamicModels.length > 0 ? (
+              dynamicModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+              ))
+            ) : (
               <>
                 <option value="auto">Auto (Default)</option>
                 <option value="pro">Pro Mode</option>
                 <option value="flash">Flash</option>
                 <option value="flash-lite">Flash Lite</option>
-                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
                 <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
               </>
+            )}
+            {/* Also show enabled provider models (non-Gemini) */}
+            {(providers || []).filter((p: any) => p.enabled && p.models?.length > 0 && !p.id?.includes('gemini')).flatMap((p: any) =>
+              (p.models || []).map((m: string, i: number) => <option key={`${p.id}-${m}-${i}`} value={m}>{m} ({p.name.split(' ')[0]})</option>)
             )}
           </select>
 

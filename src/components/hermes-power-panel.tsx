@@ -564,7 +564,7 @@ function HermesChatTab() {
       addChatMessage('hermes', {
         id: `hermes-err-${Date.now()}`,
         role: 'system' as const,
-        content: 'Failed to reach Hermes. The ZAI SDK fallback should handle this — please try again.',
+        content: 'Failed to reach Hermes. The Gemini CLI or internal analysis engine will handle your request.',
         timestamp: Date.now(),
         agentId: 'hermes',
       });
@@ -582,7 +582,7 @@ function HermesChatTab() {
           <div className="text-center py-8">
             <Sparkles size={24} style={{ color: '#FFB627' }} className="mx-auto mb-2 opacity-50" />
             <div className="text-[11px] text-[#8888aa]">Chat with Hermes — AI-powered agent assistant</div>
-            <div className="text-[9px] text-[#8888aa] mt-1">Uses ZAI SDK fallback when Hermes CLI is offline</div>
+            <div className="text-[9px] text-[#8888aa] mt-1">Uses Gemini CLI or internal analysis when Hermes CLI is offline</div>
           </div>
         )}
         {messages.map(msg => (

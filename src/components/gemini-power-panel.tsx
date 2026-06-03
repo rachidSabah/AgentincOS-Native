@@ -118,20 +118,20 @@ export function GeminiPowerPanel() {
           // CLI check failed, fall through to SDK mode
         }
 
-        // SDK fallback mode — Gemini CLI not detected, but ZAI SDK provides real AI
-        updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'auto (via SDK)' });
+        // Internal analysis mode — Gemini CLI not detected, using built-in analysis engine
+        updateAgent('gemini', { status: 'degraded', lastActive: 'internal mode', model: 'auto (internal analysis)' });
         addLog({
-          id: `gemini-sdk-${Date.now()}`,
+          id: `gemini-internal-${Date.now()}`,
           timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
           agent: 'Gemini',
           layer: 2,
           level: 'info',
-          message: 'Gemini CLI not detected — using built-in AI SDK for real responses. Install Gemini CLI for direct CLI features.',
+          message: 'Gemini CLI not detected — using internal analysis engine for responses. Install Gemini CLI for direct CLI features.',
         });
       }
     } catch {
       setGeminiConnection({ installed: false, running: false, lastChecked: Date.now() });
-      updateAgent('gemini', { status: 'degraded', lastActive: 'sdk mode', model: 'auto (via SDK)' });
+      updateAgent('gemini', { status: 'degraded', lastActive: 'internal mode', model: 'auto (internal analysis)' });
     } finally {
       setIsDetecting(false);
     }
