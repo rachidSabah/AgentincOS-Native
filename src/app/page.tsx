@@ -58,6 +58,7 @@ import { AgentBuilder } from '@/components/agent-builder';
 import { CoworkersPanel } from '@/components/coworkers';
 import { SkillImporter } from '@/components/skill-importer';
 import { OSDoctor } from '@/components/os-doctor';
+import { ModelsDashboard } from '@/components/models-dashboard';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, Component } from 'react';
 
@@ -383,6 +384,14 @@ export default function HomePage() {
         return (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <ProviderSettingsPage />
+          </motion.div>
+        );
+
+      // ─── Models Dashboard ───
+      case 'models-dashboard':
+        return (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+            <ModelsDashboard />
           </motion.div>
         );
 

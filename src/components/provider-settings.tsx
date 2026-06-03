@@ -454,9 +454,20 @@ function ProviderDetailPanel({
   const [draft, setDraft] = useState<Partial<ProviderConfig>>({ ...provider });
   const [newModel, setNewModel] = useState('');
 
-  const saveDraft = useCallback(() => {
+  const saveDraft = useCallback(async () => {
     updateProvider(provider.id, draft);
-  }, [provider.id, draft, updateProvider]);
+    // Auto-discover models when API key is provided
+    if (draft.apiKey && draft.apiKey.length > 10) {
+      try {
+        const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'fetch-models', apiKey: draft.apiKey, provider: provider.name }) });
+        const data = await res.json();
+        if (data.success && data.models?.length > 0) {
+          const modelNames = data.models.map((m: any) => m.id || m.name);
+          updateProvider(provider.id, { models: modelNames, defaultModel: modelNames[0] || draft.defaultModel });
+        }
+      } catch { /* discovery failed, keep existing models */ }
+    }
+  }, [provider.id, draft, updateProvider, provider.name]);
 
   const addCustomModel = useCallback(() => {
     if (!newModel.trim()) return;

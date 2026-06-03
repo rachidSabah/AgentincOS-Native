@@ -234,6 +234,7 @@ export function Sidebar() {
         { id: 'providers', label: 'Providers', icon: Cpu },
         { id: 'models', label: 'Models', icon: Boxes },
         { id: 'model-router', label: 'Model Router', icon: Route },
+        { id: 'models-dashboard', label: 'Model Registry', icon: Cpu },
         { id: 'gemini-dashboard', label: 'Gemini Dashboard', icon: Gem },
         { id: 'gemini-cli', label: 'Gemini CLI Setup', icon: Gem },
       ],
