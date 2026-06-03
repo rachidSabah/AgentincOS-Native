@@ -1125,6 +1125,23 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
     security: { active: false, version: '1.0.0' },
   });
 
+  // Execute a task through Gemini CLI
+  const executeTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.status === 'running') return;
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'running' as const, progress: 10 } : t));
+    try {
+      const res = await fetch('/api/hermes/gemini', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'chat', message: `You are a ${task.name} agent. Execute this task: ${task.name}. Be thorough and provide actionable output.`, model: geminiCLI.model || 'gemini-2.5-flash-lite' }),
+      });
+      const data = await res.json();
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed' as const, progress: 100, output: data.response?.slice(0, 300) } : t));
+    } catch {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'failed' as const, progress: 0 } : t));
+    }
+  };
+
   // Autonomous planning steps
   const [planningSteps, setPlanningSteps] = useState<Array<{ id: string; label: string; status: 'pending' | 'running' | 'completed' | 'failed' }>>([
     { id: 'ps1', label: 'Analyze task requirements', status: 'pending' },
@@ -1394,6 +1411,9 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
                 <span className="text-[9px] font-mono uppercase tracking-wider" style={{ color: statusColor(task.status) }}>
                   {task.status}
                 </span>
+                {task.status === 'pending' && (
+                  <button onClick={() => executeTask(task.id)} className="text-[8px] px-2 py-0.5 rounded bg-[rgba(0,255,136,0.1)] border border-[rgba(0,255,136,0.2)] text-[#00ff88] hover:bg-[rgba(0,255,136,0.2)]">Run</button>
+                )}
               </div>
               {task.status === 'running' && (
                 <div className="w-full h-1.5 rounded-full bg-[rgba(10,10,26,0.5)] overflow-hidden">
