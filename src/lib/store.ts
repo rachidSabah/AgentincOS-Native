@@ -1619,18 +1619,16 @@ export const useOSStore = create<OSState>()(
     }),
     {
       name: 'agentic-os-store',
-      version: 3,
       merge: (persisted: any, current: any) => {
         const merged = { ...current, ...persisted };
-        // Version-aware merging for seed data
-        if (!persisted || (persisted as any)._storeVersion < 3) {
+        if (!persisted || !(persisted as any)._storeVersion) {
           merged.hermesSkills = current.hermesSkills;
           merged.activeSwarms = current.activeSwarms;
           merged.coworkers = current.coworkers;
           merged.goals = current.goals;
           merged.journal = current.journal;
           merged.memories = current.memories;
-          (merged as any)._storeVersion = 3;
+          (merged as any)._storeVersion = 1;
         }
         return merged;
       },
