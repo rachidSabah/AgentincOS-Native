@@ -382,26 +382,16 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     setStreamingText('');
 
     try {
-      // Use Brain Orchestrator for all prompts â€” primary model + Gemini CLI co-pilot
-      const orchBody: any = { message: fullContent, selectedModel: model, providers: providers.filter((p: any) => p.enabled && p.apiKey).map((p: any) => ({ name: p.name, apiEndpoint: p.apiEndpoint, apiKey: p.apiKey, defaultModel: p.defaultModel })) };
-      
-      let res = await fetch('/api/brain/orchestrate', {
+      // Direct Gemini CLI — proven reliable path
+      let res = await fetch('/api/hermes/gemini', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orchBody),
+        body: JSON.stringify({ action: 'chat', message: fullContent, model }),
       });
-
-      if (!res.ok) {
-        // Fallback: try direct Gemini CLI
-        res = await fetch('/api/hermes/gemini', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'chat', message: fullContent, model }),
-        });
-      }
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
 
       const data = await res.json();
-      const agentContent = data.finalSynthesis || data.response || 'No response received.';
+      const agentContent = data.response || 'No response received.';
 
       const modelInfo = data.modelsUsed?.length ? ` [${data.modelsUsed.join(', ')}]` : '';
       addChatMessage('gemini-cli-dashboard', {
