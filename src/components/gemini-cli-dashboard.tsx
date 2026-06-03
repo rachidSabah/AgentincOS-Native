@@ -12,7 +12,7 @@ import {
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
   Workflow, Puzzle, Network, Users, Cog,
 } from 'lucide-react';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 
 // â”€â”€â”€ Color Constants â”€â”€â”€
 const GOOGLE_BLUE = '#4285f4';
@@ -23,7 +23,7 @@ const CYBER_AMBER = '#FFB627';
 const CYBER_PURPLE = '#9d4edd';
 
 // â”€â”€â”€ Types â”€â”€â”€
-type TabId = 'chat' | 'code' | 'terminal' | 'files' | 'agent';
+type TabId = 'chat' | 'code' | 'terminal' | 'files' | 'agent' | 'swarm';
 type CodeAction = 'generate' | 'review' | 'refactor' | 'debug' | 'optimize' | 'document';
 
 interface GeminiChatMsg {
@@ -46,6 +46,17 @@ interface AgentTask {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    GEMINI CLI DASHBOARD â€” Main Export
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// Lazy-loaded Swarm OS Dashboard
+const SwarmOSDashboardLazy = lazy(() => import('./swarm-os-dashboard').then(m => ({ default: m.SwarmOSDashboard })));
+
+function SwarmOSDashboardWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full text-[#8888aa] text-xs"><RefreshCw size={14} className="animate-spin mr-2" />Loading Swarm OS...</div>}>
+      <SwarmOSDashboardLazy />
+    </Suspense>
+  );
+}
+
 export function GeminiCLIDashboard() {
   const { geminiCLI, updateGeminiCLI, geminiConnection, providers } = useOSStore();
   const [activeTab, setActiveTab] = useState<TabId>('chat');
@@ -150,6 +161,7 @@ export function GeminiCLIDashboard() {
     { id: 'terminal', label: 'Terminal', icon: Terminal },
     { id: 'files', label: 'Files', icon: FileText },
     { id: 'agent', label: 'Agent', icon: Bot },
+    { id: 'swarm', label: 'Swarm OS', icon: Network },
   ];
 
   return (
@@ -303,6 +315,7 @@ export function GeminiCLIDashboard() {
             {activeTab === 'terminal' && <TerminalTab isRunning={isRunning} />}
             {activeTab === 'files' && <FilesTab isRunning={isRunning} />}
             {activeTab === 'agent' && <AgentTab isRunning={isRunning} brainMode={brainMode} autonomousMode={autonomousMode} setAutonomousMode={setAutonomousMode} />}
+            {activeTab === 'swarm' && <SwarmOSDashboardWrapper />}
           </motion.div>
         </AnimatePresence>
       </div>

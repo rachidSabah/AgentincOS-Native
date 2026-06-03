@@ -488,58 +488,37 @@ export function getActionSystemPrompt(action: GeminiAction): string {
 
 /**
  * Builds a Gemini CLI command array from a GeminiRequest.
+ * Uses CORRECT CLI format: gemini -p "<prompt>" -m <model> -o json
  */
 export function buildGeminiCommand(
   request: GeminiRequest,
   binPath: string,
 ): string[] {
-  const args: string[] = [];
-
-  // Add model flag if specified
   const model = request.model || GEMINI_DEFAULT_MODEL;
-  args.push("--model", model);
 
-  // Add context to prompt if provided (CLI doesn't have native --context flag)
+  // Build prompt with context if provided
   let prompt = request.message;
   if (request.context) {
     prompt = `Context:\n${request.context}\n\nTask:\n${prompt}`;
   }
 
-  // Add the prompt/message
-  // Different actions get different framing
-  switch (request.action) {
-    case "chat":
-      args.push("--prompt", prompt);
-      break;
-    case "generate":
-      args.push("--prompt", `Generate code for: ${prompt}`);
-      break;
-    case "review":
-      args.push("--prompt", `Review this code: ${prompt}`);
-      break;
-    case "refactor":
-      args.push("--prompt", `Refactor this code: ${prompt}`);
-      break;
-    case "plan":
-      args.push("--prompt", `Create a plan for: ${prompt}`);
-      break;
-    case "research":
-      args.push("--prompt", `Research: ${prompt}`);
-      break;
-    case "reason":
-      args.push("--prompt", `Reason about: ${prompt}`);
-      break;
-    case "analyze":
-      args.push("--prompt", `Analyze: ${prompt}`);
-      break;
-    case "execute":
-      args.push("--prompt", `Execute: ${prompt}`);
-      break;
-    default:
-      args.push("--prompt", prompt);
-  }
+  // Add action-specific prefix
+  const actionPrefixes: Record<GeminiAction, string> = {
+    chat: '',
+    generate: 'Generate code for: ',
+    review: 'Review this code for issues: ',
+    refactor: 'Refactor this code to improve quality: ',
+    plan: 'Create a detailed plan for: ',
+    research: 'Research: ',
+    reason: 'Reason about: ',
+    analyze: 'Analyze: ',
+    execute: 'Execute: ',
+  };
 
-  return [binPath, ...args];
+  const fullPrompt = `${actionPrefixes[request.action] || ''}${prompt}`;
+
+  // CORRECT FORMAT: gemini -p "<prompt>" -m <model> -o json
+  return [binPath, '-p', fullPrompt, '-m', model, '-o', 'json'];
 }
 
 /**
@@ -564,7 +543,7 @@ export async function listGeminiModelsAsync(): Promise<string[]> {
     if (!bin) return fallbackModels;
 
     // Run a simple prompt to get stats which contain model names
-    const { stdout } = await execBin(bin, ["--prompt", "list models", "--output-format", "json"], { timeout: 10000 });
+    const { stdout } = await execBin(bin, ["-p", "list models", "-o", "json"], { timeout: 10000 });
     let data: { stats?: { models?: Record<string, unknown> } } = {};
     try {
       data = JSON.parse(stdout);
