@@ -308,13 +308,11 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     if (!file) return;
     try {
       const text = await file.text();
-      setAttachmentPreview({ name: file.name, content: text });
-      setInput(prev => prev ? `${prev}\n\n[Attached: ${file.name}]\n${text.slice(0, 4000)}` : `[Attached: ${file.name}]\n${text.slice(0, 4000)}`);
+      setAttachmentPreview({ name: file.name, content: text.slice(0, 8000) });
     } catch {
-      // Binary file - just reference it
-      setAttachmentPreview({ name: file.name, content: `[Binary file: ${file.name}]` });
-      setInput(prev => prev ? `${prev}\n\n[Attached file: ${file.name}]` : `[Attached file: ${file.name}]`);
+      setAttachmentPreview({ name: file.name, content: `[Binary file: ${file.name} - ${(file.size / 1024).toFixed(1)}KB]` });
     }
+    e.target.value = '';
   };
 
   const extractArtifacts = (content: string) => {
@@ -338,12 +336,22 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
 
   const handleSend = useCallback(async (customPrompt?: string) => {
     const text = customPrompt || input;
-    if (!text.trim() || isLoading) return;
+    if ((!text.trim() && !attachmentPreview) || isLoading) return;
+
+    // Build message: include attachment content if present
+    let fullContent = text.trim();
+    let displayContent = text.trim();
+    if (attachmentPreview) {
+      fullContent = attachmentPreview.content.includes('[Binary')
+        ? `${text}\n\n[Attached file: ${attachmentPreview.name}]\n${attachmentPreview.content}`
+        : `${text ? text + '\n\n' : ''}Context from attached file "${attachmentPreview.name}":\n\`\`\`\n${attachmentPreview.content}\n\`\`\``;
+      displayContent = attachmentPreview.name;
+    }
 
     const userMsg: GeminiChatMsg = {
       id: `cli-chat-u-${Date.now()}`,
       role: 'user',
-      content: text,
+      content: displayContent || fullContent,
       timestamp: Date.now(),
     };
 
@@ -362,7 +370,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: text, model, stream: true }),
+        body: JSON.stringify({ action: 'chat', message: fullContent, model, stream: true }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -527,7 +535,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
           <div className="flex items-center gap-2">
             <Paperclip size={10} style={{ color: GOOGLE_BLUE }} />
             <span className="text-[10px] text-[#ccccdd] font-mono truncate">{attachmentPreview.name}</span>
-            <button onClick={() => { setAttachmentPreview(null); setInput(''); }} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">✕</button>
+            <button onClick={() => setAttachmentPreview(null)} className="ml-auto text-[8px] text-[#8888aa] hover:text-white">✕</button>
           </div>
         </div>
       )}
