@@ -47,7 +47,8 @@ interface AgentTask {
    GEMINI CLI DASHBOARD — Main Export
    ═══════════════════════════════════════════════════════════ */
 export function GeminiCLIDashboard() {
-  const { geminiCLI, updateGeminiCLI, geminiConnection } = useOSStore();
+  const { geminiCLI, updateGeminiCLI, geminiConnection, providers, activeProviderId } = useOSStore();
+  const activeProvider = providers.find(p => (p.id === activeProviderId || p.name.toLowerCase().includes('gemini')) && p.enabled);
   const [activeTab, setActiveTab] = useState<TabId>('chat');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -197,16 +198,24 @@ export function GeminiCLIDashboard() {
             onChange={(e) => updateGeminiCLI({ model: e.target.value })}
             className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.2)] rounded-lg px-2 py-1.5 text-[10px] text-[#ccccdd] outline-none focus:border-[rgba(66,133,244,0.4)]"
           >
-            <option value="auto">Auto (Default)</option>
-            <option value="pro">Pro Mode</option>
-            <option value="flash">Flash</option>
-            <option value="flash-lite">Flash Lite</option>
-            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+            {activeProvider && !activeProvider.id.includes('gemini') && activeProvider.models?.length > 0 ? (
+              activeProvider.models.map((m: string) => (
+                <option key={m} value={m}>{m}</option>
+              ))
+            ) : (
+              <>
+                <option value="auto">Auto (Default)</option>
+                <option value="pro">Pro Mode</option>
+                <option value="flash">Flash</option>
+                <option value="flash-lite">Flash Lite</option>
+                <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+              </>
+            )}
           </select>
 
           {/* Auto-detect */}
