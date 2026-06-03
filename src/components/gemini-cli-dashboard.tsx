@@ -293,13 +293,30 @@ export function GeminiCLIDashboard() {
    CHAT TAB
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
-  const { addChatMessage, chatHistories, addLog } = useOSStore();
+  const { addChatMessage, chatHistories, addLog, providers, activeProviderId } = useOSStore();
   const messages = (chatHistories['gemini-cli-dashboard'] || []) as GeminiChatMsg[];
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [teamMode, setTeamMode] = useState(false);
+  const [coworkerResults, setCoworkerResults] = useState<{ model: string; response: string }[]>([]);
+  const activeProvider = providers.find((p: any) => p.id === activeProviderId && p.enabled);
+  const coworkerModels = teamMode && activeProvider?.models ? activeProvider.models.filter((m: string) => m !== model).slice(0, 3) : [];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<{ name: string; content: string } | null>(null);
+  const [artifacts, setArtifacts] = useState<{ language: string; code: string }[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const extractArtifacts = (content: string) => {
+    const regex = /```(\w+)?\n([\s\S]*?)```/g; let m; const a: { language: string; code: string }[] = [];
+    while ((m = regex.exec(content)) !== null) a.push({ language: m[1] || 'text', code: m[2].trim() });
+    if (a.length) setArtifacts(prev => [...prev, ...a]);
+  };
+  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    try { setAttachmentPreview({ name: f.name, content: (await f.text()).slice(0, 8000) }); } catch { setAttachmentPreview({ name: f.name, content: '[Binary]' }); }
+    e.target.value = '';
+  };
 
   const quickActions = [
     { label: 'Explain', icon: Eye, prompt: 'Explain the following code or concept:' },
@@ -312,12 +329,17 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
 
   const handleSend = useCallback(async (customPrompt?: string) => {
     const text = customPrompt || input;
-    if (!text.trim() || isLoading) return;
+    if (!text.trim() && !attachmentPreview || isLoading) return;
+
+    let fullContent = text.trim();
+    if (attachmentPreview) {
+      fullContent = text ? `${text}\n\nFile ${attachmentPreview.name}:\n\`\`\`\n${attachmentPreview.content}\n\`\`\`` : `File ${attachmentPreview.name}:\n\`\`\`\n${attachmentPreview.content}\n\`\`\``;
+    }
 
     const userMsg: GeminiChatMsg = {
       id: `cli-chat-u-${Date.now()}`,
       role: 'user',
-      content: text,
+      content: attachmentPreview ? attachmentPreview.name : text,
       timestamp: Date.now(),
     };
 
@@ -336,7 +358,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: text, model }),
+        body: JSON.stringify({ action: 'chat', message: fullContent, model }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -351,6 +373,21 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         timestamp: Date.now(),
         agentId: 'gemini',
       });
+      extractArtifacts(agentContent);
+      setAttachmentPreview(null);
+
+      // Team Mode coworker execution
+      if (teamMode && coworkerModels.length > 0) {
+        for (const cm of coworkerModels) {
+          try {
+            const cmRes = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'chat', message: `Review: ${agentContent.slice(0, 2000)}`, provider: activeProvider?.name, apiKey: activeProvider?.apiKey, baseUrl: activeProvider?.apiEndpoint, model: cm }) });
+            if (cmRes.ok) { const d = await cmRes.json(); setCoworkerResults(p => [...p, { model: cm, response: d.response?.slice(0, 300) || '' }]); }
+          } catch {}
+        }
+        if (coworkerResults.length > 0) {
+          addChatMessage('gemini-cli-dashboard', { id: `team-${Date.now()}`, role: 'agent', content: `Team: ${coworkerResults.map(r => `**${r.model}**: ${r.response}`).join(' | ')}`, timestamp: Date.now(), agentId: 'team' });
+        }
+      }
     } catch {
       const errMsg = isRunning
         ? 'Failed to reach Gemini CLI. Check your connection.'
@@ -447,6 +484,15 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         )}
       </div>
 
+      {/* Team Mode */}
+      {activeProvider && (activeProvider.models || []).length > 1 && (
+        <div className="px-4 py-1.5 border-t border-[rgba(157,78,221,0.1)] flex items-center gap-2">
+          <button onClick={() => setTeamMode(!teamMode)} className={`text-[8px] px-2 py-1 rounded border transition-colors ${teamMode ? 'bg-[rgba(157,78,221,0.15)] border-[rgba(157,78,221,0.3)] text-[#9d4edd]' : 'border-[rgba(157,78,221,0.1)] text-[#8888aa] hover:text-white'}`}>
+            {teamMode ? 'Team Mode ON' : 'Team Mode OFF'} {teamMode && `(+${coworkerModels.length})`}
+          </button>
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="px-4 py-2 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.3)]">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
@@ -464,7 +510,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
       {/* Input */}
       <div className="px-4 py-3 border-t border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" className="hidden" />
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileAttach} accept=".txt,.md,.json,.js,.ts,.py,.css,.csv,.log" />
           <button onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center w-9 h-9 rounded-lg border transition-colors hover:border-[rgba(66,133,244,0.4)] hover:text-white"
             style={{ borderColor: `${GOOGLE_BLUE}20`, color: `${GOOGLE_BLUE}99`, background: `${GOOGLE_BLUE}08` }}
