@@ -307,267 +307,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Internal fallback — completes tasks when CLI is unavailable
-function generateFallbackResponse(prompt: string): string {
-  const lower = prompt.toLowerCase();
-  
-  if (lower.includes('scan') && lower.includes('infohas') && lower.includes('wordpress')) {
-    return `WORDPRESS UX++ THEME FOR INFOHAS.MA — AVIATION RECRUITMENT PORTAL
-
-=== SITE ANALYSIS (reconstructed) ===
-infohas.ma appears to be a Moroccan aviation training and recruitment platform.
-Key sections: Training Programs, Career Pathways, Airline Partnerships, About, Contact.
-
-=== WORDPRESS THEME ARCHITECTURE ===
-
-Theme Name: Infohas Aviation Pro
-Version: 1.0.0
-Base: Underscores (_s) + Tailwind CSS + ACF Pro
-
-CORE FILES:
-\`\`\`
-/infohas-aviation-pro/
-  style.css
-  functions.php
-  index.php
-  header.php
-  footer.php
-  front-page.php        # Hero + CTA
-  page-careers.php      # Career pathways
-  page-training.php     # Training programs
-  page-partners.php     # Airline partnerships
-  template-parts/
-    hero-aviation.php
-    cta-sticky.php
-    testimonials.php
-    trust-badges.php
-  assets/
-    css/tailwind.css
-    js/main.js
-  inc/
-    custom-post-types.php
-    acf-fields.php
-    seo-meta.php
-\`\`\`
-
-STYLE.CSS:
-\`\`\`css
-/*
-Theme Name: Infohas Aviation Pro
-Theme URI: https://infohas.ma
-Description: UX++ Aviation Recruitment WordPress Theme
-Version: 1.0.0
-Text Domain: infohas-aviation
-*/
-
-:root {
-  --primary: #1a365d;      /* Deep navy */
-  --accent: #e53e3e;       /* Aviation red */
-  --gold: #d69e2e;         /* Trust gold */
-  --light: #f7fafc;
-  --dark: #1a202c;
-}
-
-/* Hero Section */
-.aviation-hero {
-  background: linear-gradient(135deg, var(--primary), #2a4365);
-  min-height: 80vh;
-  display: flex;
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.aviation-hero::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: url('assets/aviation-bg.jpg') center/cover;
-  opacity: 0.15;
-}
-
-.hero-content {
-  max-width: 800px;
-  padding: 4rem 2rem;
-  color: white;
-  position: relative;
-  z-index: 1;
-}
-
-.hero-content h1 {
-  font-size: 3.5rem;
-  font-weight: 800;
-  line-height: 1.1;
-  margin-bottom: 1.5rem;
-}
-
-.hero-content h1 span {
-  color: var(--accent);
-}
-
-/* Sticky CTA */
-.cta-sticky {
-  position: sticky;
-  bottom: 0;
-  background: var(--primary);
-  color: white;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 100;
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-}
-
-.cta-button {
-  background: var(--accent);
-  color: white;
-  padding: 0.75rem 2rem;
-  border-radius: 8px;
-  font-weight: 700;
-  transition: transform 0.2s;
-}
-
-.cta-button:hover {
-  transform: scale(1.05);
-}
-
-/* Training Cards */
-.training-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2rem;
-  padding: 4rem 2rem;
-}
-
-.training-card {
-  background: white;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.training-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-}
-
-/* Trust Badges */
-.trust-section {
-  background: var(--light);
-  padding: 4rem 2rem;
-  text-align: center;
-}
-
-.trust-badges {
-  display: flex;
-  justify-content: center;
-  gap: 3rem;
-  flex-wrap: wrap;
-}
-
-.trust-badge {
-  text-align: center;
-}
-
-.trust-badge .number {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--primary);
-}
-
-/* Mobile Responsive */
-@media (max-width: 768px) {
-  .hero-content h1 { font-size: 2rem; }
-  .training-grid { grid-template-columns: 1fr; }
-}
-
-/* Accessibility */
-:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px; height: 1px;
-  overflow: hidden;
-  clip: rect(0,0,0,0);
-}
-\`\`\`
-
-FUNCTIONS.PHP:
-\`\`\`php
-<?php
-// Enqueue Tailwind CSS
-function infohas_enqueue() {
-  wp_enqueue_style('infohas-tailwind', get_template_directory_uri() . '/assets/css/tailwind.css', [], '1.0');
-  wp_enqueue_script('infohas-main', get_template_directory_uri() . '/assets/js/main.js', [], '1.0', true);
-}
-add_action('wp_enqueue_scripts', 'infohas_enqueue');
-
-// Register Custom Post Types
-function infohas_cpts() {
-  register_post_type('course', [
-    'labels' => ['name' => 'Courses', 'singular_name' => 'Course'],
-    'public' => true, 'has_archive' => true,
-    'supports' => ['title','editor','thumbnail','excerpt'],
-    'rewrite' => ['slug' => 'courses'],
-  ]);
-  register_post_type('partner', [
-    'labels' => ['name' => 'Partners', 'singular_name' => 'Partner'],
-    'public' => true, 'has_archive' => true,
-    'supports' => ['title','editor','thumbnail'],
-    'rewrite' => ['slug' => 'partners'],
-  ]);
-}
-add_action('init', 'infohas_cpts');
-
-// ACF Fields Registration
-if(function_exists('acf_add_local_field_group')) {
-  acf_add_local_field_group([
-    'key' => 'group_course_details',
-    'title' => 'Course Details',
-    'fields' => [
-      ['key' => 'field_duration', 'label' => 'Duration', 'name' => 'duration', 'type' => 'text'],
-      ['key' => 'field_price', 'label' => 'Price', 'name' => 'price', 'type' => 'number'],
-      ['key' => 'field_airline', 'label' => 'Partner Airline', 'name' => 'airline', 'type' => 'text'],
-    ],
-    'location' => [['param' => 'post_type', 'operator' => '==', 'value' => 'course']],
-  ]);
-}
-
-// SEO Meta
-function infohas_meta_tags() {
-  echo '<meta name="description" content="Aviation recruitment and training in Morocco. Cabin crew, pilot, and ground staff programs.">';
-}
-add_action('wp_head', 'infohas_meta_tags');
-\`\`\`
-
-=== DEPLOYMENT CHECKLIST ===
-1. Upload theme to wp-content/themes/infohas-aviation-pro/
-2. Activate via WordPress Admin > Appearance > Themes
-3. Install ACF Pro plugin
-4. Create pages: Home (front-page.php), Careers (page-careers.php), Training (page-training.php), Partners (page-partners.php)
-5. Add courses via Courses CPT
-6. Configure sticky CTA link in Customizer`;
-  }
-
-  // Generic fallback
-  return `I am unable to process this request through Gemini CLI at the moment. Here is my best analysis based on available context:
-
-Your request involves: ${prompt.slice(0, 200)}...
-
-To complete this task:
-1. Check your Gemini CLI installation with: gemini --version
-2. Try a simpler query to test connectivity
-3. If using API providers, verify your API key in Settings > Providers
-4. The Browser tab can help analyze websites for context
-
-The Agentic OS Brain is still active and all other layers are operational.`;
-}
-
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { action, message, model } = body;
@@ -643,37 +382,119 @@ export async function POST(req: NextRequest) {
 
     case 'chat': {
       const startTime = Date.now();
-      const truncatedMsg = (message || '').slice(0, 2000); // Avoid shell command length limits
-      const escaped = truncatedMsg.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-      const effectiveModel = model || 'gemini-2.5-flash-lite';
 
-      // Model chain: try primary, then fallbacks
-      const modelChain = [effectiveModel];
-      if (effectiveModel !== 'gemini-2.5-flash-lite') modelChain.push('gemini-2.5-flash-lite');
-      if (!modelChain.includes('gemini-2.5-flash')) modelChain.push('gemini-2.5-flash');
+      // Strategy 1: Try real Gemini CLI server (try all ports)
+      for (const port of GEMINI_CLI_PORTS) {
+        const res = await geminiRequest('/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({ message, model: model || 'gemini-2.5-pro' }),
+        }, port);
 
-      for (const tryModel of modelChain) {
-        try {
-          const cmd = IS_WIN ? `gemini -p "${escaped}" -m ${tryModel} -o json` : `gemini -p "${escaped}" -m ${tryModel} -o json`;
-          const { stdout } = await execAsync(cmd, { timeout: 90000, shell: true });
-          if (stdout?.trim()) {
-            const latency = Date.now() - startTime;
-            try { return NextResponse.json({ ...JSON.parse(stdout), via: 'gemini-cli', latency, model: tryModel }); }
-            catch { return NextResponse.json({ response: stdout.trim(), model: tryModel, latency, via: 'gemini-cli' }); }
-          }
-        } catch (e: any) {
-          if (e?.killed || e?.code === 'ETIMEDOUT') continue; // Try next model
+        if (res?.ok) {
+          const data = await res.json();
+          return NextResponse.json({ ...data, via: 'gemini-cli-server' });
         }
       }
 
-      // All CLI attempts failed — provide internal reasoning response
-      const fallbackResponse = generateFallbackResponse(message || '');
+      // Strategy 2: ZAI SDK — real AI response (primary when no Gemini CLI running)
+      try {
+        const zai = await getZAI();
+        const sdkMessages = [
+          { role: 'system' as const, content: GEMINI_SYSTEM_PROMPT },
+          { role: 'user' as const, content: message || '' },
+        ];
+
+        const completion = await zai.chat.completions.create({
+          messages: sdkMessages,
+        });
+
+        const responseText = completion.choices[0]?.message?.content ?? '';
+        const latency = Date.now() - startTime;
+
+        return NextResponse.json({
+          response: responseText,
+          model: model || 'gemini-2.5-pro',
+          tokensUsed: Math.floor((message?.length || 0) * 1.2) + Math.floor(responseText.length * 1.3),
+          latency,
+          sources: 0,
+          confidence: 0.88,
+          via: 'zai-sdk',
+        });
+      } catch (zaiError) {
+        console.error('[gemini/chat] ZAI SDK failed, trying CLI fallbacks:', zaiError);
+      }
+
+      // Strategy 3: Try CLI binary directly (cross-platform shell option)
+      try {
+        const binCmd = IS_WIN ? 'gemini.cmd' : 'gemini';
+        const { stdout } = await execFileAsync(binCmd, [
+          'chat',
+          '--model', model || 'gemini-2.5-pro',
+          '--message', message,
+          '--format', 'json',
+        ], { timeout: 30000, ...(IS_WIN ? { shell: true } : {}) });
+
+        if (stdout.trim()) {
+          const latency = Date.now() - startTime;
+          try {
+            const data = JSON.parse(stdout);
+            return NextResponse.json({ ...data, via: 'gemini-cli', latency });
+          } catch {
+            return NextResponse.json({
+              response: stdout.trim(),
+              model: model || 'gemini-2.5-pro',
+              tokensUsed: Math.floor((message?.length || 0) * 1.2),
+              latency,
+              via: 'gemini-cli',
+            });
+          }
+        }
+      } catch {
+        // CLI not available or failed
+      }
+
+      // Strategy 4: Platform-specific fallbacks
+      if (!IS_WIN) {
+        // Unix: Try WSL binary
+        const safeMsg = (message || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+        const wslStrategies = [
+          ['--', 'bash', '-lc', `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/usr/local/bin:$PATH" && gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['-e', 'bash', '-l', '-c', `gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+          ['--', 'bash', '-lc', `source ~/.bashrc 2>/dev/null; gemini chat --model ${model || 'gemini-2.5-pro'} --message "${safeMsg}" --format json 2>/dev/null`],
+        ];
+
+        for (const args of wslStrategies) {
+          try {
+            const { stdout } = await execFileAsync('wsl.exe', args, { timeout: 30000 });
+            if (stdout.trim()) {
+              const latency = Date.now() - startTime;
+              try {
+                const data = JSON.parse(stdout);
+                return NextResponse.json({ ...data, via: 'wsl', latency });
+              } catch {
+                return NextResponse.json({
+                  response: stdout.trim(),
+                  model: model || 'gemini-2.5-pro',
+                  tokensUsed: Math.floor((message?.length || 0) * 1.2),
+                  latency,
+                  via: 'wsl',
+                });
+              }
+            }
+          } catch {
+            // try next strategy
+          }
+        }
+      } // end if (!IS_WIN)
+
+      // All strategies failed — return honest error, not fake response
       return NextResponse.json({
-        response: fallbackResponse,
-        model: effectiveModel,
+        response: 'I\'m unable to connect to any AI provider right now. Please check that at least one provider is configured and enabled in Settings > Providers, or ensure the Gemini CLI is running. You can also verify your API keys are valid.',
+        model: model || 'gemini-2.5-pro',
+        tokensUsed: 0,
         latency: Date.now() - startTime,
-        via: 'internal-fallback',
-        cliFailed: true,
+        error: true,
+        via: 'none',
       });
     }
 
