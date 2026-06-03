@@ -21,7 +21,7 @@ function detectProvider(apiKey: string, providerName?: string): string | null {
   if (providerName) {
     const normalized = providerName.toLowerCase().replace(/[^a-z0-9]/g, '');
     for (const key of Object.keys(PROVIDERS)) {
-      if (normalized.includes(key)) return key;
+      if (normalized.includes(key) || key.includes(normalized)) return key;
     }
   }
   if (apiKey) {
