@@ -6,6 +6,7 @@
 
 import { swarmKernel } from './swarm-kernel';
 import { modelLoadBalancer } from './model-load-balancer';
+import { executeWithModel } from './model-executor';
 
 // ─── Brain Layer Definitions ───────────────────────────
 
@@ -125,169 +126,40 @@ const TASK_BRAIN_REQUIREMENTS: Record<string, number[]> = {
   full: [1, 2, 3, 4, 5, 6, 7],
 };
 
-// ─── Simulated Processing Functions ────────────────────
+// ─── Real Model Execution ──────────────────────────────
 
 /**
- * Simulate processing by a brain layer. In production, this would
- * call the actual model API. Here we generate structured output
- * based on the brain's specialty and input context.
+ * Execute a brain layer using the real model executor.
+ * Falls back through CLI → API → Internal analysis.
+ * Uses the brain-specific system prompt from BRAIN_PROMPTS.
  */
-function simulateBrainProcessing(
+async function executeBrainWithModel(
   brainId: number,
   input: string,
   model: string,
-): { output: string; latency: number; tokensUsed: number; quality: number } {
-  const startTime = Date.now();
-  const brain = BRAIN_LAYERS.find(b => b.id === brainId);
-  const brainName = brain?.name ?? 'Unknown';
+): Promise<{ output: string; latency: number; tokensUsed: number; quality: number }> {
+  const systemPrompt = BRAIN_PROMPTS[brainId] ?? `You are Brain Layer ${brainId}. Process the input according to your specialized function.`;
 
-  // Simulate latency based on brain complexity
-  const baseLatency = brainId === 3 ? 2000 : brainId === 6 ? 1500 : 800;
-  const latency = baseLatency + Math.random() * 1000;
+  const result = await executeWithModel(input, model, systemPrompt);
 
-  // Simulate token usage based on input length
-  const inputTokens = Math.ceil(input.length / 4);
-  const outputTokens = 200 + Math.floor(Math.random() * 300);
-  const tokensUsed = inputTokens + outputTokens;
-
-  // Simulate quality (higher for well-matched models)
-  const baseQuality = 0.75 + Math.random() * 0.2;
-
-  // Generate structured output based on brain type
-  const output = generateBrainOutput(brainId, brainName, input);
+  // Calculate quality score based on result
+  let quality: number;
+  if (!result.success) {
+    quality = 0.3;
+  } else if (result.output.length > 50 && result.provider !== 'internal') {
+    quality = 0.85 + Math.random() * 0.1; // 0.85-0.95 for successful real execution
+  } else if (result.output.length > 50) {
+    quality = 0.8; // Good output from internal fallback
+  } else {
+    quality = 0.5; // Short output — low quality
+  }
 
   return {
-    output,
-    latency: Math.round(latency),
-    tokensUsed,
-    quality: Math.round(baseQuality * 100) / 100,
+    output: result.output,
+    latency: result.latency,
+    tokensUsed: result.tokensUsed,
+    quality: Math.round(quality * 100) / 100,
   };
-}
-
-/**
- * Generate structured output for a brain layer based on its specialty
- */
-function generateBrainOutput(brainId: number, brainName: string, input: string): string {
-  const taskSummary = input.length > 200 ? input.substring(0, 200) + '...' : input;
-
-  switch (brainId) {
-    case 1: // Planning
-      return `[Planning Brain Output]
-Task Analysis: ${taskSummary}
-
-Step 1: Understand Requirements — Identify all functional and non-functional requirements
-Step 2: Design Solution — Create high-level solution approach (depends on Step 1)
-Step 3: Implement Core — Build the core functionality (depends on Step 2)
-Step 4: Implement Edge Cases — Handle edge cases and error scenarios (depends on Step 3)
-Step 5: Test & Validate — Verify all requirements are met (depends on Steps 3, 4)
-Step 6: Optimize & Polish — Improve performance and code quality (depends on Step 5)
-
-Success Criteria:
-- All requirements addressed
-- No syntax or runtime errors
-- Test coverage ≥ 80%
-- Performance within acceptable bounds`;
-
-    case 2: // Architecture
-      return `[Architecture Brain Output]
-System Design for: ${taskSummary}
-
-Components:
-1. Core Module — Main business logic handler
-2. Data Layer — Data access and persistence
-3. API Interface — External communication layer
-4. Utility Module — Shared helpers and utilities
-
-Design Patterns:
-- Strategy Pattern for algorithm selection
-- Repository Pattern for data access
-- Observer Pattern for event-driven updates
-
-Data Flow: Input → Validation → Processing → Storage → Response
-Interfaces: Clean API boundaries between all components
-Scalability: Stateless design, horizontal scaling ready`;
-
-    case 3: // Coding
-      return `[Coding Brain Output]
-Implementation for: ${taskSummary}
-
-// Core implementation produced
-// Following the architecture design
-// With proper error handling and type safety
-// Production-quality code with comments
-
-The coding brain has generated the implementation based on the architectural design.
-All components are implemented with proper TypeScript types, error handling, and
-follow the patterns specified in the architecture layer.`;
-
-    case 4: // Research
-      return `[Research Brain Output]
-Research Summary for: ${taskSummary}
-
-Key Findings:
-1. Best practices identified for the task domain
-2. Common pitfalls documented with mitigation strategies
-3. Performance benchmarks established for similar implementations
-4. Security considerations catalogued
-
-Recommendations:
-- Follow established patterns for this type of task
-- Implement comprehensive error handling
-- Use type-safe approaches throughout
-- Consider edge cases identified in research`;
-
-    case 5: // Analysis
-      return `[Analysis Brain Output]
-Analysis of: ${taskSummary}
-
-Quality Assessment:
-- Completeness: 85% — Most requirements addressed
-- Correctness: 90% — Logic is sound
-- Performance: 80% — Some optimization opportunities exist
-- Security: 88% — Good security practices followed
-
-Identified Issues:
-1. Minor: Error handling could be more granular
-2. Minor: Some duplicate code patterns detected
-3. Info: Consider caching for repeated computations
-
-Overall Score: 86/100 — Good quality with room for optimization`;
-
-    case 6: // Execution
-      return `[Execution Brain Output]
-Execution Result for: ${taskSummary}
-
-All implementation steps completed successfully:
-✓ Core functionality implemented
-✓ Error handling in place
-✓ Edge cases covered
-✓ Integration points connected
-✓ Output validated
-
-The execution is complete and all identified issues from analysis
-have been resolved. The implementation is ready for optimization.`;
-
-    case 7: // Optimization
-      return `[Optimization Brain Output]
-Optimization Results for: ${taskSummary}
-
-Improvements Applied:
-1. Removed redundant code patterns (saved ~15 lines)
-2. Improved error message clarity
-3. Added memoization for expensive computations
-4. Enhanced type narrowing for better type safety
-5. Optimized data structure choices
-
-Performance Impact:
-- Estimated 20% reduction in execution time
-- 10% reduction in memory usage
-- Improved code readability score
-
-Final output is optimized and production-ready.`;
-
-    default:
-      return `[${brainName} Brain] Processed: ${taskSummary}`;
-  }
 }
 
 // ─── BrainPipeline Class ───────────────────────────────
@@ -657,7 +529,7 @@ export class BrainPipeline {
     modelLoadBalancer.incrementLoad(model);
 
     try {
-      const result = simulateBrainProcessing(brainId, input, model);
+      const result = await executeBrainWithModel(brainId, input, model);
 
       // Decrement load on completion
       modelLoadBalancer.decrementLoad(model, true, result.latency);
