@@ -436,10 +436,8 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
           });
         }
       }
-    } catch {
-      const errMsg = isRunning
-        ? 'Failed to reach Gemini CLI. Check your connection.'
-        : 'Gemini CLI is not running. The built-in AI SDK will provide responses, or connect Gemini CLI for direct access.';
+    } catch (err: any) {
+      const errMsg = `Chat failed: ${err?.message || 'Unknown error'}. Try refreshing or check Settings > Providers.`;
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-e-${Date.now()}`,
         role: 'system',
