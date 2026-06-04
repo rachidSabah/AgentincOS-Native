@@ -398,7 +398,7 @@ export const useUpdateStore = create<UpdateState>()(
 
         } catch (error) {
           console.error('Install update failed:', error);
-          // Mark as failed
+          // Mark as failed — auto-clear after 30 seconds so the user can retry
           set((prev) => ({
             availableUpdates: prev.availableUpdates.map(u =>
               u.id === id ? { ...u, status: 'failed' as UpdateStatus, progress: 0 } : u
@@ -406,6 +406,14 @@ export const useUpdateStore = create<UpdateState>()(
             isInstalling: false,
             installProgress: { ...prev.installProgress, [id]: 0 },
           }));
+          // Auto-clear failed status after 30 seconds so the user can retry
+          setTimeout(() => {
+            set((prev) => ({
+              availableUpdates: prev.availableUpdates.map(u =>
+                u.id === id ? { ...u, status: 'available' as UpdateStatus, progress: undefined } : u
+              ),
+            }));
+          }, 30000);
         }
       },
 
@@ -691,6 +699,7 @@ export const useUpdateStore = create<UpdateState>()(
         } catch (error) {
           console.error('Failed to install from commit:', error);
           set({ isInstalling: false });
+          // Don't add a failed entry — just log the error so the user can retry
         }
       },
 
@@ -728,7 +737,11 @@ export const useUpdateStore = create<UpdateState>()(
       // Signal hydration completion so auto-check waits for it
       onRehydrateStorage: () => {
         return (_state, error) => {
-          if (!error && _state) {
+          if (error) {
+            console.warn('[update-store] Rehydration failed, clearing corrupted data:', error);
+            try { localStorage.removeItem('agentic-os-update-store'); } catch {}
+          }
+          if (_state) {
             _state.setHasHydrated(true);
           }
         };
@@ -754,20 +767,30 @@ export const useUpdateStore = create<UpdateState>()(
         const hasPersistedInstalled = persisted.installedUpdates && persisted.installedUpdates.length > 0;
         const hasPersistedAvailable = persisted.availableUpdates && persisted.availableUpdates.length > 0;
 
+        // Clean up: filter out any FAILED entries from installedUpdates (they shouldn't be there)
+        // and auto-reset failed availableUpdates back to 'available' so users can retry
+        let cleanedInstalled = hasPersistedInstalled ? (persisted.installedUpdates as UpdateEntry[]) : currentState.installedUpdates;
+        cleanedInstalled = cleanedInstalled.filter(u => u.status !== 'failed');
+
+        let cleanedAvailable = hasPersistedAvailable ? (persisted.availableUpdates as UpdateEntry[]) : currentState.availableUpdates;
+        cleanedAvailable = cleanedAvailable.map(u =>
+          u.status === 'failed' ? { ...u, status: 'available' as UpdateStatus, progress: undefined } : u
+        );
+
         // Build knownCommitHashes from persisted data if not directly stored
         // This handles migration from older versions that didn't have knownCommitHashes
         const persistedHashes = persisted.knownCommitHashes || [];
-        const installedHashes = (persisted.installedUpdates || []).map((u: UpdateEntry) => u.commitHash).filter(Boolean);
-        const availableHashes = (persisted.availableUpdates || []).map((u: UpdateEntry) => u.commitHash).filter(Boolean);
+        const installedHashes = cleanedInstalled.map((u: UpdateEntry) => u.commitHash).filter(Boolean);
+        const availableHashes = cleanedAvailable.map((u: UpdateEntry) => u.commitHash).filter(Boolean);
         const allKnownHashes = [...new Set([...persistedHashes, ...installedHashes, ...availableHashes])];
 
         return {
           ...currentState,
           _hasHydrated: false, // Will be set to true by onRehydrateStorage callback
-          // Persisted installed updates take priority over seed data
-          installedUpdates: hasPersistedInstalled ? persisted.installedUpdates! : currentState.installedUpdates,
-          // Persisted available updates take priority over defaults
-          availableUpdates: hasPersistedAvailable ? persisted.availableUpdates! : currentState.availableUpdates,
+          // Cleaned persisted installed updates take priority over seed data
+          installedUpdates: cleanedInstalled,
+          // Cleaned persisted available updates take priority over defaults
+          availableUpdates: cleanedAvailable,
           currentVersion: (persisted.currentVersion || currentState.currentVersion).split('-')[0],
           updateSettings: persisted.updateSettings || currentState.updateSettings,
           lastChecked: persisted.lastChecked || 0,

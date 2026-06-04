@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
-    "start": "npx next start -p 3100",
+    "start": "next start -p 3100",
     "stop": "node scripts/stop.js",
     "restart": "npm run stop && node scripts/sleep.js && npm run start",
     "lint": "eslint .",
     "test": "echo \"No tests configured yet. Install vitest: bun add -d vitest @testing-library/react\" && exit 0",
     "test:watch": "echo \"No tests configured yet\" && exit 0",
+    "postinstall": "npx prisma generate || true",
     "install-agentic": "node scripts/install.js",
     "uninstall-agentic": "node scripts/uninstall.js"
   },

@@ -1694,6 +1694,11 @@ export const useOSStore = create<OSState>()(
         if (error) {
           console.warn('[store] Rehydration failed, clearing corrupted data:', error);
           try { localStorage.removeItem('agentic-os-store'); } catch {}
+          // CRITICAL: Force hydration even on error so the app doesn't stay stuck
+          if (state) {
+            state._hasHydrated = true;
+          }
+          return;
         }
         if (state) {
           state._hasHydrated = true;

@@ -102,20 +102,45 @@ class ViewErrorBoundary extends Component<{ children: React.ReactNode }, ViewErr
 function HydrationGuard({ children }: { children: React.ReactNode }) {
   const hydrated = useHydration();
   useEffect(() => {
-    // Trigger rehydration on mount
-    useOSStore.persist.rehydrate();
-    // Safety timeout: force hydration after 5 seconds to prevent
-    // the app from being stuck on "Initializing system..." forever
+    // Try to trigger rehydration
+    try {
+      useOSStore.persist.rehydrate();
+    } catch (e) {
+      console.warn('[HydrationGuard] Rehydration threw, clearing corrupted store data:', e);
+      try { localStorage.removeItem('agentic-os-store'); } catch {}
+      useOSStore.getState().setHasHydrated(true);
+      return;
+    }
+
+    // Safety timeout: force hydration after 3 seconds to prevent
+    // the app from being stuck on "Initializing system..." forever.
     // This can happen if localStorage has corrupted/incompatible data
+    // or the onRehydrateStorage callback never fires.
     const timer = setTimeout(() => {
       const store = useOSStore.getState();
       if (!store._hasHydrated) {
-        console.warn('[HydrationGuard] Forcing hydration after timeout — localStorage data may be corrupted');
+        console.warn('[HydrationGuard] Forcing hydration after 3s timeout — localStorage data may be corrupted');
+        // Clear potentially corrupted localStorage data for both stores
+        try { localStorage.removeItem('agentic-os-store'); } catch {}
+        try { localStorage.removeItem('agentic-os-update-store'); } catch {}
         store.setHasHydrated(true);
       }
-    }, 5000);
+    }, 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Also handle the update store hydration
+  useEffect(() => {
+    try {
+      const { useUpdateStore } = require('@/lib/update-store');
+      if (useUpdateStore && useUpdateStore.persist) {
+        useUpdateStore.persist.rehydrate();
+      }
+    } catch {
+      // Update store not available or already hydrated
+    }
+  }, []);
+
   if (!hydrated) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#0a0a1a]">
@@ -125,6 +150,16 @@ function HydrationGuard({ children }: { children: React.ReactNode }) {
           </div>
           <div className="text-white font-bold text-sm tracking-wider">AGENTIC OS</div>
           <div className="text-[#8888aa] text-xs mt-2">Initializing system...</div>
+          <button
+            onClick={() => {
+              try { localStorage.removeItem('agentic-os-store'); } catch {}
+              try { localStorage.removeItem('agentic-os-update-store'); } catch {}
+              useOSStore.getState().setHasHydrated(true);
+            }}
+            className="mt-4 px-3 py-1.5 rounded-lg border border-[rgba(157,78,221,0.3)] text-[#9d4edd] text-[10px] hover:bg-[rgba(157,78,221,0.1)] transition-colors"
+          >
+            Skip &amp; Reset Data
+          </button>
         </div>
       </div>
     );
