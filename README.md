@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-cyan?style=for-the-badge&labelColor=0a0a1a" alt="version" />
+  <img src="https://img.shields.io/badge/version-5.0.2-cyan?style=for-the-badge&labelColor=0a0a1a" alt="version" />
   <img src="https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&labelColor=0a0a1a" alt="nextjs" />
   <img src="https://img.shields.io/badge/AI_Memory_OS-Premium-purple?style=for-the-badge&labelColor=0a0a1a" alt="memory-os" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge&labelColor=0a0a1a" alt="license" />
@@ -37,18 +37,47 @@ curl -fsSL https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/install
 
 ### Windows (PowerShell)
 
+> **Note:** The `iex (irm ...)` pattern is blocked by Windows Defender (AMSI). Use the download-then-run method below instead.
+
 ```powershell
-iex (irm https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/install.ps1)
+# Step 1: Download the installer
+cd $env:USERPROFILE
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/install.ps1" -OutFile "install-agentic.ps1"
+
+# Step 2: Run it
+powershell -ExecutionPolicy Bypass -File ".\install-agentic.ps1"
 ```
+
+**Or the simplest method — just clone and run:**
+```powershell
+cd $env:USERPROFILE
+git clone https://github.com/rachidSabah/Agentic-os.git
+cd Agentic-os
+npm install
+npm run build
+npm start
+```
+Then open **http://localhost:3100** in your browser.
 
 ### After Install
 
 ```bash
-agentic-os dev      # Start development mode on http://localhost:3000
-agentic-os prod     # Start production mode
-agentic-os update   # Pull latest updates from GitHub and rebuild
-agentic-os stop     # Stop the running server
-agentic-os build    # Rebuild the application
+# Navigate to your installation
+cd $env:USERPROFILE\Agentic-os    # Windows
+cd ~/Agentic-os                    # Linux/macOS
+
+# Start the server
+npm start              # Production mode on http://localhost:3100
+npm run dev            # Development mode with hot reload
+
+# Update to latest version
+npm run update         # Pull latest from GitHub and rebuild
+
+# Stop the server
+npm run stop
+
+# Rebuild
+npm run build
 ```
 
 ---
@@ -64,8 +93,12 @@ curl -fsSL https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/uninsta
 ### Windows (PowerShell)
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/uninstall.ps1)
+cd $env:USERPROFILE
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/uninstall.ps1" -OutFile "uninstall-agentic.ps1"
+powershell -ExecutionPolicy Bypass -File ".\uninstall-agentic.ps1"
 ```
+
+**Or just delete the folder:** `Remove-Item -Recurse -Force "$env:USERPROFILE\Agentic-os"`
 
 ---
 
@@ -259,7 +292,7 @@ npm run dev
 npm run start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3100](http://localhost:3100) in your browser.
 
 ---
 
@@ -294,7 +327,8 @@ curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scri
 
 **Windows (PowerShell):**
 ```powershell
-iex (irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1)
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1" -OutFile "install-hermes.ps1"
+powershell -ExecutionPolicy Bypass -File ".\install-hermes.ps1"
 ```
 
 Once Hermes is running, Agentic OS will:
@@ -311,9 +345,10 @@ Once Hermes is running, Agentic OS will:
 ```
 Agentic-os/
 ├── install.sh              # One-command install (Linux/macOS/WSL)
-├── install.ps1             # One-command install (Windows)
+├── install.ps1             # Windows installer (download-then-run)
+├── update.ps1              # Windows updater (download-then-run)
 ├── uninstall.sh            # One-command uninstall (Linux/macOS/WSL)
-├── uninstall.ps1           # One-command uninstall (Windows)
+├── uninstall.ps1           # Windows uninstaller (download-then-run)
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx        # Main entry — Mission Control
