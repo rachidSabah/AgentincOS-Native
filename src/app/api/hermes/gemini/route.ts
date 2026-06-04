@@ -964,7 +964,7 @@ async function callGeminiAPI(prompt: string, model: string): Promise<{ success: 
         contents: [{ parts: [{ text: `${TASK_EXECUTION_SYSTEM_PROMPT}\n\nUser: ${prompt}` }] }],
         generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(15000), // 15s max — never block
     });
 
     if (!res.ok) {
@@ -1095,7 +1095,7 @@ export async function POST(req: NextRequest) {
             : `gemini -p "${safePrompt}" -m ${tryModel} -o json`;
 
           const execOpts: { timeout: number; shell: string; windowsHide?: boolean } = {
-            timeout: 90000,
+            timeout: 5000, // 5s max — NEVER block the event loop
             shell: IS_WIN ? 'cmd.exe' : '/bin/sh',
             ...(IS_WIN ? { windowsHide: true } : {}),
           };
