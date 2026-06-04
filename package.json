@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
-    "start": "node .next/standalone/server.js",
+    "start": "npx next start -p 3100",
     "stop": "node scripts/stop.js",
     "restart": "npm run stop && node scripts/sleep.js && npm run start",
     "lint": "eslint .",

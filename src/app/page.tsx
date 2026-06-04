@@ -104,6 +104,17 @@ function HydrationGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Trigger rehydration on mount
     useOSStore.persist.rehydrate();
+    // Safety timeout: force hydration after 5 seconds to prevent
+    // the app from being stuck on "Initializing system..." forever
+    // This can happen if localStorage has corrupted/incompatible data
+    const timer = setTimeout(() => {
+      const store = useOSStore.getState();
+      if (!store._hasHydrated) {
+        console.warn('[HydrationGuard] Forcing hydration after timeout — localStorage data may be corrupted');
+        store.setHasHydrated(true);
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
   }, []);
   if (!hydrated) {
     return (

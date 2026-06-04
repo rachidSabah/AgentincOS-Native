@@ -1690,7 +1690,11 @@ export const useOSStore = create<OSState>()(
         swarmScore: state.swarmScore,
         swarmTier: state.swarmTier,
       }),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.warn('[store] Rehydration failed, clearing corrupted data:', error);
+          try { localStorage.removeItem('agentic-os-store'); } catch {}
+        }
         if (state) {
           state._hasHydrated = true;
         }
