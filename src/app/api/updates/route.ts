@@ -237,6 +237,7 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
   // Process recent commits as incremental updates for ALL channels
   if (commits && commits.length > 0) {
     const commitUpdates: UpdateEntry[] = [];
+    const baseVersion = currentVersion.split('-')[0];
     for (const commit of commits) {
       const message = commit.commit.message.split('\n')[0];
       const type = parseUpdateType(message);
@@ -251,8 +252,8 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
         commitUpdates.push({
           id: `commit-${shortSha}`,
           version: channel === 'stable'
-            ? `${currentVersion}-patch.${shortSha}`
-            : `${currentVersion}-dev.${shortSha}`,
+            ? `${baseVersion}-patch.${shortSha}`
+            : `${baseVersion}-dev.${shortSha}`,
           title: message.length > 60 ? message.substring(0, 57) + '...' : message,
           description: message,
           type,
@@ -327,7 +328,7 @@ export async function GET(request: NextRequest) {
 
         if (testRes.status === 403 || testRes.status === 429) {
           rateLimited = rateLimitRemaining === 0 || testRes.headers.get('x-ratelimit-remaining') === '0';
-          githubReachable = !rateLimited; // 403 from rate limit means GitHub is reachable but throttled
+          githubReachable = true; // 403/429 means GitHub IS reachable, just throttled!
         } else {
           githubReachable = testRes.status === 200 || testRes.status === 301;
         }
