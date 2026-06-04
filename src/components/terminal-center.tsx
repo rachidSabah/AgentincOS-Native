@@ -197,7 +197,10 @@ function TerminalInstance({ tab, onUpdateTab, showAIPanel, safeExecute, contextA
   isPlanning: boolean;
   setIsPlanning: (v: boolean) => void;
 }) {
-  const { addLog } = useOSStore();
+  const { addLog, providers } = useOSStore();
+  const geminiProvider = providers.find((p: any) => p.id?.includes('gemini') && p.enabled && p.apiKey);
+  const anyProvider = providers.find((p: any) => p.enabled && p.apiKey);
+  const chatApiKey = geminiProvider?.apiKey || anyProvider?.apiKey || '';
   const [command, setCommand] = useState('');
   const [historyIdx, setHistoryIdx] = useState(-1);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -351,7 +354,7 @@ function TerminalInstance({ tab, onUpdateTab, showAIPanel, safeExecute, contextA
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `Explain this terminal command in detail, including what each flag/argument does: ${command}` }),
+        body: JSON.stringify({ action: 'chat', message: `Explain this terminal command in detail, including what each flag/argument does: ${command}`, apiKey: chatApiKey }),
       });
       const data = await res.json();
       const resultLine: TerminalLine = {
@@ -386,7 +389,7 @@ function TerminalInstance({ tab, onUpdateTab, showAIPanel, safeExecute, contextA
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `Generate a ${tab.shell} command for: ${description}. Only output the command, nothing else.` }),
+        body: JSON.stringify({ action: 'chat', message: `Generate a ${tab.shell} command for: ${description}. Only output the command, nothing else.`, apiKey: chatApiKey }),
       });
       const data = await res.json();
       const generated = data.response?.trim() || '';
@@ -428,7 +431,7 @@ function TerminalInstance({ tab, onUpdateTab, showAIPanel, safeExecute, contextA
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `I got this error in my ${tab.shell} terminal. Suggest how to fix it:\n\n${lastError.text}` }),
+        body: JSON.stringify({ action: 'chat', message: `I got this error in my ${tab.shell} terminal. Suggest how to fix it:\n\n${lastError.text}`, apiKey: chatApiKey }),
       });
       const data = await res.json();
       const fixLine: TerminalLine = {
@@ -463,7 +466,7 @@ function TerminalInstance({ tab, onUpdateTab, showAIPanel, safeExecute, contextA
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `Analyze this command for potential security risks, dangerous operations, or unintended side effects: ${command}` }),
+        body: JSON.stringify({ action: 'chat', message: `Analyze this command for potential security risks, dangerous operations, or unintended side effects: ${command}`, apiKey: chatApiKey }),
       });
       const data = await res.json();
       const secLine: TerminalLine = {

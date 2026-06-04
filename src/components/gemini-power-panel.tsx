@@ -503,7 +503,10 @@ function GeminiCapabilitiesTab() {
 
 /* ─── Chat Tab ─── */
 function GeminiChatTab({ selectedModel, isRunning }: { selectedModel: string; isRunning: boolean }) {
-  const { addChatMessage, chatHistories, incrementTokens, addLog, chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments } = useOSStore();
+  const { addChatMessage, chatHistories, incrementTokens, addLog, chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments, providers } = useOSStore();
+  const geminiProvider = providers.find((p: any) => p.id?.includes('gemini') && p.enabled && p.apiKey);
+  const anyProvider = providers.find((p: any) => p.enabled && p.apiKey);
+  const chatApiKey = geminiProvider?.apiKey || anyProvider?.apiKey || '';
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messages = chatHistories['gemini'] || [];
@@ -561,7 +564,7 @@ function GeminiChatTab({ selectedModel, isRunning }: { selectedModel: string; is
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: input, model: selectedModel }),
+        body: JSON.stringify({ action: 'chat', message: input, model: selectedModel, apiKey: chatApiKey }),
       });
 
       if (!res.ok) {

@@ -135,7 +135,11 @@ export function LiveWorkspace() {
     addMemory, addLog, incrementTokens,
     sseConnectionStatus, hermesSkills, addSkillExecution, addKanbanTask,
     chatAttachments, addChatAttachment, removeChatAttachment, clearChatAttachments,
+    providers,
   } = useOSStore();
+  const geminiProvider = providers.find((p: any) => p.id?.includes('gemini') && p.enabled && p.apiKey);
+  const anyProvider = providers.find((p: any) => p.enabled && p.apiKey);
+  const chatApiKey = geminiProvider?.apiKey || anyProvider?.apiKey || '';
   const layers = stackLayers ?? [];
 
   const agentId = selectedAgentId || 'hermes';
@@ -319,7 +323,7 @@ export function LiveWorkspace() {
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: userMsg, model: 'gemini-2.5-pro' }),
+        body: JSON.stringify({ action: 'chat', message: userMsg, model: 'gemini-2.5-pro', apiKey: chatApiKey }),
       });
 
       if (!res.ok) {

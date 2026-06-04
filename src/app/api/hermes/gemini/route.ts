@@ -180,10 +180,16 @@ async function geminiRequest(path: string, options?: RequestInit, port = 3001) {
 
 // Try to detect a running Gemini CLI server on multiple ports
 async function findGeminiServer(): Promise<{ port: number; res: Response } | null> {
-  for (const port of GEMINI_CLI_PORTS) {
-    const res = await geminiRequest('/api/health', undefined, port);
-    if (res?.ok) {
-      return { port, res };
+  // Probe all ports in parallel for speed (was sequential, could take 12s worst case)
+  const results = await Promise.allSettled(
+    GEMINI_CLI_PORTS.map(async (port) => {
+      const res = await geminiRequest('/api/health', undefined, port);
+      return res?.ok ? { port, res } : null;
+    })
+  );
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value;
     }
   }
   return null;
@@ -850,7 +856,7 @@ if(function_exists('acf_add_local_field_group')) {
       ['key' => 'field_hero_cta_text', 'label' => 'CTA Button Text', 'name' => 'hero_cta_text', 'type' => 'text'],
       ['key' => 'field_hero_cta_url', 'label' => 'CTA Button URL', 'name' => 'hero_cta_url', 'type' => 'url'],
     ],
-    'location' => [['param' => 'page_template', 'operator' == '==', 'value' => 'front-page.php']],
+    'location' => [['param' => 'page_template', 'operator' => '==', 'value' => 'front-page.php']],
   ]);
 }
 
@@ -881,9 +887,9 @@ function generateSiteAnalysisFromUrl(url: string): string {
   let siteType = 'professional website';
   let region = '';
 
-  if (tld === '.ma') { region = 'Morocco'; siteType = 'Moroccan business website'; }
-  else if (tld === '.com') { region = 'Global'; }
-  else if (tld === '.fr') { region = 'France'; }
+  if (tld === 'ma') { region = 'Morocco'; siteType = 'Moroccan business website'; }
+  else if (tld === 'com') { region = 'Global'; }
+  else if (tld === 'fr') { region = 'France'; }
 
   if (domain.includes('aviation') || domain.includes('air') || domain.includes('flight') || domain.includes('infohas')) {
     siteType = 'aviation training and recruitment platform';
@@ -948,15 +954,15 @@ ${generateWordPressThemeFromScan(
 }
 
 // ─── Direct Gemini API REST Fallback (Tier 1.5) ───
-async function callGeminiAPI(prompt: string, model: string): Promise<{ success: boolean; response?: string; latency?: number; error?: string }> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
+async function callGeminiAPI(prompt: string, model: string, apiKey?: string): Promise<{ success: boolean; response?: string; latency?: number; error?: string }> {
+  const effectiveKey = apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!effectiveKey) {
     return { success: false, error: 'No GEMINI_API_KEY or GOOGLE_API_KEY configured' };
   }
 
   const startTime = Date.now();
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -991,7 +997,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-  const { action, message, model } = body;
+  const { action, message, model, apiKey: clientApiKey, provider: clientProvider } = body;
 
   switch (action) {
     case 'start': {
@@ -1039,10 +1045,9 @@ export async function POST(req: NextRequest) {
 
       const startTime = Date.now();
       const userMessage = message || '';
-      const effectiveModel = resolveModel(model || FALLBACK_MODEL);
-      const resolvedModel = resolveModel(effectiveModel);
+      const resolvedModel = resolveModel(model || FALLBACK_MODEL);
 
-      console.log(`[gemini/chat] Request: model=${resolvedModel}, msg_len=${userMessage.length}`);
+      console.log(`[gemini/chat] Request: model=${resolvedModel}, msg_len=${userMessage.length}, hasApiKey=${!!(clientApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)}`);
 
       // ── Step 0: Quick CLI availability check (skip full detection) ──
       let cliAvailable = false;
@@ -1136,7 +1141,9 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Step 1.5: Try Direct Gemini API REST (if key available) ──
-      const geminiApiResult = await callGeminiAPI(userMessage, resolvedModel);
+      // Use client-provided API key first, then env vars as fallback
+      const effectiveApiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      const geminiApiResult = await callGeminiAPI(userMessage, resolvedModel, effectiveApiKey);
       if (geminiApiResult.success && geminiApiResult.response) {
         const latency = Date.now() - startTime;
         console.log(`[gemini/chat] Gemini API REST succeeded, latency=${latency}ms`);
@@ -1164,16 +1171,17 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Step 3: Internal Analysis Engine (ALWAYS succeeds) ──
-      console.log(`[gemini/chat] All CLI models failed, using internal analysis (tier 3)`);
+      console.log(`[gemini/chat] All providers failed, using internal analysis (tier 3)`);
       const fallbackResponse = generateFallbackResponse(userMessage, webScanResult);
       return NextResponse.json({
         response: fallbackResponse,
-        model: effectiveModel,
+        model: resolvedModel,
         latency: Date.now() - startTime,
         via: webScanResult ? 'web-scan-internal' : 'internal-analysis',
         cliFailed: true,
         tier: 3,
         webScanned: !!webScanResult,
+        hint: !effectiveApiKey ? 'Configure a Gemini API key in Settings > Providers to enable AI responses.' : undefined,
       });
     }
 

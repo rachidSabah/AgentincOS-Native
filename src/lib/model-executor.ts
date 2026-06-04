@@ -204,10 +204,11 @@ async function executeViaApi(
   prompt: string,
   model: string,
   systemPrompt?: string,
+  apiKeyOverride?: string,
 ): Promise<ModelExecutionResult> {
   const startTime = Date.now();
   const resolvedModel = resolveModel(model);
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey = apiKeyOverride || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
   if (!apiKey) {
     return {
@@ -420,6 +421,7 @@ export class ModelExecutor {
     prompt: string,
     model: string = 'auto',
     systemPrompt?: string,
+    apiKeyOverride?: string,
   ): Promise<ModelExecutionResult> {
     const resolvedModel = resolveModel(model) || FALLBACK_MODEL;
 
@@ -445,7 +447,7 @@ export class ModelExecutor {
     if (resolvedModel !== FALLBACK_MODEL) apiModelChain.push(FALLBACK_MODEL);
 
     for (const tryModel of apiModelChain) {
-      const result = await executeViaApi(prompt, tryModel, systemPrompt);
+      const result = await executeViaApi(prompt, tryModel, systemPrompt, apiKeyOverride);
       this.logExecution(prompt, tryModel, 'api', result.success, result.latency);
       if (result.success) {
         return result;
@@ -524,6 +526,7 @@ export async function executeWithModel(
   prompt: string,
   model: string = 'auto',
   systemPrompt?: string,
+  apiKeyOverride?: string,
 ): Promise<ModelExecutionResult> {
-  return modelExecutor.execute(prompt, model, systemPrompt);
+  return modelExecutor.execute(prompt, model, systemPrompt, apiKeyOverride);
 }

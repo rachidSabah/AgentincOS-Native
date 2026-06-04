@@ -13,12 +13,16 @@ export async function POST(request: NextRequest) {
     let primaryResponse = '';
     let cliResponse = '';
 
+    // Find active provider first (needed for API key)
+    const activeProvider = providers?.find((p: any) => p.enabled && p.apiKey);
+    const apiKeyForCli = activeProvider?.apiKey || '';
+
     // 1. Call Gemini CLI chat API (always runs as co-pilot)
     try {
       const cliRes = await fetch(`http://localhost:${process.env.PORT || '3100'}/api/hermes/gemini`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `Plan and analyze: ${message.slice(0, 500)}`, model: selectedModel || 'gemini-2.5-flash-lite' }),
+        body: JSON.stringify({ action: 'chat', message: `Plan and analyze: ${message.slice(0, 500)}`, model: selectedModel || 'gemini-2.5-flash-lite', apiKey: apiKeyForCli }),
         signal: AbortSignal.timeout(30000),
       });
       if (cliRes.ok) {
@@ -31,7 +35,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Call primary provider if available
-    const activeProvider = providers?.find((p: any) => p.enabled && p.apiKey);
     if (activeProvider && activeProvider.apiKey) {
       try {
         const res = await fetch(`${activeProvider.apiEndpoint}/chat/completions`, {

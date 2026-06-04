@@ -203,8 +203,8 @@ export function GeminiCLIDashboard() {
             </h2>
             <div className="text-[10px] text-[#8888aa] flex items-center gap-2">
               {geminiCLI.version && <span>v{geminiCLI.version}</span>}
-              {geminiCLI.model && <span>Â· {geminiCLI.model}</span>}
-              {geminiCLI.sandboxEnabled && <span className="text-[#00ff88]">Â· Sandbox</span>}
+              {geminiCLI.model && <span>· {geminiCLI.model}</span>}
+              {geminiCLI.sandboxEnabled && <span className="text-[#00ff88]">· Sandbox</span>}
             </div>
           </div>
         </div>
@@ -423,16 +423,27 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
         } catch {}
       }
 
+      // Pass the active provider's API key to enable Gemini API REST fallback
+      const geminiProvider = providers.find((p: any) => p.id?.includes('gemini') && p.enabled && p.apiKey);
+      const anyProvider = providers.find((p: any) => p.enabled && p.apiKey);
+      const chatApiKey = geminiProvider?.apiKey || anyProvider?.apiKey || '';
+      const chatProviderName = geminiProvider?.name || anyProvider?.name || '';
+
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: enrichedContent, model }),
+        body: JSON.stringify({ action: 'chat', message: enrichedContent, model, apiKey: chatApiKey, provider: chatProviderName }),
       });
 
       if (!res.ok) throw new Error(`API error: ${res.status}`);
 
       const data = await res.json();
-      const agentContent = data.response || 'No response received.';
+      let agentContent = data.response || 'No response received.';
+
+      // Show hint if API key is missing and we got internal analysis
+      if (data.tier === 3 && data.hint) {
+        agentContent = `${agentContent}\n\n💡 **${data.hint}**`;
+      }
 
       addChatMessage('gemini-cli-dashboard', {
         id: `cli-chat-a-${Date.now()}`,
@@ -536,7 +547,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
           <div className="flex justify-start">
             <div className="bg-[rgba(18,18,42,0.6)] border border-[rgba(66,133,244,0.12)] rounded-xl p-3">
               {streamingText ? (
-                <div className="text-[11px] text-[#ccccdd] whitespace-pre-wrap">{streamingText}<span className="animate-pulse">â–Œ</span></div>
+                <div className="text-[11px] text-[#ccccdd] whitespace-pre-wrap">{streamingText}<span className="animate-pulse">|</span></div>
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1">
@@ -609,6 +620,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
    // CODE TAB
 // ------------------------------------------------------------
 function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
+  const { providers } = useOSStore();
   const [code, setCode] = useState('');
   const [output, setOutput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -640,10 +652,13 @@ function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
     };
 
     try {
+      const geminiProvider = providers.find((p: any) => p.id?.includes('gemini') && p.enabled && p.apiKey);
+      const anyProvider = providers.find((p: any) => p.enabled && p.apiKey);
+      const chatApiKey = geminiProvider?.apiKey || anyProvider?.apiKey || '';
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: prompts[action], model }),
+        body: JSON.stringify({ action: 'chat', message: prompts[action], model, apiKey: chatApiKey }),
       });
       const data = await res.json();
       setOutput(data.response || 'No output generated.');
@@ -835,8 +850,8 @@ function TerminalTab({ isRunning }: { isRunning: boolean }) {
         {output.length === 0 && (
           <div className="text-[#8888aa] text-[10px]">
             <div className="mb-1" style={{ color: CYBER_CYAN }}>Gemini CLI Terminal</div>
-            <div>Shell: {shellType} Â· Type commands and press Enter to execute</div>
-            <div className="mt-2 text-[#666688]">Tip: Use â†‘/â†“ to navigate command history</div>
+            <div>Shell: {shellType} · Type commands and press Enter to execute</div>
+            <div className="mt-2 text-[#666688]">Tip: Use ↑/↓ to navigate command history</div>
           </div>
         )}
         {output.map((line, i) => (
@@ -884,6 +899,7 @@ function TerminalTab({ isRunning }: { isRunning: boolean }) {
    // FILES TAB
 // ------------------------------------------------------------
 function FilesTab({ isRunning }: { isRunning: boolean }) {
+  const { providers } = useOSStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
@@ -943,10 +959,13 @@ function FilesTab({ isRunning }: { isRunning: boolean }) {
     if (!selectedFile) return;
     setFileContent('// Analyzing with Gemini...');
     try {
+      const geminiProvider = providers.find((p: any) => p.id?.includes('gemini') && p.enabled && p.apiKey);
+      const anyProvider = providers.find((p: any) => p.enabled && p.apiKey);
+      const chatApiKey = geminiProvider?.apiKey || anyProvider?.apiKey || '';
       const res = await fetch('/api/hermes/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', message: `Analyze the file ${selectedFile} and provide insights about its structure, purpose, and potential improvements.` }),
+        body: JSON.stringify({ action: 'chat', message: `Analyze the file ${selectedFile} and provide insights about its structure, purpose, and potential improvements.`, apiKey: chatApiKey }),
       });
       const data = await res.json();
       setFileContent(data.response || 'Analysis not available.');

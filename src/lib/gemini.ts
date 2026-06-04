@@ -402,9 +402,12 @@ export async function performGeminiHealthCheck(): Promise<GeminiHealthCheck> {
 export function resolveModelAlias(alias: string): string {
   const aliases: Record<string, string> = {
     'auto': 'gemini-2.5-flash-lite',
-    'pro': 'gemini-3-pro-preview',
+    'pro': 'gemini-2.5-pro',
     'flash': 'gemini-2.5-flash',
     'flash-lite': 'gemini-2.5-flash-lite',
+    'gemini-3-pro-preview': 'gemini-2.5-pro',
+    'gemini-3-flash-preview': 'gemini-2.5-flash',
+    'gemini-3.1-flash-lite': 'gemini-2.5-flash-lite',
   };
   return aliases[alias] || alias;
 }
