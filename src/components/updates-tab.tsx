@@ -239,7 +239,7 @@ function UpdateCard({ update, onInstall, onRollback, isInstalling, onInstallComm
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => onInstallCommit(update.commitHash, update.branch)}
+                  onClick={() => onInstallCommit(update.commitHash || '', update.branch || 'main')}
                   disabled={isInstalling}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200"
                   style={{
@@ -916,6 +916,9 @@ export function UpdatesTab() {
     installAllUpdates,
     rollbackUpdate,
     installFromCommit,
+    checkLocalStatus,
+    localBehind,
+    localBranch,
   } = useUpdateStore();
 
   const [activeTab, setActiveTab] = useState<'available' | 'installed'>('available');
@@ -934,7 +937,7 @@ export function UpdatesTab() {
   // Current time for formatLastChecked — client-only to avoid hydration mismatch
   const [now, setNow] = useState<number | null>(null);
 
-  // Check GitHub connectivity on mount — works without token for public repos
+  // Check GitHub connectivity and local git status on mount
   useEffect(() => {
     const checkConnection = async () => {
       try {
@@ -947,8 +950,6 @@ export function UpdatesTab() {
           const data = await res.json();
           setIsConnected(data.githubReachable !== false);
         } else {
-          // Even if the status endpoint fails, GitHub might still be reachable
-          // Don't immediately mark as offline
           setIsConnected(true);
         }
       } catch {
@@ -956,8 +957,13 @@ export function UpdatesTab() {
       }
     };
     checkConnection();
+    // Also check local git status (behind/ahead of remote)
+    checkLocalStatus();
     // Recheck every 2 minutes
-    const connInterval = setInterval(checkConnection, 120000);
+    const connInterval = setInterval(() => {
+      checkConnection();
+      checkLocalStatus();
+    }, 120000);
     return () => clearInterval(connInterval);
   }, []);
 
@@ -1148,6 +1154,17 @@ export function UpdatesTab() {
               Last checked: {formatLastChecked(lastChecked)}
             </div>
             <ConnectionStatus isConnected={isConnected} />
+            {/* Behind remote indicator */}
+            {localBehind > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(255,182,39,0.1)] border border-[rgba(255,182,39,0.25)]"
+              >
+                <AlertTriangle size={10} className="text-[#FFB627]" />
+                <span className="text-[10px] text-[#FFB627] font-medium">{localBehind} commit{localBehind !== 1 ? 's' : ''} behind remote</span>
+              </motion.div>
+            )}
             {/* Branch info badge */}
             {selectedBranch !== 'main' && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#9d4edd]/10 border border-[#9d4edd]/20">

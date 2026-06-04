@@ -123,6 +123,12 @@ interface UpdateState {
   setSelectedBranch: (branch: string) => void;
   checkForUpdatesFromBranch: (branch: string) => Promise<void>;
   installFromCommit: (commitSha: string, branch: string) => Promise<void>;
+
+  // Local git status
+  localBehind: number;  // How many commits behind remote
+  localAhead: number;   // How many commits ahead of remote
+  localBranch: string;  // Current git branch
+  checkLocalStatus: () => Promise<void>;
 }
 
 // ─── Helper Functions ───
@@ -173,7 +179,7 @@ function getSeedUpdates(): UpdateEntry[] {
 
 // ─── Current app version (synced with package.json) ───
 
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '5.0.2-alpha.2';
 
 // ─── Store with localStorage persistence ───
 
@@ -206,6 +212,11 @@ export const useUpdateStore = create<UpdateState>()(
       selectedBranch: 'main',
       branchCommits: [],
       isFetchingBranches: false,
+
+      // Local git status defaults
+      localBehind: 0,
+      localAhead: 0,
+      localBranch: 'main',
 
       checkForUpdates: async () => {
         const state = get();
@@ -304,71 +315,98 @@ export const useUpdateStore = create<UpdateState>()(
 
         set({ isInstalling: true });
 
-        // Simulate download progress
+        // Phase 1: Show downloading state
         set((prev) => ({
           availableUpdates: prev.availableUpdates.map(u =>
-            u.id === id ? { ...u, status: 'downloading' as UpdateStatus, progress: 0 } : u
+            u.id === id ? { ...u, status: 'downloading' as UpdateStatus, progress: 10 } : u
           ),
-          installProgress: { ...prev.installProgress, [id]: 0 },
+          installProgress: { ...prev.installProgress, [id]: 10 },
         }));
 
-        // Simulate download with progress
-        for (let i = 0; i <= 100; i += 10) {
-          await new Promise(resolve => setTimeout(resolve, 150));
-          set((prev) => ({
-            availableUpdates: prev.availableUpdates.map(u =>
-              u.id === id ? { ...u, progress: i } : u
-            ),
-            installProgress: { ...prev.installProgress, [id]: i },
-          }));
-        }
-
-        // Simulate install
-        set((prev) => ({
-          availableUpdates: prev.availableUpdates.map(u =>
-            u.id === id ? { ...u, status: 'installing' as UpdateStatus, progress: 0 } : u
-          ),
-          installProgress: { ...prev.installProgress, [id]: 0 },
-        }));
-
-        for (let i = 0; i <= 100; i += 20) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          set((prev) => ({
-            availableUpdates: prev.availableUpdates.map(u =>
-              u.id === id ? { ...u, progress: i } : u
-            ),
-            installProgress: { ...prev.installProgress, [id]: i },
-          }));
-        }
-
-        // Mark as installed
-        const installedUpdate = { ...update, status: 'installed' as UpdateStatus, progress: 100 };
-
-        // Remove from dismissed list if it was there
-        // Also add commit hash to known hashes so it won't reappear on refresh
-        set((prev) => {
-          const newKnownHashes = update.commitHash
-            ? [...new Set([...prev.knownCommitHashes, update.commitHash])]
-            : prev.knownCommitHashes;
-          return {
-            availableUpdates: prev.availableUpdates.filter(u => u.id !== id),
-            installedUpdates: [installedUpdate, ...prev.installedUpdates],
-            isInstalling: false,
-            installProgress: { ...prev.installProgress, [id]: 100 },
-            currentVersion: update.version,
-            dismissedUpdateIds: prev.dismissedUpdateIds.filter(did => did !== id),
-            knownCommitHashes: newKnownHashes,
-          };
-        });
-
-        // Clear progress after a delay
-        setTimeout(() => {
-          set((prev) => {
-            const newProgress = { ...prev.installProgress };
-            delete newProgress[id];
-            return { installProgress: newProgress };
+        try {
+          // REAL INSTALL: Call the backend API to do git pull
+          const response = await fetch('/api/updates', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(state.updateSettings.githubToken
+                ? { 'X-GitHub-Token': state.updateSettings.githubToken }
+                : {}),
+            },
+            body: JSON.stringify({
+              action: 'install',
+              updateId: id,
+              branch: update.branch || 'main',
+              commitSha: update.commitHash?.length === 7 ? update.commitHash : undefined,
+            }),
           });
-        }, 2000);
+
+          // Phase 2: Show installing state
+          set((prev) => ({
+            availableUpdates: prev.availableUpdates.map(u =>
+              u.id === id ? { ...u, status: 'installing' as UpdateStatus, progress: 50 } : u
+            ),
+            installProgress: { ...prev.installProgress, [id]: 50 },
+          }));
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `Install failed: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error(data.message || 'Install failed on server');
+          }
+
+          // Phase 3: Success — mark as installed
+          const installedUpdate = {
+            ...update,
+            status: 'installed' as UpdateStatus,
+            progress: 100,
+            version: data.version || update.version,
+          };
+
+          set((prev) => {
+            const newKnownHashes = update.commitHash
+              ? [...new Set([...prev.knownCommitHashes, update.commitHash])]
+              : prev.knownCommitHashes;
+            // Also add the actual installed commit hash from the server response
+            const allHashes = data.installedCommitHash
+              ? [...new Set([...newKnownHashes, data.installedCommitHash])]
+              : newKnownHashes;
+            return {
+              availableUpdates: prev.availableUpdates.filter(u => u.id !== id),
+              installedUpdates: [installedUpdate, ...prev.installedUpdates],
+              isInstalling: false,
+              installProgress: { ...prev.installProgress, [id]: 100 },
+              currentVersion: data.version || update.version,
+              dismissedUpdateIds: prev.dismissedUpdateIds.filter(did => did !== id),
+              knownCommitHashes: allHashes,
+            };
+          });
+
+          // Clear progress after a delay
+          setTimeout(() => {
+            set((prev) => {
+              const newProgress = { ...prev.installProgress };
+              delete newProgress[id];
+              return { installProgress: newProgress };
+            });
+          }, 2000);
+
+        } catch (error) {
+          console.error('Install update failed:', error);
+          // Mark as failed
+          set((prev) => ({
+            availableUpdates: prev.availableUpdates.map(u =>
+              u.id === id ? { ...u, status: 'failed' as UpdateStatus, progress: 0 } : u
+            ),
+            isInstalling: false,
+            installProgress: { ...prev.installProgress, [id]: 0 },
+          }));
+        }
       },
 
       installAllUpdates: async () => {
@@ -385,23 +423,52 @@ export const useUpdateStore = create<UpdateState>()(
         const update = state.installedUpdates.find(u => u.id === id);
         if (!update) return;
 
-        // Simulate rollback
-        set((prev) => ({
-          installedUpdates: prev.installedUpdates.map(u =>
-            u.id === id ? { ...u, status: 'available' as UpdateStatus } : u
-          ),
-        }));
+        try {
+          // REAL ROLLBACK: Call the backend API to do git reset
+          const response = await fetch('/api/updates', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(state.updateSettings.githubToken
+                ? { 'X-GitHub-Token': state.updateSettings.githubToken }
+                : {}),
+            },
+            body: JSON.stringify({
+              action: 'rollback',
+              updateId: id,
+            }),
+          });
 
-        // Move back to available after short delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `Rollback failed: ${response.status}`);
+          }
 
-        const rolledBackUpdate = { ...update, status: 'available' as UpdateStatus, progress: undefined };
+          const data = await response.json();
 
-        set((prev) => ({
-          installedUpdates: prev.installedUpdates.filter(u => u.id !== id),
-          availableUpdates: [rolledBackUpdate, ...prev.availableUpdates],
-          currentVersion: prev.installedUpdates.find(u => u.id !== id)?.version || prev.currentVersion,
-        }));
+          if (!data.success) {
+            throw new Error(data.message || 'Rollback failed on server');
+          }
+
+          // Move from installed back to available
+          const rolledBackUpdate = { ...update, status: 'available' as UpdateStatus, progress: undefined };
+
+          set((prev) => ({
+            installedUpdates: prev.installedUpdates.filter(u => u.id !== id),
+            availableUpdates: [rolledBackUpdate, ...prev.availableUpdates],
+            currentVersion: prev.installedUpdates.find(u => u.id !== id)?.version || prev.currentVersion,
+          }));
+
+        } catch (error) {
+          console.error('Rollback failed:', error);
+          // Still do the UI rollback even if git fails — user can manually fix
+          const rolledBackUpdate = { ...update, status: 'available' as UpdateStatus, progress: undefined };
+          set((prev) => ({
+            installedUpdates: prev.installedUpdates.filter(u => u.id !== id),
+            availableUpdates: [rolledBackUpdate, ...prev.availableUpdates],
+            currentVersion: prev.installedUpdates.find(u => u.id !== id)?.version || prev.currentVersion,
+          }));
+        }
       },
 
       setUpdateSettings: (settings: Partial<UpdateSettings>) => {
@@ -624,6 +691,35 @@ export const useUpdateStore = create<UpdateState>()(
         } catch (error) {
           console.error('Failed to install from commit:', error);
           set({ isInstalling: false });
+        }
+      },
+
+      checkLocalStatus: async () => {
+        try {
+          const response = await fetch('/api/updates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'check-local' }),
+          });
+
+          if (!response.ok) return;
+
+          const data = await response.json();
+          set({
+            localBehind: data.behind || 0,
+            localAhead: data.ahead || 0,
+            localBranch: data.branch || 'main',
+          });
+
+          // If behind remote, also trigger a GitHub check to show available updates
+          if ((data.behind || 0) > 0) {
+            const state = get();
+            if (!state.isChecking) {
+              get().checkForUpdates();
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check local status:', error);
         }
       },
     }),
