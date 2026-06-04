@@ -30,8 +30,13 @@ export interface ToolCallResult {
 function resolvePath(filePath: string, workspacePath?: string): string {
   const base = (workspacePath && fs.existsSync(workspacePath)) ? path.resolve(workspacePath) : os.homedir();
   const resolved = path.resolve(base, filePath);
-  if (!resolved.startsWith(base)) {
-    throw new Error(`Path traversal detected: ${filePath}`);
+  
+  // Strict path traversal check
+  const relative = path.relative(base, resolved);
+  const isSafe = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+  
+  if (!isSafe && resolved !== base) {
+    throw new Error(`Path traversal detected: ${filePath}. Only paths within ${base} are allowed.`);
   }
   return resolved;
 }
@@ -76,10 +81,11 @@ const availableTools: ToolDefinition[] = [
         if (!fs.existsSync(resolved)) {
           return JSON.stringify({ error: `File not found: ${resolved}` });
         }
-        if (!fs.statSync(resolved).isFile()) {
+        const stats = await fs.promises.stat(resolved);
+        if (!stats.isFile()) {
           return JSON.stringify({ error: `Path is not a file: ${resolved}` });
         }
-        const content = fs.readFileSync(resolved, "utf-8");
+        const content = await fs.promises.readFile(resolved, "utf-8");
         return JSON.stringify({ path: resolved, content });
       } catch (e: any) {
         return JSON.stringify({ error: e.message });
@@ -102,9 +108,9 @@ const availableTools: ToolDefinition[] = [
         const resolved = resolvePath(filePath, workspacePath);
         const parentDir = path.dirname(resolved);
         if (!fs.existsSync(parentDir)) {
-          fs.mkdirSync(parentDir, { recursive: true });
+          await fs.promises.mkdir(parentDir, { recursive: true });
         }
-        fs.writeFileSync(resolved, content, "utf-8");
+        await fs.promises.writeFile(resolved, content, "utf-8");
         return JSON.stringify({ path: resolved, written: true });
       } catch (e: any) {
         return JSON.stringify({ error: e.message });

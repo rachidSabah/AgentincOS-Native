@@ -13,36 +13,49 @@ export async function POST(req: NextRequest) {
 
     let importedCount = 0;
 
-    for (const conv of conversations) {
-      // Create conversation with new ID to avoid conflicts
-      const newConv = await db.conversation.create({
-        data: {
-          id: randomUUID(),
-          title: (conv.title || "Imported Chat").substring(0, 200),
-          model: conv.model || "gemini-2.5-pro",
-          systemPrompt: conv.systemPrompt || null,
-        },
-      });
+    // Use a transaction for faster import and consistency
+    await db.$transaction(async (tx: any) => {
+      for (const conv of conversations) {
+        // Create conversation
+        const newConv = await tx.conversation.create({
+          data: {
+            id: randomUUID(),
+            title: (conv.title || "Imported Chat").substring(0, 200),
+            model: conv.model || "gemini-2.5-pro",
+            systemPrompt: conv.systemPrompt || null,
+          },
+        });
 
-      // Import messages
-      if (Array.isArray(conv.messages)) {
-        for (const msg of conv.messages) {
-          await db.message.create({
-            data: {
-              id: randomUUID(),
-              conversationId: newConv.id,
-              role: msg.role || "user",
-              content: msg.content || "",
-              attachments: msg.attachments ? JSON.stringify(msg.attachments) : null,
-              metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
-              createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
-            },
-          });
+        // Import messages in batch if possible (SQLite supports createMany in recent Prisma)
+        if (Array.isArray(conv.messages) && conv.messages.length > 0) {
+          const messageData = conv.messages.map((msg: any) => ({
+            id: randomUUID(),
+            conversationId: newConv.id,
+            role: msg.role || "user",
+            content: msg.content || "",
+            attachments: msg.attachments ? JSON.stringify(msg.attachments) : null,
+            metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
+            createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+          }));
+
+          // Try createMany for performance
+          try {
+            await tx.message.createMany({
+              data: messageData,
+            });
+          } catch (e) {
+            // Fallback to sequential if createMany fails
+            for (const data of messageData) {
+              await tx.message.create({ data });
+            }
+          }
         }
-      }
 
-      importedCount++;
-    }
+        importedCount++;
+      }
+    }, {
+      timeout: 60000 // 60 seconds timeout for the transaction
+    });
 
     return NextResponse.json({
       success: true,

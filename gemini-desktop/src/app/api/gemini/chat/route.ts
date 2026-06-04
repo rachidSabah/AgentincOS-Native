@@ -302,10 +302,25 @@ async function queryLLM(
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    // Cleanup process on request abort
+    const cleanup = () => {
+      if (geminiProcess.exitCode === null) {
+        console.log(`[${requestId}] Killing orphan gemini process`);
+        geminiProcess.kill('SIGTERM');
+      }
+    };
+
     geminiProcess.stdin?.write(fullPrompt);
     geminiProcess.stdin?.end();
 
+    const PROCESS_TIMEOUT = 120000; // 2 minutes max for CLI execution
+    
     const processComplete = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error(`CLI execution timed out after ${PROCESS_TIMEOUT}ms`));
+      }, PROCESS_TIMEOUT);
+
       geminiProcess.stdout.on("data", (chunk: Buffer) => {
         const text = chunk.toString();
         accumulatedText += text;
@@ -318,6 +333,7 @@ async function queryLLM(
       });
 
       geminiProcess.on("close", (code) => {
+        clearTimeout(timeout);
         if (code === 0) {
           resolve();
         } else {
@@ -326,11 +342,16 @@ async function queryLLM(
       });
 
       geminiProcess.on("error", (err) => {
+        clearTimeout(timeout);
         reject(err);
       });
     });
 
-    await processComplete;
+    try {
+      await processComplete;
+    } finally {
+      cleanup();
+    }
   }
 
   return accumulatedText;
@@ -509,6 +530,13 @@ export async function POST(req: NextRequest) {
 
             currentHistory.push({ role: "user", content: currentPrompt });
             currentHistory.push({ role: "assistant", content: responseText });
+
+            // Memory Management: Keep history lean by keeping only the last 20 messages
+            const MAX_HISTORY_MESSAGES = 20;
+            if (currentHistory.length > MAX_HISTORY_MESSAGES) {
+              console.log(`[${requestId}] Pruning history: ${currentHistory.length} -> ${MAX_HISTORY_MESSAGES}`);
+              currentHistory = currentHistory.slice(-MAX_HISTORY_MESSAGES);
+            }
 
             currentPrompt = `Here is the result of the tool execution:\n${resultSummary}\n\nPlease proceed with the next steps or give your final answer based on this result.`;
           }
