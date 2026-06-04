@@ -1,0 +1,1706 @@
+﻿import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { createDefaultAgentIntelligence, type AgentIntelligence, type BrainMode } from './intelligence-layer';
+import { BUILTIN_SKILLS, type Skill } from './skill-system';
+import { type Artifact } from './artifact-system';
+import { type Coworker, type TeamTask, type SubTask, DEFAULT_COWORKERS, decomposeTask, findBestCoworker, getEscalationPath, learnFromTask } from './coworker-system';
+import { type RegisteredModel, DEFAULT_REGISTRY, mergeDiscoveredModels, getLeadModel, getAvailableWorkers, assignRole, autoSelectWorkers } from './model-registry';
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// AGENTIC OS â€” Provider-Independent AI Operating System
+// Core Data Types & Store
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// â”€â”€â”€ Agent Status â”€â”€â”€
+export type AgentStatus = 'live' | 'degraded' | 'offline' | 'booting' | 'error';
+
+// â”€â”€â”€ Provider Types â”€â”€â”€
+export interface ProviderConfig {
+  id: string;
+  name: string;
+  type: 'cloud' | 'local' | 'custom' | 'cli';
+  apiEndpoint: string;
+  apiKey: string;
+  models: string[];
+  defaultModel: string;
+  enabled: boolean;
+  healthStatus: 'healthy' | 'degraded' | 'offline' | 'unknown';
+  lastHealthCheck: number;
+  rateLimit: { rpm: number; tpm: number };
+  costConfig: { alertThreshold: number; hardStop: boolean; dailyLimit: number; monthlyLimit: number };
+  priority: number; // 1 = highest
+  icon: string;
+  color: string;
+  description: string;
+  website: string;
+  supportsStreaming: boolean;
+  supportsVision: boolean;
+  supportsTools: boolean;
+  maxContextTokens: number;
+}
+
+// â”€â”€â”€ Brain Layer Types â”€â”€â”€
+export type ReasoningStyle = 'chain-of-thought' | 'tree-of-thought' | 'react' | 'plan-and-execute' | 'reflection';
+export type MemoryMethod = 'short-term' | 'long-term' | 'semantic' | 'episodic' | 'full';
+export type CodingWorkflow = 'iterative' | 'plan-first' | 'test-driven' | 'debug-first';
+export type ResearchMethod = 'depth-first' | 'breadth-first' | 'hybrid';
+
+export interface BrainConfig {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  reasoningStyle: ReasoningStyle;
+  toolUsagePattern: 'aggressive' | 'conservative' | 'adaptive';
+  memoryMethod: MemoryMethod;
+  codingWorkflow: CodingWorkflow;
+  researchMethod: ResearchMethod;
+  temperature: number;
+  topP: number;
+  maxTokens: number;
+  contextStrategy: 'sliding' | 'summarize' | 'rag-augmented';
+  agentDelegation: boolean;
+  selfReflection: boolean;
+  multiStepPlanning: boolean;
+}
+
+export interface BrainTask {
+  id: string;
+  type: 'planning' | 'reasoning' | 'tool-selection' | 'memory-retrieval' | 'agent-delegation' | 'workflow-generation' | 'knowledge-interaction' | 'context-management' | 'task-decomposition' | 'multi-agent-coordination';
+  input: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  output?: string;
+  providerUsed?: string;
+  modelUsed?: string;
+  tokensUsed: number;
+  latencyMs: number;
+  createdAt: number;
+  completedAt?: number;
+}
+
+// â”€â”€â”€ Gemini CLI Types â”€â”€â”€
+export interface GeminiCLIConfig {
+  installed: boolean;
+  running: boolean;
+  version: string;
+  path: string;
+  model: string;
+  projectContext: string;
+  sandboxEnabled: boolean;
+  lastHealthCheck: number;
+  autoDetect: boolean;
+  autoStart: boolean;
+  projects: GeminiProject[];
+}
+
+export interface GeminiProject {
+  id: string;
+  name: string;
+  path: string;
+  lastOpened: number;
+}
+
+// â”€â”€â”€ Agent Types â”€â”€â”€
+export interface Agent {
+  id: string;
+  name: string;
+  description: string;
+  status: AgentStatus;
+  providerId: string;
+  model: string;
+  brainConfigId: string;
+  color: string;
+  icon: string;
+  tags: string[];
+  uptime: string;
+  latency: number;
+  requests: number;
+  lastActive: string;
+  capabilities: string[];
+  createdFrom: 'builtin' | 'marketplace' | 'custom';
+  version: string;
+  layer: number;
+  layers: number[];
+}
+
+// â”€â”€â”€ Stack Layer Types â”€â”€â”€
+export interface StackLayer {
+  id: string;
+  number: number;
+  name: string;
+  color: string;
+  flowLabel: string;
+  flowIcon: string;
+  icon: string;
+  role: string;
+  agent: string;
+  whatItDoes: string;
+  keyCapabilities: string[];
+  description: string;
+}
+
+// â”€â”€â”€ Agent Analytics â”€â”€â”€
+export interface AgentAnalytics {
+  totalSessions: number;
+  totalTokens: number;
+  totalToolCalls: number;
+  avgResponseTime: number;
+  activityByHour: number[];
+  peakHour: number;
+}
+
+// â”€â”€â”€ Hermes Connection â”€â”€â”€
+export interface HermesConnection {
+  running: boolean;
+  apiEndpoint: string;
+  model: string;
+  version: string;
+  latency: number;
+}
+
+// â”€â”€â”€ Gemini Connection â”€â”€â”€
+export interface GeminiConnection {
+  installed: boolean;
+  running: boolean;
+  version: string;
+  model: string;
+}
+
+// â”€â”€â”€ Goal Types â”€â”€â”€
+export interface GoalSubtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  description: string;
+  progress: number;
+  status: 'active' | 'completed' | 'paused' | 'archived';
+  category: string;
+  createdAt: number;
+  updatedAt: number;
+  deadline?: number;
+  subtasks: GoalSubtask[];
+  color?: string;
+  timeline?: string;
+}
+
+// â”€â”€â”€ Journal Types â”€â”€â”€
+export interface JournalEntry {
+  id: string;
+  title: string;
+  content: string;
+  mood: 'inspired' | 'focused' | 'reflective' | 'energized' | 'calm';
+  tags: string[];
+  createdAt: number;
+  agent: string;
+  type: 'milestone' | 'insight' | 'decision' | 'reflection' | 'voice' | 'text';
+  // Legacy fields (for BrainPanel compatibility)
+  date?: string;
+  source?: string;
+}
+
+// â”€â”€â”€ Skill Execution â”€â”€â”€
+export interface SkillExecution {
+  id: string;
+  skill: string;
+  status: 'running' | 'completed' | 'failed';
+  result?: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
+// â”€â”€â”€ Hermes Skill â”€â”€â”€
+export interface HermesSkill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+// â”€â”€â”€ Chat Attachment â”€â”€â”€
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  processed: boolean;
+  dataUrl?: string;
+}
+
+// â”€â”€â”€ Swarm Types â”€â”€â”€
+export interface SwarmVote {
+  agentId: string;
+  vote: 'approve' | 'reject' | 'abstain';
+  reasoning: string;
+  timestamp: number;
+}
+
+export interface SwarmProposal {
+  id: string;
+  agentId: string;
+  content: string;
+  confidence: number;
+  votes: SwarmVote[];
+  timestamp: number;
+}
+
+export interface SwarmSession {
+  id: string;
+  task: string;
+  agents: string[];
+  strategy: string;
+  maxRounds: number;
+  currentRound: number;
+  proposals: SwarmProposal[];
+  status: 'forming' | 'proposing' | 'voting' | 'executing' | 'completed' | 'dissolved';
+  winningProposal: SwarmProposal | null;
+  consensusPercentage: number;
+  createdAt: number;
+}
+
+// â”€â”€â”€ Log Entry â”€â”€â”€
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  agent: string;
+  layer: number;
+  level: 'info' | 'warn' | 'error' | 'success';
+  message: string;
+}
+
+// â”€â”€â”€ Kanban Task â”€â”€â”€
+export interface KanbanTask {
+  id: string;
+  title: string;
+  priority: 'low' | 'medium' | 'high';
+  assignedTo: string;
+  status: 'todo' | 'in-progress' | 'done';
+  createdAt: number;
+}
+
+// â”€â”€â”€ Workspace Types â”€â”€â”€
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  type: 'project' | 'organization' | 'team' | 'department';
+  agents: string[];
+  models: string[];
+  files: WorkspaceFile[];
+  memory: string[];
+  permissions: string[];
+  knowledge: string[];
+  automations: string[];
+  templates: string[];
+  prompts: string[];
+  settings: {[key: string]: string};
+  createdAt: number;
+  updatedAt: number;
+  color: string;
+  icon: string;
+  archived: boolean;
+  snapshotCount: number;
+  lastSnapshotAt?: number;
+}
+
+export interface WorkspaceFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt: number;
+  processed: boolean;
+  summary?: string;
+  tags: string[];
+  workspaceId: string;
+  embeddingGenerated: boolean;
+  ragIndexed: boolean;
+}
+
+export interface WorkspaceSnapshot {
+  id: string;
+  workspaceId: string;
+  name: string;
+  createdAt: number;
+  data: string; // serialized workspace state
+}
+
+// â”€â”€â”€ Attachment Types â”€â”€â”€
+export interface Attachment {
+  id: string;
+  name: string;
+  type: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: number;
+  processed: boolean;
+  summary?: string;
+  tags: string[];
+  workspaceId?: string;
+  agentId?: string;
+  embeddingGenerated: boolean;
+  ragIndexed: boolean;
+  previewUrl?: string;
+  extractedText?: string;
+  metadata: {[key: string]: string};
+}
+
+// â”€â”€â”€ Knowledge Types â”€â”€â”€
+export interface KnowledgeEntry {
+  id: string;
+  content: string;
+  type: 'fact' | 'concept' | 'procedure' | 'preference' | 'decision' | 'observation';
+  source: string;
+  tags: string[];
+  confidence: number;
+  createdAt: number;
+  updatedAt: number;
+  accessCount: number;
+  lastAccessedAt: number;
+  connections: string[]; // IDs of connected entries
+  embeddingGenerated: boolean;
+}
+
+export interface KnowledgeGraph {
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+}
+
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  type: 'entity' | 'concept' | 'event' | 'person' | 'tool' | 'document';
+  color: string;
+  size: number;
+}
+
+export interface KnowledgeGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  weight: number;
+}
+
+// â”€â”€â”€ Memory Types â”€â”€â”€
+export interface MemoryEntry {
+  id: string;
+  timestamp: string;
+  content: string;
+  agent: string;
+  tags: string[];
+  type: 'short-term' | 'long-term' | 'episodic' | 'semantic' | 'procedural';
+  importance: number;
+  decayRate: number;
+  accessCount: number;
+  lastAccessedAt: number;
+  workspaceId?: string;
+}
+
+// â”€â”€â”€ Workflow Types â”€â”€â”€
+export interface WorkflowNode {
+  id: string;
+  type: 'agent-call' | 'condition' | 'loop' | 'transform' | 'webhook' | 'delay' | 'human-approval' | 'output' | 'brain-reason' | 'tool-call' | 'memory-store' | 'memory-retrieve';
+  position: { x: number; y: number };
+  data: {[key: string]: unknown};
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  condition?: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  status: 'draft' | 'running' | 'completed' | 'failed' | 'paused';
+  lastRun?: number;
+  createdAt: number;
+  workspaceId?: string;
+  triggerType: 'manual' | 'webhook' | 'schedule' | 'event';
+  triggerConfig: {[key: string]: string};
+}
+
+// â”€â”€â”€ Chat Types â”€â”€â”€
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'agent' | 'system' | 'brain';
+  content: string;
+  timestamp: number;
+  agentId?: string;
+  providerId?: string;
+  model?: string;
+  tokensUsed?: number;
+  latencyMs?: number;
+  attachments?: string[]; // attachment IDs
+}
+
+// â”€â”€â”€ Cost & Observability Types â”€â”€â”€
+export interface CostTransaction {
+  id: string;
+  agentId: string;
+  providerId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  taskName?: string;
+  timestamp: number;
+}
+
+export interface BudgetConfig {
+  dailyLimit: number;
+  monthlyLimit: number;
+  alertThreshold: number;
+  hardStop: boolean;
+}
+
+export interface ExecutionLog {
+  id: string;
+  timestamp: number;
+  level: 'info' | 'warn' | 'error' | 'success';
+  source: string;
+  message: string;
+  providerId?: string;
+  model?: string;
+  agentId?: string;
+  tokensUsed?: number;
+  latencyMs?: number;
+}
+
+// â”€â”€â”€ Model Router Config â”€â”€â”€
+export interface ModelRouterConfig {
+  mode: 'automatic' | 'fastest' | 'cheapest' | 'highest-quality' | 'reasoning-first' | 'coding-first' | 'research-first' | 'vision-first' | 'multi-agent-consensus';
+  failoverEnabled: boolean;
+  failoverOrder: string[]; // provider IDs in priority order
+  parallelRouting: boolean;
+  costOptimization: boolean;
+}
+
+// â”€â”€â”€ Plugin Types â”€â”€â”€
+export interface Plugin {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  status: 'active' | 'inactive' | 'error';
+  permissions: string[];
+  config: {[key: string]: unknown};
+  installedAt: number;
+}
+
+// â”€â”€â”€ Prompt Types â”€â”€â”€
+export interface PromptEntry {
+  id: string;
+  name: string;
+  category: 'system' | 'task' | 'skill' | 'workflow' | 'custom' | 'brain';
+  content: string;
+  variables: string[];
+  version: number;
+  performanceScore: number;
+  usageCount: number;
+  lastModified: number;
+}
+
+// â”€â”€â”€ MCP Server Types â”€â”€â”€
+export interface MCPServer {
+  name: string;
+  transport: 'stdio' | 'http';
+  command?: string;
+  url?: string;
+  connected: boolean;
+  toolCount?: number;
+}
+
+// â”€â”€â”€ Marketplace Types â”€â”€â”€
+// â”€â”€â”€ Brain Profile Type â”€â”€â”€
+export type BrainProfile = 'claude' | 'gemini' | 'hermes' | 'openclaw' | 'vault' | 'opencode' | 'custom';
+
+export interface MarketplaceAgent {
+  id: string;
+  name: string;
+  description: string;
+  category: 'business' | 'coding' | 'research' | 'marketing' | 'education' | 'custom' | 'recruitment' | 'wordpress' | 'seo' | 'aviation' | 'legal' | 'medical' | 'devops' | 'data' | 'writing' | 'productivity';
+  author: string;
+  version: string;
+  rating: number;
+  downloads: number;
+  price: number;
+  installed: boolean;
+  brainProfile: BrainProfile;
+  requiredProviders: string[];
+  icon: string;
+  color: string;
+  tags: string[];
+}
+
+// â”€â”€â”€ Security Types â”€â”€â”€
+export interface SecurityAlert {
+  id: string;
+  type: 'injection' | 'pii' | 'access' | 'rate';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  source: string;
+  timestamp: number;
+  action: 'blocked' | 'warned' | 'logged';
+}
+
+// â”€â”€â”€ Deployment Types â”€â”€â”€
+export interface Deployment {
+  id: string;
+  name: string;
+  type: 'local' | 'docker' | 'cloud' | 'edge';
+  status: 'running' | 'stopped' | 'deploying' | 'error';
+  url?: string;
+  createdAt: number;
+  lastDeployedAt: number;
+  config: {[key: string]: string};
+}
+
+// â”€â”€â”€ System Metrics â”€â”€â”€
+export interface SystemMetrics {
+  cpu: number;
+  memory: number;
+  network: number;
+  disk: number;
+  activeAgents: number;
+  activeProviders: number;
+  totalRequests: number;
+  avgLatency: number;
+  totalTokensUsed: number;
+  totalCost: number;
+  uptimeSeconds: number;
+  knowledgeEntries: number;
+  memoryEntries: number;
+  workspaceCount: number;
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DEFAULT PROVIDERS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+const defaultProviders: ProviderConfig[] = [
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    type: 'cloud',
+    apiEndpoint: 'https://api.openai.com/v1',
+    apiKey: '',
+    models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o1-mini', 'gpt-4-turbo', 'o3', 'o3-mini', 'o4-mini'],
+    defaultModel: 'gpt-4o',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
+    priority: 1,
+    icon: 'ðŸ¤–',
+    color: '#10a37f',
+    description: 'Leading AI provider with GPT-4o, o1, o3 models',
+    website: 'https://openai.com',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 128000,
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    type: 'cloud',
+    apiEndpoint: 'https://api.anthropic.com/v1',
+    apiKey: '',
+    models: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3.5-haiku-20241022', 'claude-3.5-sonnet-20241022'],
+    defaultModel: 'claude-sonnet-4-20250514',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
+    priority: 2,
+    icon: 'ðŸ§ ',
+    color: '#d4a574',
+    description: 'Claude models with strong reasoning and safety',
+    website: 'https://anthropic.com',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 200000,
+  },
+  {
+    id: 'google',
+    name: 'Google AI',
+    type: 'cloud',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta',
+    apiKey: '',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'],
+    defaultModel: 'gemini-2.5-pro',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
+    priority: 3,
+    icon: 'âœ¨',
+    color: '#4285f4',
+    description: 'Gemini models with multimodal capabilities',
+    website: 'https://ai.google.dev',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 1000000,
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    type: 'cloud',
+    apiEndpoint: 'https://openrouter.ai/api/v1',
+    apiKey: '',
+    models: ['openai/gpt-4o', 'anthropic/claude-sonnet-4', 'google/gemini-2.5-pro', 'meta-llama/llama-3-70b', 'mistral/mistral-large', 'deepseek/deepseek-chat', 'qwen/qwen-2.5-72b'],
+    defaultModel: 'openai/gpt-4o',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
+    priority: 4,
+    icon: 'ðŸ”€',
+    color: '#6366f1',
+    description: 'Unified API for 100+ models from all providers',
+    website: 'https://openrouter.ai',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 200000,
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    type: 'cloud',
+    apiEndpoint: 'https://api.deepseek.com/v1',
+    apiKey: '',
+    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-coder'],
+    defaultModel: 'deepseek-chat',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
+    priority: 5,
+    icon: 'ðŸ”®',
+    color: '#7c3aed',
+    description: 'Cost-effective models with strong coding and reasoning',
+    website: 'https://deepseek.com',
+    supportsStreaming: true,
+    supportsVision: false,
+    supportsTools: true,
+    maxContextTokens: 128000,
+  },
+  {
+    id: 'glm',
+    name: 'GLM / BigModel',
+    type: 'cloud',
+    apiEndpoint: 'https://open.bigmodel.cn/api/paas/v4',
+    apiKey: '',
+    models: ['glm-4-plus', 'glm-4-0520', 'glm-4-air', 'glm-4-airx', 'glm-4-flash', 'glm-4-long'],
+    defaultModel: 'glm-4-plus',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
+    priority: 6,
+    icon: 'ðŸŒŸ',
+    color: '#0ea5e9',
+    description: 'Zhipu AI GLM models with Chinese & English support',
+    website: 'https://open.bigmodel.cn',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 128000,
+  },
+  {
+    id: 'qwen',
+    name: 'Qwen / Alibaba',
+    type: 'cloud',
+    apiEndpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKey: '',
+    models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-vl-max', 'qwen-coder-plus'],
+    defaultModel: 'qwen-max',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
+    priority: 7,
+    icon: 'ðŸ”·',
+    color: '#f97316',
+    description: 'Alibaba Qwen models with strong multilingual support',
+    website: 'https://dashscope.aliyun.com',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 128000,
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral AI',
+    type: 'cloud',
+    apiEndpoint: 'https://api.mistral.ai/v1',
+    apiKey: '',
+    models: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'codestral-latest', 'pixtral-large-latest'],
+    defaultModel: 'mistral-large-latest',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
+    priority: 8,
+    icon: 'ðŸŒ¬ï¸',
+    color: '#f97316',
+    description: 'Mistral models for reasoning and code generation',
+    website: 'https://mistral.ai',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 128000,
+  },
+  {
+    id: 'grok',
+    name: 'Grok / xAI',
+    type: 'cloud',
+    apiEndpoint: 'https://api.x.ai/v1',
+    apiKey: '',
+    models: ['grok-3', 'grok-3-mini', 'grok-2', 'grok-2-mini'],
+    defaultModel: 'grok-3',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 60, tpm: 100000 },
+    costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
+    priority: 9,
+    icon: 'âš¡',
+    color: '#ef4444',
+    description: 'xAI Grok models with real-time knowledge',
+    website: 'https://x.ai',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 131072,
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama (Local)',
+    type: 'local',
+    apiEndpoint: 'http://localhost:11434/v1',
+    apiKey: '',
+    models: ['llama3.1:70b', 'llama3.1:8b', 'codellama', 'mistral:7b', 'qwen2:72b', 'deepseek-coder-v2'],
+    defaultModel: 'llama3.1:70b',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 999, tpm: 999999 },
+    costConfig: { alertThreshold: 0, hardStop: false, dailyLimit: 0, monthlyLimit: 0 },
+    priority: 10,
+    icon: 'ðŸ¦™',
+    color: '#22c55e',
+    description: 'Run models locally with Ollama - no API costs',
+    website: 'https://ollama.ai',
+    supportsStreaming: true,
+    supportsVision: false,
+    supportsTools: true,
+    maxContextTokens: 128000,
+  },
+  {
+    id: 'gemini-cli',
+    name: 'Gemini CLI',
+    type: 'cli',
+    apiEndpoint: 'http://localhost:3100/api/gemini',
+    apiKey: '',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+    defaultModel: 'gemini-2.5-pro',
+    enabled: false,
+    healthStatus: 'unknown',
+    lastHealthCheck: 0,
+    rateLimit: { rpm: 30, tpm: 100000 },
+    costConfig: { alertThreshold: 0, hardStop: false, dailyLimit: 0, monthlyLimit: 0 },
+    priority: 0, // Highest priority when available
+    icon: 'ðŸ’Ž',
+    color: '#4285f4',
+    description: 'Google Gemini CLI - local execution agent with multimodal capabilities',
+    website: 'https://github.com/google-gemini/gemini-cli',
+    supportsStreaming: true,
+    supportsVision: true,
+    supportsTools: true,
+    maxContextTokens: 1000000,
+  },
+];
+
+// â”€â”€â”€ Default Brain Config â”€â”€â”€
+const defaultBrainConfig: BrainConfig = {
+  id: 'default-brain',
+  name: 'Agentic OS Brain',
+  systemPrompt: 'You are the Agentic OS Brain - a provider-independent intelligence layer. You plan, reason, delegate, and coordinate regardless of which LLM provider is selected. You are the primary intelligence; external models are interchangeable execution engines.',
+  reasoningStyle: 'chain-of-thought',
+  toolUsagePattern: 'adaptive',
+  memoryMethod: 'full',
+  codingWorkflow: 'plan-first',
+  researchMethod: 'hybrid',
+  temperature: 0.7,
+  topP: 0.9,
+  maxTokens: 4096,
+  contextStrategy: 'rag-augmented',
+  agentDelegation: true,
+  selfReflection: true,
+  multiStepPlanning: true,
+};
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// STORE INTERFACE
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+interface OSState {
+  // â”€â”€â”€ Navigation â”€â”€â”€
+  activeView: string;
+  setActiveView: (view: string) => void;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (open: boolean) => void;
+
+  // â”€â”€â”€ Providers â”€â”€â”€
+  providers: ProviderConfig[];
+  addProvider: (provider: ProviderConfig) => void;
+  updateProvider: (id: string, updates: Partial<ProviderConfig>) => void;
+  removeProvider: (id: string) => void;
+  activeProviderId: string | null;
+  setActiveProviderId: (id: string | null) => void;
+
+  // â”€â”€â”€ Brain Layer â”€â”€â”€
+  brainConfig: BrainConfig;
+  updateBrainConfig: (updates: Partial<BrainConfig>) => void;
+  brainTasks: BrainTask[];
+  addBrainTask: (task: BrainTask) => void;
+  updateBrainTask: (id: string, updates: Partial<BrainTask>) => void;
+  brainTaskHistory: BrainTask[];
+
+  // â”€â”€â”€ Gemini CLI â”€â”€â”€
+  geminiCLI: GeminiCLIConfig;
+  updateGeminiCLI: (updates: Partial<GeminiCLIConfig>) => void;
+
+  // â”€â”€â”€ Agents â”€â”€â”€
+  agents: Agent[];
+  addAgent: (agent: Agent) => void;
+  updateAgent: (id: string, updates: Partial<Agent>) => void;
+  removeAgent: (id: string) => void;
+
+  // â”€â”€â”€ Workspaces â”€â”€â”€
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+  addWorkspace: (workspace: Workspace) => void;
+  updateWorkspace: (id: string, updates: Partial<Workspace>) => void;
+  removeWorkspace: (id: string) => void;
+  setActiveWorkspaceId: (id: string | null) => void;
+
+  // â”€â”€â”€ Attachments â”€â”€â”€
+  attachments: Attachment[];
+  addAttachment: (attachment: Attachment) => void;
+  removeAttachment: (id: string) => void;
+  updateAttachment: (id: string, updates: Partial<Attachment>) => void;
+
+  // â”€â”€â”€ Knowledge â”€â”€â”€
+  knowledgeEntries: KnowledgeEntry[];
+  addKnowledgeEntry: (entry: KnowledgeEntry) => void;
+  updateKnowledgeEntry: (id: string, updates: Partial<KnowledgeEntry>) => void;
+  removeKnowledgeEntry: (id: string) => void;
+  knowledgeGraph: KnowledgeGraph;
+
+  // â”€â”€â”€ Memory â”€â”€â”€
+  memories: MemoryEntry[];
+  addMemory: (memory: MemoryEntry) => void;
+  updateMemory: (id: string, updates: Partial<MemoryEntry>) => void;
+  removeMemory: (id: string) => void;
+
+  // â”€â”€â”€ Chat â”€â”€â”€
+  chatHistories: {[key: string]: ChatMessage[]};
+  addChatMessage: (contextId: string, msg: ChatMessage) => void;
+  clearChatHistory: (contextId: string) => void;
+  isChatStreaming: boolean;
+  setIsChatStreaming: (streaming: boolean) => void;
+
+  // â”€â”€â”€ Workflows â”€â”€â”€
+  workflows: Workflow[];
+  addWorkflow: (wf: Workflow) => void;
+  updateWorkflow: (id: string, updates: Partial<Workflow>) => void;
+  removeWorkflow: (id: string) => void;
+
+  // â”€â”€â”€ Cost & Observability â”€â”€â”€
+  costTransactions: CostTransaction[];
+  addCostTransaction: (tx: CostTransaction) => void;
+  budgetConfig: BudgetConfig;
+  setBudgetConfig: (config: Partial<BudgetConfig>) => void;
+  totalCost: number;
+  executionLogs: ExecutionLog[];
+  addExecutionLog: (log: ExecutionLog) => void;
+  totalTokensUsed: number;
+  incrementTokens: (count: number) => void;
+
+  // â”€â”€â”€ Model Router â”€â”€â”€
+  modelRouterConfig: ModelRouterConfig;
+  setModelRouterConfig: (config: Partial<ModelRouterConfig>) => void;
+
+  // â”€â”€â”€ Plugins â”€â”€â”€
+  plugins: Plugin[];
+  setPlugins: (plugins: Plugin[]) => void;
+  updatePlugin: (id: string, updates: Partial<Plugin>) => void;
+
+  // â”€â”€â”€ Prompts â”€â”€â”€
+  prompts: PromptEntry[];
+  setPrompts: (prompts: PromptEntry[]) => void;
+  addPrompt: (prompt: PromptEntry) => void;
+
+  // â”€â”€â”€ MCP Servers â”€â”€â”€
+  mcpServers: MCPServer[];
+  setMCPServers: (servers: MCPServer[]) => void;
+
+  // â”€â”€â”€ Marketplace â”€â”€â”€
+  marketplaceAgents: MarketplaceAgent[];
+  setMarketplaceAgents: (agents: MarketplaceAgent[]) => void;
+
+  // â”€â”€â”€ Security â”€â”€â”€
+  securityAlerts: SecurityAlert[];
+  addSecurityAlert: (alert: SecurityAlert) => void;
+
+  // â”€â”€â”€ Deployments â”€â”€â”€
+  deployments: Deployment[];
+  addDeployment: (deployment: Deployment) => void;
+  updateDeployment: (id: string, updates: Partial<Deployment>) => void;
+
+  // â”€â”€â”€ System Metrics â”€â”€â”€
+  systemMetrics: SystemMetrics;
+  setSystemMetrics: (metrics: SystemMetrics) => void;
+
+  // â”€â”€â”€ UI State â”€â”€â”€
+  controlRoomAgent: string | null;
+  setControlRoomAgent: (id: string | null) => void;
+  selfSearchQuery: string;
+  setSelfSearchQuery: (q: string) => void;
+
+  // â”€â”€â”€ Stack Layers â”€â”€â”€
+  stackLayers: StackLayer[];
+
+  // â”€â”€â”€ Agent Selection â”€â”€â”€
+  selectedAgentId: string | null;
+  setSelectedAgentId: (id: string | null) => void;
+
+  // â”€â”€â”€ Connections â”€â”€â”€
+  hermesConnection: HermesConnection;
+  geminiConnection: GeminiConnection;
+  sseConnectionStatus: string;
+
+  // â”€â”€â”€ Agent Analytics â”€â”€â”€
+  agentAnalytics: {[key: string]: AgentAnalytics};
+
+  // â”€â”€â”€ Goals & Journal â”€â”€â”€
+  goals: Goal[];
+  addGoal: (goal: Goal) => void;
+  updateGoal: (id: string, updates: Partial<Goal>) => void;
+  removeGoal: (id: string) => void;
+  toggleGoalSubtask: (goalId: string, subtaskId: string) => void;
+  journal: JournalEntry[];
+  addJournalEntry: (entry: JournalEntry) => void;
+  updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => void;
+  removeJournalEntry: (id: string) => void;
+
+  // â”€â”€â”€ Hermes â”€â”€â”€
+  hermesSkills: HermesSkill[];
+  skillExecutions: SkillExecution[];
+  addSkillExecution: (exec: SkillExecution) => void;
+
+  // â”€â”€â”€ Chat Attachments â”€â”€â”€
+  chatAttachments: ChatAttachment[];
+  addChatAttachment: (att: ChatAttachment) => void;
+  removeChatAttachment: (id: string) => void;
+  clearChatAttachments: () => void;
+
+  // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+  activeSwarms: SwarmSession[];
+  swarmHistory: SwarmSession[];
+  addSwarm: (swarm: SwarmSession) => void;
+  updateSwarm: (id: string, updates: Partial<SwarmSession>) => void;
+  // â”€â”€â”€ Coworkers â”€â”€â”€
+  coworkers: Coworker[];
+  teamTasks: TeamTask[];
+  addCoworker: (c: Coworker) => void;
+  updateCoworker: (id: string, updates: Partial<Coworker>) => void;
+  removeCoworker: (id: string) => void;
+  addTeamTask: (task: TeamTask) => void;
+  updateTeamTask: (id: string, updates: Partial<TeamTask>) => void;
+  updateSubTask: (taskId: string, subTaskId: string, updates: Partial<SubTask>) => void;
+  executeTeamTask: (taskId: string, model: string) => Promise<void>;
+
+  // â”€â”€â”€ Logs â”€â”€â”€
+  logs: LogEntry[];
+  addLog: (log: LogEntry) => void;
+
+  // â”€â”€â”€ Kanban â”€â”€â”€
+  kanbanTasks: KanbanTask[];
+  addKanbanTask: (task: KanbanTask) => void;
+
+  // â”€â”€â”€ Hydration Guard â”€â”€â”€
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
+
+  // â”€â”€â”€ Intelligence Layer â”€â”€â”€
+  agentIntelligence: {[key: string]: AgentIntelligence};
+  updateAgentIntelligence: (agentId: string, updates: Partial<AgentIntelligence>) => void;
+
+  // â”€â”€â”€ Brain Modes â”€â”€â”€
+  activeBrainMode: string;
+  setActiveBrainMode: (mode: string) => void;
+
+  // â”€â”€â”€ Skills â”€â”€â”€
+  skills: Skill[];
+  activeSkillIds: string[];
+  toggleSkill: (skillId: string) => void;
+
+  // â”€â”€â”€ Artifacts â”€â”€â”€
+  artifacts: Artifact[];
+  addArtifact: (artifact: Artifact) => void;
+  updateArtifact: (id: string, updates: Partial<Artifact>) => void;
+
+  // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+  swarmScore: number;
+  swarmTier: string;
+  lastSwarmTrigger: string;
+  setSwarmScore: (score: number) => void;
+  setSwarmTier: (tier: string) => void;
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ZUSTAND STORE WITH PERSIST
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+export const useOSStore = create<OSState>()(
+  persist(
+    (set) => ({
+      // â”€â”€â”€ Navigation â”€â”€â”€
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
+
+      activeView: 'home',
+      setActiveView: (view) => set({ activeView: view }),
+      sidebarCollapsed: false,
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+
+      // â”€â”€â”€ Providers â”€â”€â”€
+      providers: defaultProviders,
+      addProvider: (provider) => set((s) => ({ providers: [...s.providers, provider] })),
+      updateProvider: (id, updates) => set((s) => ({
+        providers: s.providers.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      })),
+      removeProvider: (id) => set((s) => ({
+        providers: s.providers.filter((p) => p.id !== id),
+      })),
+      activeProviderId: null,
+      setActiveProviderId: (id) => set({ activeProviderId: id }),
+      modelRegistry: DEFAULT_REGISTRY as RegisteredModel[],
+      leadModel: null as string | null,
+      workerModels: [] as string[],
+      setLeadModel: (id) => set({ leadModel: id }),
+      addWorkerModel: (id) => set((s) => ({ workerModels: [...s.workerModels.filter(m => m !== id), id] })),
+      removeWorkerModel: (id) => set((s) => ({ workerModels: s.workerModels.filter(m => m !== id) })),
+      discoverModels: async (providerId) => {}, 
+
+      // â”€â”€â”€ Brain Layer â”€â”€â”€
+      brainConfig: defaultBrainConfig,
+      updateBrainConfig: (updates) => set((s) => ({
+        brainConfig: { ...s.brainConfig, ...updates },
+      })),
+      brainTasks: [],
+      addBrainTask: (task) => set((s) => ({
+        brainTasks: [task, ...s.brainTasks].slice(0, 50),
+      })),
+      updateBrainTask: (id, updates) => set((s) => ({
+        brainTasks: s.brainTasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+      })),
+      brainTaskHistory: [],
+
+      // â”€â”€â”€ Gemini CLI â”€â”€â”€
+      geminiCLI: {
+        installed: false,
+        running: false,
+        version: '',
+        path: '',
+        model: 'gemini-2.5-pro',
+        projectContext: '',
+        sandboxEnabled: true,
+        lastHealthCheck: 0,
+        autoDetect: true,
+        autoStart: true,
+        projects: [],
+      },
+      updateGeminiCLI: (updates) => set((s) => ({
+        geminiCLI: { ...s.geminiCLI, ...updates },
+      })),
+
+      // â”€â”€â”€ Agents â”€â”€â”€
+      agents: [
+        {
+          id: 'brain',
+          name: 'Agentic OS Brain',
+          description: 'The native intelligence layer. Plans, reasons, delegates, and coordinates all operations. Provider-independent.',
+          status: 'live' as AgentStatus,
+          providerId: '',
+          model: '',
+          brainConfigId: 'default-brain',
+          color: '#9d4edd',
+          icon: 'ðŸ§ ',
+          tags: ['BRAIN', 'ORCHESTRATOR', 'PLANNING', 'REASONING'],
+          uptime: '0s',
+          latency: 0,
+          requests: 0,
+          lastActive: 'now',
+          capabilities: ['planning', 'reasoning', 'delegation', 'coordination', 'memory-retrieval', 'tool-selection'],
+          createdFrom: 'builtin' as const,
+          version: '1.0.0',
+          layer: 1,
+          layers: [1, 2, 3, 4, 5, 6, 7],
+        },
+        {
+          id: 'code-agent',
+          name: 'Code Agent',
+          description: 'Specialized for code generation, debugging, and software development tasks.',
+          status: 'offline' as AgentStatus,
+          providerId: '',
+          model: '',
+          brainConfigId: 'default-brain',
+          color: '#00ff88',
+          icon: 'ðŸ’»',
+          tags: ['CODE', 'DEBUG', 'REVIEW'],
+          uptime: '0s',
+          latency: 0,
+          requests: 0,
+          lastActive: 'never',
+          capabilities: ['code-generation', 'debugging', 'code-review', 'refactoring'],
+          createdFrom: 'builtin' as const,
+          version: '1.0.0',
+          layer: 3,
+          layers: [3, 5],
+        },
+        {
+          id: 'research-agent',
+          name: 'Research Agent',
+          description: 'Deep research and knowledge acquisition agent. Synthesizes information from multiple sources.',
+          status: 'offline' as AgentStatus,
+          providerId: '',
+          model: '',
+          brainConfigId: 'default-brain',
+          color: '#FFB627',
+          icon: 'ðŸ”',
+          tags: ['RESEARCH', 'KNOWLEDGE', 'SYNTHESIS'],
+          uptime: '0s',
+          latency: 0,
+          requests: 0,
+          lastActive: 'never',
+          capabilities: ['web-research', 'document-analysis', 'fact-checking', 'synthesis'],
+          createdFrom: 'builtin' as const,
+          version: '1.0.0',
+          layer: 4,
+          layers: [4, 6],
+        },
+        {
+          id: 'task-agent',
+          name: 'Task Agent',
+          description: 'General-purpose task execution agent. Handles API calls, workflows, and automation.',
+          status: 'offline' as AgentStatus,
+          providerId: '',
+          model: '',
+          brainConfigId: 'default-brain',
+          color: '#E8751A',
+          icon: 'âš¡',
+          tags: ['EXECUTION', 'WORKFLOW', 'AUTOMATION'],
+          uptime: '0s',
+          latency: 0,
+          requests: 0,
+          lastActive: 'never',
+          capabilities: ['task-execution', 'api-calls', 'workflow-automation', 'monitoring'],
+          createdFrom: 'builtin' as const,
+          version: '1.0.0',
+          layer: 5,
+          layers: [5, 7],
+        },
+      ],
+      addAgent: (agent) => set((s) => ({ agents: [...s.agents, agent] })),
+      updateAgent: (id, updates) => set((s) => ({
+        agents: s.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+      })),
+      removeAgent: (id) => set((s) => ({
+        agents: s.agents.filter((a) => a.id !== id),
+      })),
+
+      // â”€â”€â”€ Workspaces â”€â”€â”€
+      workspaces: [],
+      activeWorkspaceId: null,
+      addWorkspace: (workspace) => set((s) => ({ workspaces: [...s.workspaces, workspace] })),
+      updateWorkspace: (id, updates) => set((s) => ({
+        workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...updates, updatedAt: Date.now() } : w)),
+      })),
+      removeWorkspace: (id) => set((s) => ({
+        workspaces: s.workspaces.filter((w) => w.id !== id),
+      })),
+      setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
+
+      // â”€â”€â”€ Attachments â”€â”€â”€
+      attachments: [],
+      addAttachment: (attachment) => set((s) => ({ attachments: [...s.attachments, attachment] })),
+      removeAttachment: (id) => set((s) => ({
+        attachments: s.attachments.filter((a) => a.id !== id),
+      })),
+      updateAttachment: (id, updates) => set((s) => ({
+        attachments: s.attachments.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+      })),
+
+      // â”€â”€â”€ Knowledge â”€â”€â”€
+      knowledgeEntries: [],
+      addKnowledgeEntry: (entry) => set((s) => ({ knowledgeEntries: [...s.knowledgeEntries, entry] })),
+      updateKnowledgeEntry: (id, updates) => set((s) => ({
+        knowledgeEntries: s.knowledgeEntries.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+      })),
+      removeKnowledgeEntry: (id) => set((s) => ({
+        knowledgeEntries: s.knowledgeEntries.filter((e) => e.id !== id),
+      })),
+      knowledgeGraph: { nodes: [], edges: [] },
+
+      // â”€â”€â”€ Memory â”€â”€â”€
+      memories: [
+        { id: 'mem-1', timestamp: new Date(Date.now() - 432000000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'Gemini CLI v0.44.1 installed at C:/Users/piopi/AppData/Roaming/npm/gemini.cmd. Supports models: gemini-3-pro-preview, gemini-3.1-flash-lite, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite. Use -p for prompts and -o json for JSON output.', agent: 'gemini', tags: ['cli', 'setup', 'gemini'], type: 'long-term', importance: 0.9, decayRate: 0.01, accessCount: 5 },
+        { id: 'mem-2', timestamp: new Date(Date.now() - 172800000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'The 7-layer architecture: L1 Intelligence, L2 Providers, L3 Agents, L4 Knowledge, L5 Execution, L6 Memory, L7 Governance. Each layer can be independently configured with different AI providers.', agent: 'openclaw', tags: ['architecture', 'layers', 'configuration'], type: 'semantic', importance: 0.85, decayRate: 0.02, accessCount: 3 },
+        { id: 'mem-3', timestamp: new Date(Date.now() - 86400000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'Agent Builder has 20 prebuilt templates including DevOps Engineer, Finance Analyst, Legal Researcher, Medical Assistant, UX Designer, and more. All agents can connect to the active AI provider model.', agent: 'brain', tags: ['agents', 'builder', 'templates'], type: 'episodic', importance: 0.8, decayRate: 0.03, accessCount: 2 },
+      ] as MemoryEntry[],
+      addMemory: (memory) => set((s) => ({ memories: [memory, ...s.memories] })),
+      updateMemory: (id, updates) => set((s) => ({
+        memories: s.memories.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+      })),
+      removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
+
+      // â”€â”€â”€ Chat â”€â”€â”€
+      chatHistories: {},
+      addChatMessage: (contextId, msg) => set((s) => ({
+        chatHistories: {
+          ...s.chatHistories,
+          [contextId]: [...(s.chatHistories[contextId] || []), msg],
+        },
+      })),
+      clearChatHistory: (contextId) => set((s) => ({
+        chatHistories: { ...s.chatHistories, [contextId]: [] },
+      })),
+      isChatStreaming: false,
+      setIsChatStreaming: (streaming) => set({ isChatStreaming: streaming }),
+
+      // â”€â”€â”€ Workflows â”€â”€â”€
+      workflows: [],
+      addWorkflow: (wf) => set((s) => ({ workflows: [...s.workflows, wf] })),
+      updateWorkflow: (id, updates) => set((s) => ({
+        workflows: s.workflows.map((w) => (w.id === id ? { ...w, ...updates } : w)),
+      })),
+      removeWorkflow: (id) => set((s) => ({
+        workflows: s.workflows.filter((w) => w.id !== id),
+      })),
+
+      // â”€â”€â”€ Cost & Observability â”€â”€â”€
+      costTransactions: [],
+      addCostTransaction: (tx) => set((s) => ({
+        costTransactions: [tx, ...s.costTransactions].slice(0, 500),
+        totalCost: s.totalCost + tx.cost,
+      })),
+      budgetConfig: { dailyLimit: 50, monthlyLimit: 500, alertThreshold: 0.8, hardStop: false },
+      setBudgetConfig: (config) => set((s) => ({
+        budgetConfig: { ...s.budgetConfig, ...config },
+      })),
+      totalCost: 0,
+      executionLogs: [],
+      addExecutionLog: (log) => set((s) => ({
+        executionLogs: [log, ...s.executionLogs].slice(0, 100),
+      })),
+      totalTokensUsed: 0,
+      incrementTokens: (count) => set((s) => ({ totalTokensUsed: s.totalTokensUsed + count })),
+
+      // â”€â”€â”€ Model Router â”€â”€â”€
+      modelRouterConfig: {
+        mode: 'automatic',
+        failoverEnabled: true,
+        failoverOrder: [],
+        parallelRouting: false,
+        costOptimization: true,
+      },
+      setModelRouterConfig: (config) => set((s) => ({
+        modelRouterConfig: { ...s.modelRouterConfig, ...config },
+      })),
+
+      // â”€â”€â”€ Plugins â”€â”€â”€
+      plugins: [],
+      setPlugins: (plugins) => set({ plugins }),
+      updatePlugin: (id, updates) => set((s) => ({
+        plugins: s.plugins.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      })),
+
+      // â”€â”€â”€ Prompts â”€â”€â”€
+      prompts: [],
+      setPrompts: (prompts) => set({ prompts }),
+      addPrompt: (prompt) => set((s) => ({ prompts: [...s.prompts, prompt] })),
+
+      // â”€â”€â”€ MCP Servers â”€â”€â”€
+      mcpServers: [],
+      setMCPServers: (servers) => set({ mcpServers: servers }),
+
+      // â”€â”€â”€ Marketplace â”€â”€â”€
+      marketplaceAgents: [],
+      setMarketplaceAgents: (agents) => set({ marketplaceAgents: agents }),
+
+      // â”€â”€â”€ Security â”€â”€â”€
+      securityAlerts: [],
+      addSecurityAlert: (alert) => set((s) => ({
+        securityAlerts: [alert, ...s.securityAlerts].slice(0, 100),
+      })),
+
+      // â”€â”€â”€ Deployments â”€â”€â”€
+      deployments: [],
+      addDeployment: (deployment) => set((s) => ({ deployments: [...s.deployments, deployment] })),
+      updateDeployment: (id, updates) => set((s) => ({
+        deployments: s.deployments.map((d) => (d.id === id ? { ...d, ...updates } : d)),
+      })),
+
+      // â”€â”€â”€ System Metrics â”€â”€â”€
+      systemMetrics: {
+        cpu: 0,
+        memory: 0,
+        network: 0,
+        disk: 0,
+        activeAgents: 0,
+        activeProviders: 0,
+        totalRequests: 0,
+        avgLatency: 0,
+        totalTokensUsed: 0,
+        totalCost: 0,
+        uptimeSeconds: 0,
+        knowledgeEntries: 0,
+        memoryEntries: 0,
+        workspaceCount: 0,
+      },
+      setSystemMetrics: (metrics) => set({ systemMetrics: metrics }),
+
+      // â”€â”€â”€ Stack Layers â”€â”€â”€
+      stackLayers: [
+        { id: 'brain', number: 1, name: 'Brain Layer', color: '#9d4edd', flowLabel: 'Intelligence', flowIcon: 'ðŸ§ ', icon: 'ðŸ§ ', role: 'Intelligence & Orchestration', agent: 'Brain', whatItDoes: 'The native intelligence. Plans, reasons, delegates, coordinates.', keyCapabilities: ['Planning', 'Reasoning', 'Delegation', 'Coordination'], description: 'Brain Layer' },
+        { id: 'providers', number: 2, name: 'Provider Layer', color: '#00ffff', flowLabel: 'Providers', flowIcon: 'ðŸ”Œ', icon: 'ðŸ”Œ', role: 'Model Provider Management', agent: 'Router', whatItDoes: 'Manages connections to LLM providers as interchangeable engines.', keyCapabilities: ['API Management', 'Health Monitoring', 'Routing'], description: 'Provider Layer' },
+        { id: 'agents', number: 3, name: 'Agent Layer', color: '#00ff88', flowLabel: 'Agents', flowIcon: 'ðŸ¤–', icon: 'ðŸ¤–', role: 'Specialized Agent Workers', agent: 'Agents', whatItDoes: 'Specialized agents for code, research, tasks.', keyCapabilities: ['Code', 'Research', 'Tasks', 'Swarm'], description: 'Agent Layer' },
+        { id: 'knowledge', number: 4, name: 'Knowledge Layer', color: '#FFB627', flowLabel: 'Knowledge', flowIcon: 'ðŸ“š', icon: 'ðŸ“š', role: 'Knowledge & Memory Engine', agent: 'Knowledge', whatItDoes: 'Knowledge base, memory, knowledge graph, RAG.', keyCapabilities: ['Knowledge Base', 'Memory', 'Graph', 'RAG'], description: 'Knowledge Layer' },
+        { id: 'execution', number: 5, name: 'Execution Layer', color: '#E8751A', flowLabel: 'Execution', flowIcon: 'âš¡', icon: 'âš¡', role: 'Workflows & Automation', agent: 'Runner', whatItDoes: 'Workflows, automations, plugins, prompts.', keyCapabilities: ['Workflows', 'Automations', 'Plugins'], description: 'Execution Layer' },
+        { id: 'memory', number: 6, name: 'Memory Layer', color: '#2E86AB', flowLabel: 'Memory', flowIcon: 'ðŸ’¾', icon: 'ðŸ’¾', role: 'Multi-tier Memory System', agent: 'Memory', whatItDoes: 'Short-term, long-term, episodic, semantic memory.', keyCapabilities: ['STM', 'LTM', 'Episodic', 'Semantic'], description: 'Memory Layer' },
+        { id: 'governance', number: 7, name: 'Governance Layer', color: '#1B998B', flowLabel: 'Governance', flowIcon: 'ðŸ›¡ï¸', icon: 'ðŸ›¡ï¸', role: 'Observability & Security', agent: 'Governor', whatItDoes: 'Observability, cost, security, audit trail.', keyCapabilities: ['Observability', 'Cost', 'Security', 'Audit'], description: 'Governance Layer' },
+      ],
+
+      // â”€â”€â”€ Agent Selection â”€â”€â”€
+      selectedAgentId: null,
+      setSelectedAgentId: (id) => set({ selectedAgentId: id }),
+
+      // â”€â”€â”€ Connections â”€â”€â”€
+      hermesConnection: { running: false, apiEndpoint: '', model: '', version: '', latency: 0 },
+      geminiConnection: { installed: false, running: false, version: '', model: 'gemini-2.5-pro' },
+      sseConnectionStatus: 'disconnected',
+
+      // â”€â”€â”€ Agent Analytics â”€â”€â”€
+      agentAnalytics: {
+        brain: { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+        'code-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+        'research-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+        'task-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
+      },
+
+      // â”€â”€â”€ Goals & Journal â”€â”€â”€
+      goals: [
+        { id: 'goal-1', title: 'Set up Agentic OS dashboard', description: 'Install and configure the 7-layer Agentic OS dashboard with Gemini CLI integration', progress: 100, status: 'completed', category: 'Setup', createdAt: Date.now() - 604800000, updatedAt: Date.now() - 172800000, subtasks: [{ id: 'st-1', title: 'Clone repository', completed: true }, { id: 'st-2', title: 'Install dependencies', completed: true }, { id: 'st-3', title: 'Configure Gemini CLI', completed: true }], color: '#00ff88' },
+        { id: 'goal-2', title: 'Connect AI providers', description: 'Configure Gemini, OpenRouter, NVIDIA NIM, and other AI providers for model flexibility', progress: 60, status: 'active', category: 'Development', createdAt: Date.now() - 259200000, updatedAt: Date.now() - 3600000, subtasks: [{ id: 'st-4', title: 'Add Gemini API key', completed: true }, { id: 'st-5', title: 'Configure OpenRouter', completed: false }, { id: 'st-6', title: 'Test NVIDIA NIM', completed: false }], color: '#FFB627' },
+        { id: 'goal-3', title: 'Create custom AI agents', description: 'Build specialized agents for coding, research, and automation using the Agent Builder', progress: 30, status: 'active', category: 'Agents', createdAt: Date.now() - 86400000, updatedAt: Date.now() - 7200000, subtasks: [{ id: 'st-7', title: 'Create Code Agent', completed: true }, { id: 'st-8', title: 'Create Research Agent', completed: false }, { id: 'st-9', title: 'Configure Swarm Intelligence', completed: false }], color: '#9d4edd' },
+      ] as Goal[],
+      addGoal: (goal) => set((s) => ({ goals: [goal, ...s.goals] })),
+      updateGoal: (id, updates) => set((s) => ({
+        goals: s.goals.map((g) => (g.id === id ? { ...g, ...updates, updatedAt: Date.now() } : g)),
+      })),
+      removeGoal: (id) => set((s) => ({ goals: s.goals.filter((g) => g.id !== id) })),
+      toggleGoalSubtask: (goalId, subtaskId) => set((s) => ({
+        goals: s.goals.map((g) => {
+          if (g.id !== goalId) return g;
+          const subtasks = (g.subtasks ?? []).map(st =>
+            st.id === subtaskId ? { ...st, completed: !st.completed } : st
+          );
+          const completed = subtasks.filter(st => st.completed).length;
+          const progress = subtasks.length > 0 ? Math.round((completed / subtasks.length) * 100) : g.progress;
+          return { ...g, subtasks, progress, updatedAt: Date.now() };
+        }),
+      })),
+      journal: [
+        { id: 'jrn-1', title: 'Agentic OS First Launch', content: 'Successfully launched the 7-layer dashboard. The Gemini CLI integration is working via the chat tab. Need to configure more AI providers for flexibility. The agent builder has great templates for quick setup.', mood: 'inspired', tags: ['launch', 'setup', 'gemini-cli'], createdAt: Date.now() - 172800000, agent: 'gemini' },
+        { id: 'jrn-2', title: 'Provider Configuration', content: 'Added Gemini as primary provider. Also exploring OpenRouter and NVIDIA NIM for additional model options. The self-contained architecture is impressive â€” no external API dependencies needed with Gemini CLI.', mood: 'focused', tags: ['providers', 'configuration', 'models'], createdAt: Date.now() - 86400000, agent: 'openclaw' },
+        { id: 'jrn-3', title: 'Memory System Working', content: 'The cross-session memory engine is preserving context across sessions. Agents can now share memory and build compound knowledge over time. This is the key differentiator from generic AI tools.', mood: 'energized', tags: ['memory', 'cross-session', 'knowledge'], createdAt: Date.now() - 43200000, agent: 'brain' },
+      ] as JournalEntry[],
+      addJournalEntry: (entry) => set((s) => ({ journal: [entry, ...s.journal] })),
+      updateJournalEntry: (id, updates) => set((s) => ({
+        journal: s.journal.map((j) => (j.id === id ? { ...j, ...updates } : j)),
+      })),
+      removeJournalEntry: (id) => set((s) => ({ journal: s.journal.filter((j) => j.id !== id) })),
+
+      // â”€â”€â”€ Hermes â”€â”€â”€
+      hermesSkills: BUILTIN_SKILLS as unknown as HermesSkill[],
+      skillExecutions: [] as SkillExecution[],
+      addSkillExecution: (exec) => set((s) => ({ skillExecutions: [exec, ...s.skillExecutions].slice(0, 50) })),
+
+      // â”€â”€â”€ Chat Attachments â”€â”€â”€
+      chatAttachments: [] as ChatAttachment[],
+      addChatAttachment: (att) => set((s) => ({ chatAttachments: [...s.chatAttachments, att] })),
+      removeChatAttachment: (id) => set((s) => ({ chatAttachments: s.chatAttachments.filter(a => a.id !== id) })),
+      clearChatAttachments: () => set({ chatAttachments: [] }),
+
+      // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+      activeSwarms: [
+        { id: 'swarm-1', task: 'Optimize system performance across all layers', agents: ['code-agent', 'research-agent', 'task-agent'], strategy: 'consensus', maxRounds: 3, currentRound: 1, proposals: [], status: 'forming', winningProposal: null, consensusPercentage: 0, createdAt: Date.now() - 3600000 },
+        { id: 'swarm-2', task: 'Research competitor architectures and propose improvements', agents: ['research-agent', 'brain'], strategy: 'majority', maxRounds: 2, currentRound: 1, proposals: [], status: 'forming', winningProposal: null, consensusPercentage: 0, createdAt: Date.now() - 7200000 },
+      ] as SwarmSession[],
+      swarmHistory: [] as SwarmSession[],
+      addSwarm: (swarm) => set((s) => ({ activeSwarms: [...s.activeSwarms, swarm] })),
+      updateSwarm: (id, updates) => set((s) => ({
+        activeSwarms: s.activeSwarms.map(sw => sw.id === id ? { ...sw, ...updates } : sw),
+      })),
+
+      // â”€â”€â”€ Coworkers â”€â”€â”€
+      coworkers: DEFAULT_COWORKERS as Coworker[],
+      teamTasks: [] as TeamTask[],
+      addCoworker: (c) => set((s) => ({ coworkers: [...s.coworkers, c] })),
+      updateCoworker: (id, updates) => set((s) => ({
+        coworkers: s.coworkers.map(c => c.id === id ? { ...c, ...updates, lastActiveAt: Date.now() } : c),
+      })),
+      removeCoworker: (id) => set((s) => ({ coworkers: s.coworkers.filter(c => c.id !== id) })),
+      addTeamTask: (task) => set((s) => ({ teamTasks: [task, ...s.teamTasks] })),
+      updateTeamTask: (id, updates) => set((s) => ({
+        teamTasks: s.teamTasks.map(t => t.id === id ? { ...t, ...updates } : t),
+      })),
+      updateSubTask: (taskId, subTaskId, updates) => set((s) => ({
+        teamTasks: s.teamTasks.map(t => {
+          if (t.id !== taskId) return t;
+          return { ...t, subtasks: t.subtasks.map(st => st.id === subTaskId ? { ...st, ...updates } : st) };
+        }),
+      })),
+      executeTeamTask: async (taskId, taskModel) => {
+        const state = get();
+        const task = state.teamTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        set((s) => ({ teamTasks: s.teamTasks.map(t => t.id === taskId ? { ...t, status: 'in-progress' as TaskStatus } : t) }));
+
+        // Process each subtask through coworkers
+        for (const st of task.subtasks) {
+          const best = findBestCoworker(state.coworkers, st.role, st.description);
+          if (!best) {
+            const esc = getEscalationPath(state.coworkers, '', st.role);
+            set((s) => ({
+              teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'failed' as TaskStatus, result: esc.reason } : sub),
+              } : t),
+            }));
+            continue;
+          }
+
+          // Assign to coworker
+          set((s) => ({
+            coworkers: s.coworkers.map(c => c.id === best.id ? { ...c, status: 'working' as CoworkerStatus } : c),
+            teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+              ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'assigned' as TaskStatus, assignedTo: best.id } : sub),
+            } : t),
+          }));
+
+          // Simulate execution â€” in production this would call the Gemini API
+          await new Promise(r => setTimeout(r, 1000));
+
+          const success = Math.random() > 0.15; // 85% success rate
+          if (success) {
+            const updated = learnFromTask(best, st, `Completed ${st.title} with output analysis`, true);
+            set((s) => ({
+              coworkers: s.coworkers.map(c => c.id === best.id ? { ...updated, status: 'idle' as CoworkerStatus } : c),
+              teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'completed' as TaskStatus, result: `Completed by ${best.name}` } : sub),
+              } : t),
+            }));
+          } else {
+            // Retry with escalation
+            const esc = getEscalationPath(state.coworkers, best.id, st.role);
+            set((s) => ({
+              coworkers: s.coworkers.map(c => c.id === best.id ? { ...c, status: 'idle' as CoworkerStatus, failureCount: c.failureCount + 1 } : c),
+            }));
+
+            if (!esc.escalate && esc.delegateTo) {
+              const delegate = state.coworkers.find(c => c.id === esc.delegateTo);
+              if (delegate) {
+                const updatedDel = learnFromTask(delegate, st, `Delegated retry â€” completed ${st.title}`, true);
+                set((s) => ({
+                  coworkers: s.coworkers.map(c => c.id === delegate.id ? updatedDel : c),
+                  teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                    ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'completed' as TaskStatus, delegatedFrom: best.id, result: `Delegated to ${delegate.name} â€” ${esc.reason}` } : sub),
+                  } : t),
+                }));
+              } else {
+                set((s) => ({
+                  teamTasks: s.teamTasks.map(t => t.id === taskId ? {
+                    ...t, subtasks: t.subtasks.map(sub => sub.id === st.id ? { ...sub, status: 'failed' as TaskStatus, result: esc.reason } : sub),
+                  } : t),
+                }));
+              }
+            }
+          }
+        }
+
+        // Mark task as completed
+        set((s) => ({
+          teamTasks: s.teamTasks.map(t => t.id === taskId ? { ...t, status: 'completed' as TaskStatus, completedAt: Date.now() } : t),
+        }));
+      },
+
+      // â”€â”€â”€ Logs â”€â”€â”€
+      logs: [] as LogEntry[],
+      addLog: (log) => set((s) => ({ logs: [log, ...s.logs].slice(0, 200) })),
+
+      // â”€â”€â”€ Kanban â”€â”€â”€
+      kanbanTasks: [] as KanbanTask[],
+      addKanbanTask: (task) => set((s) => ({ kanbanTasks: [...s.kanbanTasks, task] })),
+
+      // â”€â”€â”€ UI State â”€â”€â”€
+      controlRoomAgent: null,
+      setControlRoomAgent: (id) => set({ controlRoomAgent: id }),
+      selfSearchQuery: '',
+      setSelfSearchQuery: (q) => set({ selfSearchQuery: q }),
+
+      // â”€â”€â”€ Intelligence Layer â”€â”€â”€
+      agentIntelligence: {},
+      updateAgentIntelligence: (agentId, updates) => set((s) => ({
+        agentIntelligence: {
+          ...s.agentIntelligence,
+          [agentId]: { ...(s.agentIntelligence[agentId] || createDefaultAgentIntelligence(agentId)), ...updates },
+        },
+      })),
+
+      // â”€â”€â”€ Brain Modes â”€â”€â”€
+      activeBrainMode: 'hermes-brain',
+      setActiveBrainMode: (mode) => set({ activeBrainMode: mode }),
+
+      // â”€â”€â”€ Skills â”€â”€â”€
+      skills: BUILTIN_SKILLS,
+      activeSkillIds: ['coding', 'research'],
+      toggleSkill: (skillId) => set((s) => ({
+        activeSkillIds: s.activeSkillIds.includes(skillId)
+          ? s.activeSkillIds.filter(id => id !== skillId)
+          : [...s.activeSkillIds, skillId],
+      })),
+
+      // â”€â”€â”€ Artifacts â”€â”€â”€
+      artifacts: [],
+      addArtifact: (artifact) => set((s) => ({ artifacts: [...s.artifacts, artifact] })),
+      updateArtifact: (id, updates) => set((s) => ({
+        artifacts: s.artifacts.map(a => a.id === id ? { ...a, ...updates } : a),
+      })),
+
+      // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+      swarmScore: 0,
+      swarmTier: 'single-agent',
+      lastSwarmTrigger: '',
+      setSwarmScore: (score: number) => set({ swarmScore: score }),
+      setSwarmTier: (tier: string) => set({ swarmTier: tier }),
+    }),
+    {
+      name: 'agentic-os-store',
+      merge: (persisted: any, current: any) => {
+        const merged = { ...current, ...persisted };
+        if (!persisted || !(persisted as any)._storeVersion) {
+          merged.hermesSkills = current.hermesSkills;
+          merged.activeSwarms = current.activeSwarms;
+          merged.coworkers = current.coworkers;
+          merged.goals = current.goals;
+          merged.journal = current.journal;
+          merged.memories = current.memories;
+          (merged as any)._storeVersion = 1;
+        }
+        return merged;
+      },
+      partialize: (state) => ({
+        providers: state.providers,
+        brainConfig: state.brainConfig,
+        geminiCLI: state.geminiCLI,
+        agents: state.agents,
+        workspaces: state.workspaces,
+        activeWorkspaceId: state.activeWorkspaceId,
+        attachments: state.attachments,
+        knowledgeEntries: state.knowledgeEntries,
+        memories: state.memories,
+        chatHistories: state.chatHistories,
+        workflows: state.workflows,
+        costTransactions: state.costTransactions,
+        budgetConfig: state.budgetConfig,
+        totalCost: state.totalCost,
+        totalTokensUsed: state.totalTokensUsed,
+        modelRouterConfig: state.modelRouterConfig,
+        plugins: state.plugins,
+        prompts: state.prompts,
+        mcpServers: state.mcpServers,
+        marketplaceAgents: state.marketplaceAgents,
+        deployments: state.deployments,
+        activeProviderId: state.activeProviderId,
+        modelRegistry: state.modelRegistry,
+        leadModel: state.leadModel,
+        workerModels: state.workerModels,
+        sidebarCollapsed: state.sidebarCollapsed,
+        selectedAgentId: state.selectedAgentId,
+        hermesConnection: state.hermesConnection,
+        geminiConnection: state.geminiConnection,
+        agentAnalytics: state.agentAnalytics,
+        goals: state.goals,
+        journal: state.journal,
+        hermesSkills: state.hermesSkills,
+        skillExecutions: state.skillExecutions,
+        chatAttachments: state.chatAttachments,
+        activeSwarms: state.activeSwarms,
+        coworkers: state.coworkers,
+        teamTasks: state.teamTasks,
+        swarmHistory: state.swarmHistory,
+        logs: state.logs,
+        kanbanTasks: state.kanbanTasks,
+        agentIntelligence: state.agentIntelligence,
+        activeBrainMode: state.activeBrainMode,
+        skills: state.skills,
+        activeSkillIds: state.activeSkillIds,
+        artifacts: state.artifacts,
+        swarmScore: state.swarmScore,
+        swarmTier: state.swarmTier,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state._hasHydrated = true;
+        }
+      },
+    }
+  )
+);
+
+// â”€â”€â”€ Hydration Hook â”€â”€â”€
+export function useHydration() {
+  const hydrated = useOSStore((s) => s._hasHydrated);
+  return hydrated;
+}
