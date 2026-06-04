@@ -32,41 +32,53 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env
+.env.local
 
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
+local-
+
+# AI/IDE config
 .claude
 .z-ai-config
+
+# logs
 *.log
 dev.log
 dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
-/skills/
-# Agentic OS specific
-.env
-.env.local
+
+# databases
 *.db
 *.db-journal
-dev.log
-server.log
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Agentic OS - runtime/generated (not for repo)
 upload/
 agent-ctx/
 .zscripts/
 mini-services/
+download/
+worklog.md
+
+# Old/irrelevant data files (should never be in repo)
 hermes_*.json
 hermes_full_docs.md
 image_analysis.json
-examples/
-skills/
-download/
-worklog.md
+*.mbz
+*.xls
+
+# Word temp files
+~$*
+
+# Large binary files not needed in repo
+*.zip
