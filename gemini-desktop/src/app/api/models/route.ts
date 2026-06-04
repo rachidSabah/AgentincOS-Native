@@ -22,6 +22,7 @@ const FALLBACK_MODELS: Record<string, { id: string; name: string; description: s
     { id: "google/gemini-2.0-flash-thinking-exp:free", name: "Gemini 2.0 Flash Thinking (Free)", description: "Google's reasoning model via OpenRouter" },
     { id: "deepseek/deepseek-chat", name: "DeepSeek V3", description: "DeepSeek Chat via OpenRouter" },
     { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B (Free)", description: "Meta's powerful open model via OpenRouter" },
+    { id: "openrouter/owl-alpha", name: "Owl Alpha", description: "Owl Alpha model via OpenRouter" },
   ],
   groq: [
     { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile", description: "Meta's extremely capable model on Groq" },
