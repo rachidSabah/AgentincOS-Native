@@ -10,7 +10,8 @@ import {
   Eye, GitBranch, Zap, Brain, Clock, ChevronDown,
   FileCode, Bug, Cpu, Shield, BookOpen, ArrowRight,
   ToggleLeft, ToggleRight, Layers, Grid3X3, Target,
-  Workflow, Puzzle, Network, Users, Cog,
+  Workflow, Puzzle, Network, Users, Cog, Database,
+  Server,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 
@@ -21,6 +22,21 @@ const CYBER_CYAN = '#00ffff';
 const CYBER_RED = '#E63946';
 const CYBER_AMBER = '#FFB627';
 const CYBER_PURPLE = '#9d4edd';
+
+// ─── Safe Icon Renderer — Prevents dashboard crashes from undefined icons ───
+// If an icon component is undefined, renders a fallback instead of crashing
+function SafeIcon({ icon: Icon, size = 14, style, className }: {
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }> | undefined | null;
+  size?: number;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  if (!Icon) {
+    // Icon is undefined — use Activity as fallback to prevent ReferenceError crash
+    return <Activity size={size} style={style} className={className} />;
+  }
+  return <Icon size={size} style={style} className={className} />;
+}
 
 // â”€â”€â”€ Types â”€â”€â”€
 type TabId = 'chat' | 'code' | 'terminal' | 'files' | 'agent' | 'swarm';
@@ -298,7 +314,7 @@ export function GeminiCLIDashboard() {
               background: `${GOOGLE_BLUE}15`,
               border: `1px solid ${GOOGLE_BLUE}30`,
             } : { border: '1px solid transparent' }}>
-            <tab.icon size={12} style={{ color: activeTab === tab.id ? GOOGLE_BLUE : '#8888aa' }} />
+            <SafeIcon icon={tab.icon} size={12} style={{ color: activeTab === tab.id ? GOOGLE_BLUE : '#8888aa' }} />
             {tab.label}
           </button>
         ))}
@@ -552,7 +568,7 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
             <button key={action.label} onClick={() => setInput(action.prompt)}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-medium border transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
               style={{ borderColor: `${GOOGLE_BLUE}20`, color: GOOGLE_BLUE, background: `${GOOGLE_BLUE}08` }}>
-              <action.icon size={9} />
+              <SafeIcon icon={action.icon} size={9} />
               {action.label}
             </button>
           ))}
@@ -666,7 +682,7 @@ function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
             {isProcessing && activeAction === action.id ? (
               <RefreshCw size={10} className="animate-spin" />
             ) : (
-              <action.icon size={10} />
+              <SafeIcon icon={action.icon} size={10} />
             )}
             {action.label}
           </button>
@@ -808,7 +824,7 @@ function TerminalTab({ isRunning }: { isRunning: boolean }) {
         {quickCommands.map(cmd => (
           <button key={cmd.label} onClick={() => executeCommand(cmd.label)}
             className="flex items-center gap-1 px-2 py-0.5 rounded text-[8px] text-[#8888aa] border border-[rgba(157,78,221,0.1)] hover:text-white hover:border-[rgba(157,78,221,0.3)] transition-all">
-            <cmd.icon size={8} />
+            <SafeIcon icon={cmd.icon} size={8} />
             {cmd.label}
           </button>
         ))}
@@ -1234,7 +1250,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
               background: `${GOOGLE_BLUE}12`,
               border: `1px solid ${GOOGLE_BLUE}25`,
             } : { border: '1px solid transparent' }}>
-            <tab.icon size={10} style={{ color: agentSubTab === tab.id ? GOOGLE_BLUE : '#8888aa' }} />
+            <SafeIcon icon={tab.icon} size={10} style={{ color: agentSubTab === tab.id ? GOOGLE_BLUE : '#8888aa' }} />
             {tab.label}
           </button>
         ))}
@@ -1303,7 +1319,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
           {healthMetrics.map(m => (
             <div key={m.label} className="rounded-lg border border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.4)] p-2.5">
               <div className="flex items-center gap-1.5 mb-1">
-                <m.icon size={9} style={{ color: m.color }} />
+                <SafeIcon icon={m.icon} size={9} style={{ color: m.color }} />
                 <span className="text-[8px] text-[#8888aa] uppercase tracking-wider">{m.label}</span>
               </div>
               <div className="text-[11px] font-mono font-bold" style={{ color: m.color }}>{m.value}</div>
@@ -1365,7 +1381,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
                   { label: 'Session Memory', status: agentRunning ? 'Recording' : 'Paused', icon: Activity, color: agentRunning ? CYBER_GREEN : '#8888aa' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-2 rounded-lg border border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.4)] p-2.5">
-                    <item.icon size={10} style={{ color: item.color }} />
+                    <SafeIcon icon={item.icon} size={10} style={{ color: item.color }} />
                     <div>
                       <div className="text-[9px] text-[#ccccdd] font-medium">{item.label}</div>
                       <div className="text-[8px]" style={{ color: item.color }}>{item.status}</div>
@@ -1396,7 +1412,7 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
                 ].map(cap => (
                   <div key={cap.key} className="flex items-center justify-between px-3 py-2 rounded-lg border border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.4)] hover:border-[rgba(157,78,221,0.2)] transition-colors">
                     <div className="flex items-center gap-2">
-                      <cap.icon size={10} style={{ color: capabilities[cap.key] ? CYBER_GREEN : '#666688' }} />
+                      <SafeIcon icon={cap.icon} size={10} style={{ color: capabilities[cap.key] ? CYBER_GREEN : '#666688' }} />
                       <div>
                         <div className="text-[10px] text-white font-medium">{cap.label}</div>
                         <div className="text-[8px] text-[#8888aa]">{cap.desc}</div>
