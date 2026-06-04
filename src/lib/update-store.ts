@@ -442,7 +442,7 @@ export const useUpdateStore = create<UpdateState>()(
           installedUpdates: hasPersistedInstalled ? persisted.installedUpdates! : currentState.installedUpdates,
           // Persisted available updates take priority over defaults
           availableUpdates: hasPersistedAvailable ? persisted.availableUpdates! : currentState.availableUpdates,
-          currentVersion: persisted.currentVersion || currentState.currentVersion,
+          currentVersion: (persisted.currentVersion || currentState.currentVersion).split('-')[0],
           updateSettings: persisted.updateSettings || currentState.updateSettings,
           lastChecked: persisted.lastChecked || 0,
           dismissedUpdateIds: persisted.dismissedUpdateIds || [],

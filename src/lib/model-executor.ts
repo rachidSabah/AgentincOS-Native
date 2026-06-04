@@ -144,8 +144,8 @@ async function executeViaCli(
 
   try {
     const execOptions: Record<string, unknown> = {
-      timeout: 60000,
-      maxBuffer: 1024 * 1024 * 10, // 10MB
+      timeout: 5000, // 5s max — NEVER block the event loop
+      maxBuffer: 1024 * 1024 * 5, // 5MB
     };
     if (IS_WIN) {
       execOptions.shell = true;
@@ -245,7 +245,7 @@ async function executeViaApi(
         contents: [{ parts: [{ text: fullPrompt }] }],
         generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(15000), // 15s max for API calls
     });
 
     if (!res.ok) {

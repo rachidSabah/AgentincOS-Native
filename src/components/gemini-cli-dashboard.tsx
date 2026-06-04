@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useOSStore } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 
-// â”€â”€â”€ Color Constants â”€â”€â”€
+// ------------------------------------------------------------
 const GOOGLE_BLUE = '#4285f4';
 const CYBER_GREEN = '#00ff88';
 const CYBER_CYAN = '#00ffff';
@@ -38,7 +38,7 @@ function SafeIcon({ icon: Icon, size = 14, style, className }: {
   return <Icon size={size} style={style} className={className} />;
 }
 
-// â”€â”€â”€ Types â”€â”€â”€
+// ------------------------------------------------------------
 type TabId = 'chat' | 'code' | 'terminal' | 'files' | 'agent' | 'swarm';
 type CodeAction = 'generate' | 'review' | 'refactor' | 'debug' | 'optimize' | 'document';
 
@@ -59,9 +59,9 @@ interface AgentTask {
   output?: string;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   GEMINI CLI DASHBOARD â€” Main Export
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// ------------------------------------------------------------
+// ------------------------------------------------------------
+// ------------------------------------------------------------
 // Lazy-loaded Swarm OS Dashboard
 const SwarmOSDashboardLazy = lazy(() => import('./swarm-os-dashboard').then(m => ({ default: m.SwarmOSDashboard })));
 
@@ -182,8 +182,8 @@ export function GeminiCLIDashboard() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* â”€â”€â”€ Header Section â”€â”€â”€ */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
+// ------------------------------------------------------------
+      // <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(10,10,26,0.5)]">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center"
             style={{ background: `linear-gradient(135deg, ${GOOGLE_BLUE}30, ${GOOGLE_BLUE}10)`, border: `1px solid ${GOOGLE_BLUE}30` }}>
@@ -303,8 +303,8 @@ export function GeminiCLIDashboard() {
         </div>
       </div>
 
-      {/* â”€â”€â”€ Tab Navigation â”€â”€â”€ */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.5)]">
+// ------------------------------------------------------------
+      // <div className="flex items-center gap-1 px-4 py-2 border-b border-[rgba(157,78,221,0.1)] bg-[rgba(13,13,32,0.5)]">
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all whitespace-nowrap ${
@@ -320,10 +320,10 @@ export function GeminiCLIDashboard() {
         ))}
       </div>
 
-      {/* â”€â”€â”€ <OrchestrationPanel />
+// ------------------------------------------------------------
 
-      {/* Tab Content â”€â”€â”€ */}
-      <div className="flex-1 overflow-hidden">
+// ------------------------------------------------------------
+      // <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
             {activeTab === 'chat' && <ChatTab isRunning={isRunning} model={geminiCLI.model} />}
@@ -339,9 +339,9 @@ export function GeminiCLIDashboard() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   CHAT TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// ------------------------------------------------------------
+   // CHAT TAB
+// ------------------------------------------------------------
 function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const { addChatMessage, chatHistories, addLog, providers, activeProviderId } = useOSStore();
   const messages = (chatHistories['gemini-cli-dashboard'] || []) as GeminiChatMsg[];
@@ -504,8 +504,8 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
             </div>
             {!isRunning && (
               <div className="text-[10px] px-3 py-1.5 rounded-lg border border-[rgba(255,182,39,0.2)] bg-[rgba(255,182,39,0.05)] text-[#FFB627]">
-                AI SDK active â€” Connect Gemini CLI for direct CLI features
-              </div>
+// ------------------------------------------------------------
+              // </div>
             )}
           </div>
         )}
@@ -605,9 +605,9 @@ function ChatTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   CODE TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// ------------------------------------------------------------
+   // CODE TAB
+// ------------------------------------------------------------
 function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   const [code, setCode] = useState('');
   const [output, setOutput] = useState('');
@@ -730,9 +730,9 @@ function CodeTab({ isRunning, model }: { isRunning: boolean; model: string }) {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   TERMINAL TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// ------------------------------------------------------------
+   // TERMINAL TAB
+// ------------------------------------------------------------
 function TerminalTab({ isRunning }: { isRunning: boolean }) {
   const [command, setCommand] = useState('');
   const [output, setOutput] = useState<Array<{ type: 'input' | 'output' | 'error'; text: string }>>([]);
@@ -880,9 +880,9 @@ function TerminalTab({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   FILES TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// ------------------------------------------------------------
+   // FILES TAB
+// ------------------------------------------------------------
 function FilesTab({ isRunning }: { isRunning: boolean }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -930,7 +930,7 @@ function FilesTab({ isRunning }: { isRunning: boolean }) {
         const data = await res.json();
         setFileContent(data.content || `// Content of ${path}`);
       } else {
-        setFileContent(`// File: ${path}\n// Content not available â€” connect Gemini CLI for file access`);
+        setFileContent(`// File: ${path}\n// Could not load file content`);
       }
     } catch {
       setFileContent(`// File: ${path}\n// Could not load file content`);
@@ -1050,10 +1050,10 @@ function FilesTab({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   AGENT TAB
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-// â”€â”€â”€ Brain Mode Labels â”€â”€â”€
+// ------------------------------------------------------------
+   // AGENT TAB
+// ------------------------------------------------------------
+// ------------------------------------------------------------
 const BRAIN_MODE_LABELS: Record<string, { label: string; role: string; color: string }> = {
   claude: { label: 'Claude Brain', role: 'Analytical reasoning & safety', color: '#d4a574' },
   gemini: { label: 'Gemini Brain', role: 'Multimodal understanding', color: GOOGLE_BLUE },
@@ -1225,8 +1225,8 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
         <div className="flex items-center gap-2">
           <Brain size={12} style={{ color: brainInfo.color }} />
           <span className="text-[10px] font-semibold" style={{ color: brainInfo.color }}>{brainInfo.label}</span>
-          <span className="text-[9px] text-[#8888aa]">â€” {brainInfo.role}</span>
-        </div>
+// ------------------------------------------------------------
+        // </div>
         {autonomousMode && (
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: CYBER_GREEN }} />
@@ -1299,8 +1299,8 @@ function AgentTab({ isRunning, brainMode, autonomousMode, setAutonomousMode }: {
                   style={{ backgroundColor: agentRunning ? CYBER_GREEN : '#8888aa' }} />
               </div>
               <div className="text-[10px] text-[#8888aa]">
-                {agentRunning ? 'Running and processing tasks' : 'Stopped â€” click Start to begin'}
-              </div>
+// ------------------------------------------------------------
+              // </div>
             </div>
           </div>
           <button onClick={agentRunning ? stopAgent : startAgent}

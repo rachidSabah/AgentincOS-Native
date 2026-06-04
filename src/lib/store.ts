@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createDefaultAgentIntelligence, type AgentIntelligence, type BrainMode } from './intelligence-layer';
 import { BUILTIN_SKILLS, type Skill } from './skill-system';
@@ -6,15 +6,15 @@ import { type Artifact } from './artifact-system';
 import { type Coworker, type TeamTask, type SubTask, DEFAULT_COWORKERS, decomposeTask, findBestCoworker, getEscalationPath, learnFromTask } from './coworker-system';
 import { type RegisteredModel, DEFAULT_REGISTRY, mergeDiscoveredModels, getLeadModel, getAvailableWorkers, assignRole, autoSelectWorkers } from './model-registry';
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// AGENTIC OS â€” Provider-Independent AI Operating System
+// ------------------------------------------------------------
+// AGENTIC OS  Provider-Independent AI Operating System
 // Core Data Types & Store
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 
-// â”€â”€â”€ Agent Status â”€â”€â”€
+// ------------------------------------------------------------
 export type AgentStatus = 'live' | 'degraded' | 'offline' | 'booting' | 'error';
 
-// â”€â”€â”€ Provider Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface ProviderConfig {
   id: string;
   name: string;
@@ -39,7 +39,7 @@ export interface ProviderConfig {
   maxContextTokens: number;
 }
 
-// â”€â”€â”€ Brain Layer Types â”€â”€â”€
+// ------------------------------------------------------------
 export type ReasoningStyle = 'chain-of-thought' | 'tree-of-thought' | 'react' | 'plan-and-execute' | 'reflection';
 export type MemoryMethod = 'short-term' | 'long-term' | 'semantic' | 'episodic' | 'full';
 export type CodingWorkflow = 'iterative' | 'plan-first' | 'test-driven' | 'debug-first';
@@ -77,7 +77,7 @@ export interface BrainTask {
   completedAt?: number;
 }
 
-// â”€â”€â”€ Gemini CLI Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface GeminiCLIConfig {
   installed: boolean;
   running: boolean;
@@ -99,7 +99,7 @@ export interface GeminiProject {
   lastOpened: number;
 }
 
-// â”€â”€â”€ Agent Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface Agent {
   id: string;
   name: string;
@@ -122,7 +122,7 @@ export interface Agent {
   layers: number[];
 }
 
-// â”€â”€â”€ Stack Layer Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface StackLayer {
   id: string;
   number: number;
@@ -138,7 +138,7 @@ export interface StackLayer {
   description: string;
 }
 
-// â”€â”€â”€ Agent Analytics â”€â”€â”€
+// ------------------------------------------------------------
 export interface AgentAnalytics {
   totalSessions: number;
   totalTokens: number;
@@ -148,7 +148,7 @@ export interface AgentAnalytics {
   peakHour: number;
 }
 
-// â”€â”€â”€ Hermes Connection â”€â”€â”€
+// ------------------------------------------------------------
 export interface HermesConnection {
   running: boolean;
   apiEndpoint: string;
@@ -157,7 +157,7 @@ export interface HermesConnection {
   latency: number;
 }
 
-// â”€â”€â”€ Gemini Connection â”€â”€â”€
+// ------------------------------------------------------------
 export interface GeminiConnection {
   installed: boolean;
   running: boolean;
@@ -165,7 +165,7 @@ export interface GeminiConnection {
   model: string;
 }
 
-// â”€â”€â”€ Goal Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface GoalSubtask {
   id: string;
   title: string;
@@ -187,7 +187,7 @@ export interface Goal {
   timeline?: string;
 }
 
-// â”€â”€â”€ Journal Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface JournalEntry {
   id: string;
   title: string;
@@ -202,7 +202,7 @@ export interface JournalEntry {
   source?: string;
 }
 
-// â”€â”€â”€ Skill Execution â”€â”€â”€
+// ------------------------------------------------------------
 export interface SkillExecution {
   id: string;
   skill: string;
@@ -212,7 +212,7 @@ export interface SkillExecution {
   completedAt?: number;
 }
 
-// â”€â”€â”€ Hermes Skill â”€â”€â”€
+// ------------------------------------------------------------
 export interface HermesSkill {
   id: string;
   name: string;
@@ -220,7 +220,7 @@ export interface HermesSkill {
   category: string;
 }
 
-// â”€â”€â”€ Chat Attachment â”€â”€â”€
+// ------------------------------------------------------------
 export interface ChatAttachment {
   id: string;
   name: string;
@@ -230,7 +230,7 @@ export interface ChatAttachment {
   dataUrl?: string;
 }
 
-// â”€â”€â”€ Swarm Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface SwarmVote {
   agentId: string;
   vote: 'approve' | 'reject' | 'abstain';
@@ -261,7 +261,7 @@ export interface SwarmSession {
   createdAt: number;
 }
 
-// â”€â”€â”€ Log Entry â”€â”€â”€
+// ------------------------------------------------------------
 export interface LogEntry {
   id: string;
   timestamp: string;
@@ -271,7 +271,7 @@ export interface LogEntry {
   message: string;
 }
 
-// â”€â”€â”€ Kanban Task â”€â”€â”€
+// ------------------------------------------------------------
 export interface KanbanTask {
   id: string;
   title: string;
@@ -281,7 +281,7 @@ export interface KanbanTask {
   createdAt: number;
 }
 
-// â”€â”€â”€ Workspace Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface Workspace {
   id: string;
   name: string;
@@ -328,7 +328,7 @@ export interface WorkspaceSnapshot {
   data: string; // serialized workspace state
 }
 
-// â”€â”€â”€ Attachment Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface Attachment {
   id: string;
   name: string;
@@ -348,7 +348,7 @@ export interface Attachment {
   metadata: {[key: string]: string};
 }
 
-// â”€â”€â”€ Knowledge Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface KnowledgeEntry {
   id: string;
   content: string;
@@ -385,7 +385,7 @@ export interface KnowledgeGraphEdge {
   weight: number;
 }
 
-// â”€â”€â”€ Memory Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface MemoryEntry {
   id: string;
   timestamp: string;
@@ -400,7 +400,7 @@ export interface MemoryEntry {
   workspaceId?: string;
 }
 
-// â”€â”€â”€ Workflow Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface WorkflowNode {
   id: string;
   type: 'agent-call' | 'condition' | 'loop' | 'transform' | 'webhook' | 'delay' | 'human-approval' | 'output' | 'brain-reason' | 'tool-call' | 'memory-store' | 'memory-retrieve';
@@ -429,7 +429,7 @@ export interface Workflow {
   triggerConfig: {[key: string]: string};
 }
 
-// â”€â”€â”€ Chat Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface ChatMessage {
   id: string;
   role: 'user' | 'agent' | 'system' | 'brain';
@@ -443,7 +443,7 @@ export interface ChatMessage {
   attachments?: string[]; // attachment IDs
 }
 
-// â”€â”€â”€ Cost & Observability Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface CostTransaction {
   id: string;
   agentId: string;
@@ -476,7 +476,7 @@ export interface ExecutionLog {
   latencyMs?: number;
 }
 
-// â”€â”€â”€ Model Router Config â”€â”€â”€
+// ------------------------------------------------------------
 export interface ModelRouterConfig {
   mode: 'automatic' | 'fastest' | 'cheapest' | 'highest-quality' | 'reasoning-first' | 'coding-first' | 'research-first' | 'vision-first' | 'multi-agent-consensus';
   failoverEnabled: boolean;
@@ -485,7 +485,7 @@ export interface ModelRouterConfig {
   costOptimization: boolean;
 }
 
-// â”€â”€â”€ Plugin Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface Plugin {
   id: string;
   name: string;
@@ -498,7 +498,7 @@ export interface Plugin {
   installedAt: number;
 }
 
-// â”€â”€â”€ Prompt Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface PromptEntry {
   id: string;
   name: string;
@@ -511,7 +511,7 @@ export interface PromptEntry {
   lastModified: number;
 }
 
-// â”€â”€â”€ MCP Server Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface MCPServer {
   name: string;
   transport: 'stdio' | 'http';
@@ -521,8 +521,8 @@ export interface MCPServer {
   toolCount?: number;
 }
 
-// â”€â”€â”€ Marketplace Types â”€â”€â”€
-// â”€â”€â”€ Brain Profile Type â”€â”€â”€
+// ------------------------------------------------------------
+// ------------------------------------------------------------
 export type BrainProfile = 'claude' | 'gemini' | 'hermes' | 'openclaw' | 'vault' | 'opencode' | 'custom';
 
 export interface MarketplaceAgent {
@@ -543,7 +543,7 @@ export interface MarketplaceAgent {
   tags: string[];
 }
 
-// â”€â”€â”€ Security Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface SecurityAlert {
   id: string;
   type: 'injection' | 'pii' | 'access' | 'rate';
@@ -554,7 +554,7 @@ export interface SecurityAlert {
   action: 'blocked' | 'warned' | 'logged';
 }
 
-// â”€â”€â”€ Deployment Types â”€â”€â”€
+// ------------------------------------------------------------
 export interface Deployment {
   id: string;
   name: string;
@@ -566,7 +566,7 @@ export interface Deployment {
   config: {[key: string]: string};
 }
 
-// â”€â”€â”€ System Metrics â”€â”€â”€
+// ------------------------------------------------------------
 export interface SystemMetrics {
   cpu: number;
   memory: number;
@@ -584,9 +584,9 @@ export interface SystemMetrics {
   workspaceCount: number;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 // DEFAULT PROVIDERS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 
 const defaultProviders: ProviderConfig[] = [
   {
@@ -603,7 +603,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
     priority: 1,
-    icon: 'ðŸ¤–',
+    icon: '🤖',
     color: '#10a37f',
     description: 'Leading AI provider with GPT-4o, o1, o3 models',
     website: 'https://openai.com',
@@ -626,7 +626,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
     priority: 2,
-    icon: 'ðŸ§ ',
+    icon: '🧠',
     color: '#d4a574',
     description: 'Claude models with strong reasoning and safety',
     website: 'https://anthropic.com',
@@ -649,7 +649,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
     priority: 3,
-    icon: 'âœ¨',
+    icon: '✨',
     color: '#4285f4',
     description: 'Gemini models with multimodal capabilities',
     website: 'https://ai.google.dev',
@@ -672,7 +672,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 50, hardStop: false, dailyLimit: 50, monthlyLimit: 500 },
     priority: 4,
-    icon: 'ðŸ”€',
+    icon: '🔄',
     color: '#6366f1',
     description: 'Unified API for 100+ models from all providers',
     website: 'https://openrouter.ai',
@@ -695,7 +695,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
     priority: 5,
-    icon: 'ðŸ”®',
+    icon: '🔮',
     color: '#7c3aed',
     description: 'Cost-effective models with strong coding and reasoning',
     website: 'https://deepseek.com',
@@ -718,7 +718,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
     priority: 6,
-    icon: 'ðŸŒŸ',
+    icon: '🌟',
     color: '#0ea5e9',
     description: 'Zhipu AI GLM models with Chinese & English support',
     website: 'https://open.bigmodel.cn',
@@ -741,7 +741,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
     priority: 7,
-    icon: 'ðŸ”·',
+    icon: '🔷',
     color: '#f97316',
     description: 'Alibaba Qwen models with strong multilingual support',
     website: 'https://dashscope.aliyun.com',
@@ -764,7 +764,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
     priority: 8,
-    icon: 'ðŸŒ¬ï¸',
+    icon: '🌬️',
     color: '#f97316',
     description: 'Mistral models for reasoning and code generation',
     website: 'https://mistral.ai',
@@ -787,7 +787,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 60, tpm: 100000 },
     costConfig: { alertThreshold: 25, hardStop: false, dailyLimit: 25, monthlyLimit: 250 },
     priority: 9,
-    icon: 'âš¡',
+    icon: '⚡',
     color: '#ef4444',
     description: 'xAI Grok models with real-time knowledge',
     website: 'https://x.ai',
@@ -810,7 +810,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 999, tpm: 999999 },
     costConfig: { alertThreshold: 0, hardStop: false, dailyLimit: 0, monthlyLimit: 0 },
     priority: 10,
-    icon: 'ðŸ¦™',
+    icon: '🦙',
     color: '#22c55e',
     description: 'Run models locally with Ollama - no API costs',
     website: 'https://ollama.ai',
@@ -833,7 +833,7 @@ const defaultProviders: ProviderConfig[] = [
     rateLimit: { rpm: 30, tpm: 100000 },
     costConfig: { alertThreshold: 0, hardStop: false, dailyLimit: 0, monthlyLimit: 0 },
     priority: 0, // Highest priority when available
-    icon: 'ðŸ’Ž',
+    icon: '💎',
     color: '#4285f4',
     description: 'Google Gemini CLI - local execution agent with multimodal capabilities',
     website: 'https://github.com/google-gemini/gemini-cli',
@@ -844,7 +844,7 @@ const defaultProviders: ProviderConfig[] = [
   },
 ];
 
-// â”€â”€â”€ Default Brain Config â”€â”€â”€
+// ------------------------------------------------------------
 const defaultBrainConfig: BrainConfig = {
   id: 'default-brain',
   name: 'Agentic OS Brain',
@@ -863,12 +863,12 @@ const defaultBrainConfig: BrainConfig = {
   multiStepPlanning: true,
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 // STORE INTERFACE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 
 interface OSState {
-  // â”€â”€â”€ Navigation â”€â”€â”€
+// ------------------------------------------------------------
   activeView: string;
   setActiveView: (view: string) => void;
   sidebarCollapsed: boolean;
@@ -876,7 +876,7 @@ interface OSState {
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
 
-  // â”€â”€â”€ Providers â”€â”€â”€
+// ------------------------------------------------------------
   providers: ProviderConfig[];
   addProvider: (provider: ProviderConfig) => void;
   updateProvider: (id: string, updates: Partial<ProviderConfig>) => void;
@@ -884,7 +884,7 @@ interface OSState {
   activeProviderId: string | null;
   setActiveProviderId: (id: string | null) => void;
 
-  // â”€â”€â”€ Brain Layer â”€â”€â”€
+// ------------------------------------------------------------
   brainConfig: BrainConfig;
   updateBrainConfig: (updates: Partial<BrainConfig>) => void;
   brainTasks: BrainTask[];
@@ -892,17 +892,17 @@ interface OSState {
   updateBrainTask: (id: string, updates: Partial<BrainTask>) => void;
   brainTaskHistory: BrainTask[];
 
-  // â”€â”€â”€ Gemini CLI â”€â”€â”€
+// ------------------------------------------------------------
   geminiCLI: GeminiCLIConfig;
   updateGeminiCLI: (updates: Partial<GeminiCLIConfig>) => void;
 
-  // â”€â”€â”€ Agents â”€â”€â”€
+// ------------------------------------------------------------
   agents: Agent[];
   addAgent: (agent: Agent) => void;
   updateAgent: (id: string, updates: Partial<Agent>) => void;
   removeAgent: (id: string) => void;
 
-  // â”€â”€â”€ Workspaces â”€â”€â”€
+// ------------------------------------------------------------
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   addWorkspace: (workspace: Workspace) => void;
@@ -910,39 +910,39 @@ interface OSState {
   removeWorkspace: (id: string) => void;
   setActiveWorkspaceId: (id: string | null) => void;
 
-  // â”€â”€â”€ Attachments â”€â”€â”€
+// ------------------------------------------------------------
   attachments: Attachment[];
   addAttachment: (attachment: Attachment) => void;
   removeAttachment: (id: string) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
 
-  // â”€â”€â”€ Knowledge â”€â”€â”€
+// ------------------------------------------------------------
   knowledgeEntries: KnowledgeEntry[];
   addKnowledgeEntry: (entry: KnowledgeEntry) => void;
   updateKnowledgeEntry: (id: string, updates: Partial<KnowledgeEntry>) => void;
   removeKnowledgeEntry: (id: string) => void;
   knowledgeGraph: KnowledgeGraph;
 
-  // â”€â”€â”€ Memory â”€â”€â”€
+// ------------------------------------------------------------
   memories: MemoryEntry[];
   addMemory: (memory: MemoryEntry) => void;
   updateMemory: (id: string, updates: Partial<MemoryEntry>) => void;
   removeMemory: (id: string) => void;
 
-  // â”€â”€â”€ Chat â”€â”€â”€
+// ------------------------------------------------------------
   chatHistories: {[key: string]: ChatMessage[]};
   addChatMessage: (contextId: string, msg: ChatMessage) => void;
   clearChatHistory: (contextId: string) => void;
   isChatStreaming: boolean;
   setIsChatStreaming: (streaming: boolean) => void;
 
-  // â”€â”€â”€ Workflows â”€â”€â”€
+// ------------------------------------------------------------
   workflows: Workflow[];
   addWorkflow: (wf: Workflow) => void;
   updateWorkflow: (id: string, updates: Partial<Workflow>) => void;
   removeWorkflow: (id: string) => void;
 
-  // â”€â”€â”€ Cost & Observability â”€â”€â”€
+// ------------------------------------------------------------
   costTransactions: CostTransaction[];
   addCostTransaction: (tx: CostTransaction) => void;
   budgetConfig: BudgetConfig;
@@ -953,63 +953,63 @@ interface OSState {
   totalTokensUsed: number;
   incrementTokens: (count: number) => void;
 
-  // â”€â”€â”€ Model Router â”€â”€â”€
+// ------------------------------------------------------------
   modelRouterConfig: ModelRouterConfig;
   setModelRouterConfig: (config: Partial<ModelRouterConfig>) => void;
 
-  // â”€â”€â”€ Plugins â”€â”€â”€
+// ------------------------------------------------------------
   plugins: Plugin[];
   setPlugins: (plugins: Plugin[]) => void;
   updatePlugin: (id: string, updates: Partial<Plugin>) => void;
 
-  // â”€â”€â”€ Prompts â”€â”€â”€
+// ------------------------------------------------------------
   prompts: PromptEntry[];
   setPrompts: (prompts: PromptEntry[]) => void;
   addPrompt: (prompt: PromptEntry) => void;
 
-  // â”€â”€â”€ MCP Servers â”€â”€â”€
+// ------------------------------------------------------------
   mcpServers: MCPServer[];
   setMCPServers: (servers: MCPServer[]) => void;
 
-  // â”€â”€â”€ Marketplace â”€â”€â”€
+// ------------------------------------------------------------
   marketplaceAgents: MarketplaceAgent[];
   setMarketplaceAgents: (agents: MarketplaceAgent[]) => void;
 
-  // â”€â”€â”€ Security â”€â”€â”€
+// ------------------------------------------------------------
   securityAlerts: SecurityAlert[];
   addSecurityAlert: (alert: SecurityAlert) => void;
 
-  // â”€â”€â”€ Deployments â”€â”€â”€
+// ------------------------------------------------------------
   deployments: Deployment[];
   addDeployment: (deployment: Deployment) => void;
   updateDeployment: (id: string, updates: Partial<Deployment>) => void;
 
-  // â”€â”€â”€ System Metrics â”€â”€â”€
+// ------------------------------------------------------------
   systemMetrics: SystemMetrics;
   setSystemMetrics: (metrics: SystemMetrics) => void;
 
-  // â”€â”€â”€ UI State â”€â”€â”€
+// ------------------------------------------------------------
   controlRoomAgent: string | null;
   setControlRoomAgent: (id: string | null) => void;
   selfSearchQuery: string;
   setSelfSearchQuery: (q: string) => void;
 
-  // â”€â”€â”€ Stack Layers â”€â”€â”€
+// ------------------------------------------------------------
   stackLayers: StackLayer[];
 
-  // â”€â”€â”€ Agent Selection â”€â”€â”€
+// ------------------------------------------------------------
   selectedAgentId: string | null;
   setSelectedAgentId: (id: string | null) => void;
 
-  // â”€â”€â”€ Connections â”€â”€â”€
+// ------------------------------------------------------------
   hermesConnection: HermesConnection;
   geminiConnection: GeminiConnection;
   sseConnectionStatus: string;
 
-  // â”€â”€â”€ Agent Analytics â”€â”€â”€
+// ------------------------------------------------------------
   agentAnalytics: {[key: string]: AgentAnalytics};
 
-  // â”€â”€â”€ Goals & Journal â”€â”€â”€
+// ------------------------------------------------------------
   goals: Goal[];
   addGoal: (goal: Goal) => void;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
@@ -1020,23 +1020,23 @@ interface OSState {
   updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => void;
   removeJournalEntry: (id: string) => void;
 
-  // â”€â”€â”€ Hermes â”€â”€â”€
+// ------------------------------------------------------------
   hermesSkills: HermesSkill[];
   skillExecutions: SkillExecution[];
   addSkillExecution: (exec: SkillExecution) => void;
 
-  // â”€â”€â”€ Chat Attachments â”€â”€â”€
+// ------------------------------------------------------------
   chatAttachments: ChatAttachment[];
   addChatAttachment: (att: ChatAttachment) => void;
   removeChatAttachment: (id: string) => void;
   clearChatAttachments: () => void;
 
-  // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+// ------------------------------------------------------------
   activeSwarms: SwarmSession[];
   swarmHistory: SwarmSession[];
   addSwarm: (swarm: SwarmSession) => void;
   updateSwarm: (id: string, updates: Partial<SwarmSession>) => void;
-  // â”€â”€â”€ Coworkers â”€â”€â”€
+// ------------------------------------------------------------
   coworkers: Coworker[];
   teamTasks: TeamTask[];
   addCoworker: (c: Coworker) => void;
@@ -1047,37 +1047,37 @@ interface OSState {
   updateSubTask: (taskId: string, subTaskId: string, updates: Partial<SubTask>) => void;
   executeTeamTask: (taskId: string, model: string) => Promise<void>;
 
-  // â”€â”€â”€ Logs â”€â”€â”€
+// ------------------------------------------------------------
   logs: LogEntry[];
   addLog: (log: LogEntry) => void;
 
-  // â”€â”€â”€ Kanban â”€â”€â”€
+// ------------------------------------------------------------
   kanbanTasks: KanbanTask[];
   addKanbanTask: (task: KanbanTask) => void;
 
-  // â”€â”€â”€ Hydration Guard â”€â”€â”€
+// ------------------------------------------------------------
   _hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
 
-  // â”€â”€â”€ Intelligence Layer â”€â”€â”€
+// ------------------------------------------------------------
   agentIntelligence: {[key: string]: AgentIntelligence};
   updateAgentIntelligence: (agentId: string, updates: Partial<AgentIntelligence>) => void;
 
-  // â”€â”€â”€ Brain Modes â”€â”€â”€
+// ------------------------------------------------------------
   activeBrainMode: string;
   setActiveBrainMode: (mode: string) => void;
 
-  // â”€â”€â”€ Skills â”€â”€â”€
+// ------------------------------------------------------------
   skills: Skill[];
   activeSkillIds: string[];
   toggleSkill: (skillId: string) => void;
 
-  // â”€â”€â”€ Artifacts â”€â”€â”€
+// ------------------------------------------------------------
   artifacts: Artifact[];
   addArtifact: (artifact: Artifact) => void;
   updateArtifact: (id: string, updates: Partial<Artifact>) => void;
 
-  // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+// ------------------------------------------------------------
   swarmScore: number;
   swarmTier: string;
   lastSwarmTrigger: string;
@@ -1085,14 +1085,14 @@ interface OSState {
   setSwarmTier: (tier: string) => void;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 // ZUSTAND STORE WITH PERSIST
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ------------------------------------------------------------
 
 export const useOSStore = create<OSState>()(
   persist(
     (set) => ({
-      // â”€â”€â”€ Navigation â”€â”€â”€
+// ------------------------------------------------------------
       _hasHydrated: false,
       setHasHydrated: (v) => set({ _hasHydrated: v }),
 
@@ -1103,7 +1103,7 @@ export const useOSStore = create<OSState>()(
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
 
-      // â”€â”€â”€ Providers â”€â”€â”€
+// ------------------------------------------------------------
       providers: defaultProviders,
       addProvider: (provider) => set((s) => ({ providers: [...s.providers, provider] })),
       updateProvider: (id, updates) => set((s) => ({
@@ -1122,7 +1122,7 @@ export const useOSStore = create<OSState>()(
       removeWorkerModel: (id) => set((s) => ({ workerModels: s.workerModels.filter(m => m !== id) })),
       discoverModels: async (providerId) => {}, 
 
-      // â”€â”€â”€ Brain Layer â”€â”€â”€
+// ------------------------------------------------------------
       brainConfig: defaultBrainConfig,
       updateBrainConfig: (updates) => set((s) => ({
         brainConfig: { ...s.brainConfig, ...updates },
@@ -1136,7 +1136,7 @@ export const useOSStore = create<OSState>()(
       })),
       brainTaskHistory: [],
 
-      // â”€â”€â”€ Gemini CLI â”€â”€â”€
+// ------------------------------------------------------------
       geminiCLI: {
         installed: false,
         running: false,
@@ -1154,7 +1154,7 @@ export const useOSStore = create<OSState>()(
         geminiCLI: { ...s.geminiCLI, ...updates },
       })),
 
-      // â”€â”€â”€ Agents â”€â”€â”€
+// ------------------------------------------------------------
       agents: [
         {
           id: 'brain',
@@ -1165,7 +1165,7 @@ export const useOSStore = create<OSState>()(
           model: '',
           brainConfigId: 'default-brain',
           color: '#9d4edd',
-          icon: 'ðŸ§ ',
+          icon: '🧠',
           tags: ['BRAIN', 'ORCHESTRATOR', 'PLANNING', 'REASONING'],
           uptime: '0s',
           latency: 0,
@@ -1186,7 +1186,7 @@ export const useOSStore = create<OSState>()(
           model: '',
           brainConfigId: 'default-brain',
           color: '#00ff88',
-          icon: 'ðŸ’»',
+          icon: '❓',
           tags: ['CODE', 'DEBUG', 'REVIEW'],
           uptime: '0s',
           latency: 0,
@@ -1207,7 +1207,7 @@ export const useOSStore = create<OSState>()(
           model: '',
           brainConfigId: 'default-brain',
           color: '#FFB627',
-          icon: 'ðŸ”',
+          icon: '❓',
           tags: ['RESEARCH', 'KNOWLEDGE', 'SYNTHESIS'],
           uptime: '0s',
           latency: 0,
@@ -1228,7 +1228,7 @@ export const useOSStore = create<OSState>()(
           model: '',
           brainConfigId: 'default-brain',
           color: '#E8751A',
-          icon: 'âš¡',
+          icon: '❓',
           tags: ['EXECUTION', 'WORKFLOW', 'AUTOMATION'],
           uptime: '0s',
           latency: 0,
@@ -1249,7 +1249,7 @@ export const useOSStore = create<OSState>()(
         agents: s.agents.filter((a) => a.id !== id),
       })),
 
-      // â”€â”€â”€ Workspaces â”€â”€â”€
+// ------------------------------------------------------------
       workspaces: [],
       activeWorkspaceId: null,
       addWorkspace: (workspace) => set((s) => ({ workspaces: [...s.workspaces, workspace] })),
@@ -1261,7 +1261,7 @@ export const useOSStore = create<OSState>()(
       })),
       setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
 
-      // â”€â”€â”€ Attachments â”€â”€â”€
+// ------------------------------------------------------------
       attachments: [],
       addAttachment: (attachment) => set((s) => ({ attachments: [...s.attachments, attachment] })),
       removeAttachment: (id) => set((s) => ({
@@ -1271,7 +1271,7 @@ export const useOSStore = create<OSState>()(
         attachments: s.attachments.map((a) => (a.id === id ? { ...a, ...updates } : a)),
       })),
 
-      // â”€â”€â”€ Knowledge â”€â”€â”€
+// ------------------------------------------------------------
       knowledgeEntries: [],
       addKnowledgeEntry: (entry) => set((s) => ({ knowledgeEntries: [...s.knowledgeEntries, entry] })),
       updateKnowledgeEntry: (id, updates) => set((s) => ({
@@ -1282,7 +1282,7 @@ export const useOSStore = create<OSState>()(
       })),
       knowledgeGraph: { nodes: [], edges: [] },
 
-      // â”€â”€â”€ Memory â”€â”€â”€
+// ------------------------------------------------------------
       memories: [
         { id: 'mem-1', timestamp: new Date(Date.now() - 432000000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'Gemini CLI v0.44.1 installed at C:/Users/piopi/AppData/Roaming/npm/gemini.cmd. Supports models: gemini-3-pro-preview, gemini-3.1-flash-lite, gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite. Use -p for prompts and -o json for JSON output.', agent: 'gemini', tags: ['cli', 'setup', 'gemini'], type: 'long-term', importance: 0.9, decayRate: 0.01, accessCount: 5 },
         { id: 'mem-2', timestamp: new Date(Date.now() - 172800000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), content: 'The 7-layer architecture: L1 Intelligence, L2 Providers, L3 Agents, L4 Knowledge, L5 Execution, L6 Memory, L7 Governance. Each layer can be independently configured with different AI providers.', agent: 'openclaw', tags: ['architecture', 'layers', 'configuration'], type: 'semantic', importance: 0.85, decayRate: 0.02, accessCount: 3 },
@@ -1294,7 +1294,7 @@ export const useOSStore = create<OSState>()(
       })),
       removeMemory: (id) => set((s) => ({ memories: s.memories.filter((m) => m.id !== id) })),
 
-      // â”€â”€â”€ Chat â”€â”€â”€
+// ------------------------------------------------------------
       chatHistories: {},
       addChatMessage: (contextId, msg) => set((s) => ({
         chatHistories: {
@@ -1308,7 +1308,7 @@ export const useOSStore = create<OSState>()(
       isChatStreaming: false,
       setIsChatStreaming: (streaming) => set({ isChatStreaming: streaming }),
 
-      // â”€â”€â”€ Workflows â”€â”€â”€
+// ------------------------------------------------------------
       workflows: [],
       addWorkflow: (wf) => set((s) => ({ workflows: [...s.workflows, wf] })),
       updateWorkflow: (id, updates) => set((s) => ({
@@ -1318,7 +1318,7 @@ export const useOSStore = create<OSState>()(
         workflows: s.workflows.filter((w) => w.id !== id),
       })),
 
-      // â”€â”€â”€ Cost & Observability â”€â”€â”€
+// ------------------------------------------------------------
       costTransactions: [],
       addCostTransaction: (tx) => set((s) => ({
         costTransactions: [tx, ...s.costTransactions].slice(0, 500),
@@ -1336,7 +1336,7 @@ export const useOSStore = create<OSState>()(
       totalTokensUsed: 0,
       incrementTokens: (count) => set((s) => ({ totalTokensUsed: s.totalTokensUsed + count })),
 
-      // â”€â”€â”€ Model Router â”€â”€â”€
+// ------------------------------------------------------------
       modelRouterConfig: {
         mode: 'automatic',
         failoverEnabled: true,
@@ -1348,40 +1348,40 @@ export const useOSStore = create<OSState>()(
         modelRouterConfig: { ...s.modelRouterConfig, ...config },
       })),
 
-      // â”€â”€â”€ Plugins â”€â”€â”€
+// ------------------------------------------------------------
       plugins: [],
       setPlugins: (plugins) => set({ plugins }),
       updatePlugin: (id, updates) => set((s) => ({
         plugins: s.plugins.map((p) => (p.id === id ? { ...p, ...updates } : p)),
       })),
 
-      // â”€â”€â”€ Prompts â”€â”€â”€
+// ------------------------------------------------------------
       prompts: [],
       setPrompts: (prompts) => set({ prompts }),
       addPrompt: (prompt) => set((s) => ({ prompts: [...s.prompts, prompt] })),
 
-      // â”€â”€â”€ MCP Servers â”€â”€â”€
+// ------------------------------------------------------------
       mcpServers: [],
       setMCPServers: (servers) => set({ mcpServers: servers }),
 
-      // â”€â”€â”€ Marketplace â”€â”€â”€
+// ------------------------------------------------------------
       marketplaceAgents: [],
       setMarketplaceAgents: (agents) => set({ marketplaceAgents: agents }),
 
-      // â”€â”€â”€ Security â”€â”€â”€
+// ------------------------------------------------------------
       securityAlerts: [],
       addSecurityAlert: (alert) => set((s) => ({
         securityAlerts: [alert, ...s.securityAlerts].slice(0, 100),
       })),
 
-      // â”€â”€â”€ Deployments â”€â”€â”€
+// ------------------------------------------------------------
       deployments: [],
       addDeployment: (deployment) => set((s) => ({ deployments: [...s.deployments, deployment] })),
       updateDeployment: (id, updates) => set((s) => ({
         deployments: s.deployments.map((d) => (d.id === id ? { ...d, ...updates } : d)),
       })),
 
-      // â”€â”€â”€ System Metrics â”€â”€â”€
+// ------------------------------------------------------------
       systemMetrics: {
         cpu: 0,
         memory: 0,
@@ -1400,27 +1400,27 @@ export const useOSStore = create<OSState>()(
       },
       setSystemMetrics: (metrics) => set({ systemMetrics: metrics }),
 
-      // â”€â”€â”€ Stack Layers â”€â”€â”€
+// ------------------------------------------------------------
       stackLayers: [
-        { id: 'brain', number: 1, name: 'Brain Layer', color: '#9d4edd', flowLabel: 'Intelligence', flowIcon: 'ðŸ§ ', icon: 'ðŸ§ ', role: 'Intelligence & Orchestration', agent: 'Brain', whatItDoes: 'The native intelligence. Plans, reasons, delegates, coordinates.', keyCapabilities: ['Planning', 'Reasoning', 'Delegation', 'Coordination'], description: 'Brain Layer' },
-        { id: 'providers', number: 2, name: 'Provider Layer', color: '#00ffff', flowLabel: 'Providers', flowIcon: 'ðŸ”Œ', icon: 'ðŸ”Œ', role: 'Model Provider Management', agent: 'Router', whatItDoes: 'Manages connections to LLM providers as interchangeable engines.', keyCapabilities: ['API Management', 'Health Monitoring', 'Routing'], description: 'Provider Layer' },
-        { id: 'agents', number: 3, name: 'Agent Layer', color: '#00ff88', flowLabel: 'Agents', flowIcon: 'ðŸ¤–', icon: 'ðŸ¤–', role: 'Specialized Agent Workers', agent: 'Agents', whatItDoes: 'Specialized agents for code, research, tasks.', keyCapabilities: ['Code', 'Research', 'Tasks', 'Swarm'], description: 'Agent Layer' },
-        { id: 'knowledge', number: 4, name: 'Knowledge Layer', color: '#FFB627', flowLabel: 'Knowledge', flowIcon: 'ðŸ“š', icon: 'ðŸ“š', role: 'Knowledge & Memory Engine', agent: 'Knowledge', whatItDoes: 'Knowledge base, memory, knowledge graph, RAG.', keyCapabilities: ['Knowledge Base', 'Memory', 'Graph', 'RAG'], description: 'Knowledge Layer' },
-        { id: 'execution', number: 5, name: 'Execution Layer', color: '#E8751A', flowLabel: 'Execution', flowIcon: 'âš¡', icon: 'âš¡', role: 'Workflows & Automation', agent: 'Runner', whatItDoes: 'Workflows, automations, plugins, prompts.', keyCapabilities: ['Workflows', 'Automations', 'Plugins'], description: 'Execution Layer' },
-        { id: 'memory', number: 6, name: 'Memory Layer', color: '#2E86AB', flowLabel: 'Memory', flowIcon: 'ðŸ’¾', icon: 'ðŸ’¾', role: 'Multi-tier Memory System', agent: 'Memory', whatItDoes: 'Short-term, long-term, episodic, semantic memory.', keyCapabilities: ['STM', 'LTM', 'Episodic', 'Semantic'], description: 'Memory Layer' },
-        { id: 'governance', number: 7, name: 'Governance Layer', color: '#1B998B', flowLabel: 'Governance', flowIcon: 'ðŸ›¡ï¸', icon: 'ðŸ›¡ï¸', role: 'Observability & Security', agent: 'Governor', whatItDoes: 'Observability, cost, security, audit trail.', keyCapabilities: ['Observability', 'Cost', 'Security', 'Audit'], description: 'Governance Layer' },
+        { id: 'brain', number: 1, name: 'Brain Layer', color: '#9d4edd', flowLabel: 'Intelligence', flowIcon: '🧠', icon: '🧠', role: 'Intelligence & Orchestration', agent: 'Brain', whatItDoes: 'The native intelligence. Plans, reasons, delegates, coordinates.', keyCapabilities: ['Planning', 'Reasoning', 'Delegation', 'Coordination'], description: 'Brain Layer' },
+        { id: 'providers', number: 2, name: 'Provider Layer', color: '#00ffff', flowLabel: 'Providers', flowIcon: '✨', icon: '✨', role: 'Model Provider Management', agent: 'Router', whatItDoes: 'Manages connections to LLM providers as interchangeable engines.', keyCapabilities: ['API Management', 'Health Monitoring', 'Routing'], description: 'Provider Layer' },
+        { id: 'agents', number: 3, name: 'Agent Layer', color: '#00ff88', flowLabel: 'Agents', flowIcon: '🤖', icon: '🤖', role: 'Specialized Agent Workers', agent: 'Agents', whatItDoes: 'Specialized agents for code, research, tasks.', keyCapabilities: ['Code', 'Research', 'Tasks', 'Swarm'], description: 'Agent Layer' },
+        { id: 'knowledge', number: 4, name: 'Knowledge Layer', color: '#FFB627', flowLabel: 'Knowledge', flowIcon: '📚', icon: '📚', role: 'Knowledge & Memory Engine', agent: 'Knowledge', whatItDoes: 'Knowledge base, memory, knowledge graph, RAG.', keyCapabilities: ['Knowledge Base', 'Memory', 'Graph', 'RAG'], description: 'Knowledge Layer' },
+        { id: 'execution', number: 5, name: 'Execution Layer', color: '#E8751A', flowLabel: 'Execution', flowIcon: '⚡', icon: '⚡', role: 'Workflows & Automation', agent: 'Runner', whatItDoes: 'Workflows, automations, plugins, prompts.', keyCapabilities: ['Workflows', 'Automations', 'Plugins'], description: 'Execution Layer' },
+        { id: 'memory', number: 6, name: 'Memory Layer', color: '#2E86AB', flowLabel: 'Memory', flowIcon: '💾', icon: '💾', role: 'Multi-tier Memory System', agent: 'Memory', whatItDoes: 'Short-term, long-term, episodic, semantic memory.', keyCapabilities: ['STM', 'LTM', 'Episodic', 'Semantic'], description: 'Memory Layer' },
+        { id: 'governance', number: 7, name: 'Governance Layer', color: '#1B998B', flowLabel: 'Governance', flowIcon: '🛡️', icon: '🛡️', role: 'Observability & Security', agent: 'Governor', whatItDoes: 'Observability, cost, security, audit trail.', keyCapabilities: ['Observability', 'Cost', 'Security', 'Audit'], description: 'Governance Layer' },
       ],
 
-      // â”€â”€â”€ Agent Selection â”€â”€â”€
+// ------------------------------------------------------------
       selectedAgentId: null,
       setSelectedAgentId: (id) => set({ selectedAgentId: id }),
 
-      // â”€â”€â”€ Connections â”€â”€â”€
+// ------------------------------------------------------------
       hermesConnection: { running: false, apiEndpoint: '', model: '', version: '', latency: 0 },
       geminiConnection: { installed: false, running: false, version: '', model: 'gemini-2.5-pro' },
       sseConnectionStatus: 'disconnected',
 
-      // â”€â”€â”€ Agent Analytics â”€â”€â”€
+// ------------------------------------------------------------
       agentAnalytics: {
         brain: { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
         'code-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
@@ -1428,7 +1428,7 @@ export const useOSStore = create<OSState>()(
         'task-agent': { totalSessions: 0, totalTokens: 0, totalToolCalls: 0, avgResponseTime: 0, activityByHour: Array(24).fill(0), peakHour: 0 },
       },
 
-      // â”€â”€â”€ Goals & Journal â”€â”€â”€
+// ------------------------------------------------------------
       goals: [
         { id: 'goal-1', title: 'Set up Agentic OS dashboard', description: 'Install and configure the 7-layer Agentic OS dashboard with Gemini CLI integration', progress: 100, status: 'completed', category: 'Setup', createdAt: Date.now() - 604800000, updatedAt: Date.now() - 172800000, subtasks: [{ id: 'st-1', title: 'Clone repository', completed: true }, { id: 'st-2', title: 'Install dependencies', completed: true }, { id: 'st-3', title: 'Configure Gemini CLI', completed: true }], color: '#00ff88' },
         { id: 'goal-2', title: 'Connect AI providers', description: 'Configure Gemini, OpenRouter, NVIDIA NIM, and other AI providers for model flexibility', progress: 60, status: 'active', category: 'Development', createdAt: Date.now() - 259200000, updatedAt: Date.now() - 3600000, subtasks: [{ id: 'st-4', title: 'Add Gemini API key', completed: true }, { id: 'st-5', title: 'Configure OpenRouter', completed: false }, { id: 'st-6', title: 'Test NVIDIA NIM', completed: false }], color: '#FFB627' },
@@ -1461,18 +1461,18 @@ export const useOSStore = create<OSState>()(
       })),
       removeJournalEntry: (id) => set((s) => ({ journal: s.journal.filter((j) => j.id !== id) })),
 
-      // â”€â”€â”€ Hermes â”€â”€â”€
+// ------------------------------------------------------------
       hermesSkills: BUILTIN_SKILLS as unknown as HermesSkill[],
       skillExecutions: [] as SkillExecution[],
       addSkillExecution: (exec) => set((s) => ({ skillExecutions: [exec, ...s.skillExecutions].slice(0, 50) })),
 
-      // â”€â”€â”€ Chat Attachments â”€â”€â”€
+// ------------------------------------------------------------
       chatAttachments: [] as ChatAttachment[],
       addChatAttachment: (att) => set((s) => ({ chatAttachments: [...s.chatAttachments, att] })),
       removeChatAttachment: (id) => set((s) => ({ chatAttachments: s.chatAttachments.filter(a => a.id !== id) })),
       clearChatAttachments: () => set({ chatAttachments: [] }),
 
-      // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+// ------------------------------------------------------------
       activeSwarms: [
         { id: 'swarm-1', task: 'Optimize system performance across all layers', agents: ['code-agent', 'research-agent', 'task-agent'], strategy: 'consensus', maxRounds: 3, currentRound: 1, proposals: [], status: 'forming', winningProposal: null, consensusPercentage: 0, createdAt: Date.now() - 3600000 },
         { id: 'swarm-2', task: 'Research competitor architectures and propose improvements', agents: ['research-agent', 'brain'], strategy: 'majority', maxRounds: 2, currentRound: 1, proposals: [], status: 'forming', winningProposal: null, consensusPercentage: 0, createdAt: Date.now() - 7200000 },
@@ -1483,7 +1483,7 @@ export const useOSStore = create<OSState>()(
         activeSwarms: s.activeSwarms.map(sw => sw.id === id ? { ...sw, ...updates } : sw),
       })),
 
-      // â”€â”€â”€ Coworkers â”€â”€â”€
+// ------------------------------------------------------------
       coworkers: DEFAULT_COWORKERS as Coworker[],
       teamTasks: [] as TeamTask[],
       addCoworker: (c) => set((s) => ({ coworkers: [...s.coworkers, c] })),
@@ -1529,7 +1529,7 @@ export const useOSStore = create<OSState>()(
             } : t),
           }));
 
-          // Simulate execution â€” in production this would call the Gemini API
+// Simulate execution  in production this would call the Gemini API
           await new Promise(r => setTimeout(r, 1000));
 
           const success = Math.random() > 0.15; // 85% success rate
@@ -1575,21 +1575,21 @@ export const useOSStore = create<OSState>()(
         }));
       },
 
-      // â”€â”€â”€ Logs â”€â”€â”€
+// ------------------------------------------------------------
       logs: [] as LogEntry[],
       addLog: (log) => set((s) => ({ logs: [log, ...s.logs].slice(0, 200) })),
 
-      // â”€â”€â”€ Kanban â”€â”€â”€
+// ------------------------------------------------------------
       kanbanTasks: [] as KanbanTask[],
       addKanbanTask: (task) => set((s) => ({ kanbanTasks: [...s.kanbanTasks, task] })),
 
-      // â”€â”€â”€ UI State â”€â”€â”€
+// ------------------------------------------------------------
       controlRoomAgent: null,
       setControlRoomAgent: (id) => set({ controlRoomAgent: id }),
       selfSearchQuery: '',
       setSelfSearchQuery: (q) => set({ selfSearchQuery: q }),
 
-      // â”€â”€â”€ Intelligence Layer â”€â”€â”€
+// ------------------------------------------------------------
       agentIntelligence: {},
       updateAgentIntelligence: (agentId, updates) => set((s) => ({
         agentIntelligence: {
@@ -1598,11 +1598,11 @@ export const useOSStore = create<OSState>()(
         },
       })),
 
-      // â”€â”€â”€ Brain Modes â”€â”€â”€
+// ------------------------------------------------------------
       activeBrainMode: 'hermes-brain',
       setActiveBrainMode: (mode) => set({ activeBrainMode: mode }),
 
-      // â”€â”€â”€ Skills â”€â”€â”€
+// ------------------------------------------------------------
       skills: BUILTIN_SKILLS,
       activeSkillIds: ['coding', 'research'],
       toggleSkill: (skillId) => set((s) => ({
@@ -1611,14 +1611,14 @@ export const useOSStore = create<OSState>()(
           : [...s.activeSkillIds, skillId],
       })),
 
-      // â”€â”€â”€ Artifacts â”€â”€â”€
+// ------------------------------------------------------------
       artifacts: [],
       addArtifact: (artifact) => set((s) => ({ artifacts: [...s.artifacts, artifact] })),
       updateArtifact: (id, updates) => set((s) => ({
         artifacts: s.artifacts.map(a => a.id === id ? { ...a, ...updates } : a),
       })),
 
-      // â”€â”€â”€ Swarm Intelligence â”€â”€â”€
+// ------------------------------------------------------------
       swarmScore: 0,
       swarmTier: 'single-agent',
       lastSwarmTrigger: '',
@@ -1699,7 +1699,7 @@ export const useOSStore = create<OSState>()(
   )
 );
 
-// â”€â”€â”€ Hydration Hook â”€â”€â”€
+// ------------------------------------------------------------
 export function useHydration() {
   const hydrated = useOSStore((s) => s._hasHydrated);
   return hydrated;

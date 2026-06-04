@@ -964,7 +964,7 @@ async function callGeminiAPI(prompt: string, model: string): Promise<{ success: 
         contents: [{ parts: [{ text: `${TASK_EXECUTION_SYSTEM_PROMPT}\n\nUser: ${prompt}` }] }],
         generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(15000), // 15s max — never block
     });
 
     if (!res.ok) {
@@ -1094,9 +1094,10 @@ export async function POST(req: NextRequest) {
             ? `gemini -p "${safePrompt}" -m ${tryModel} -o json`
             : `gemini -p "${safePrompt}" -m ${tryModel} -o json`;
 
-          const execOpts: { timeout: number; shell: string; windowsHide?: boolean } = {
-            timeout: 90000,
+          const execOpts: { timeout: number; shell: string; windowsHide?: boolean; maxBuffer: number } = {
+            timeout: 120000, // 120s max to allow enough time for generation
             shell: IS_WIN ? 'cmd.exe' : '/bin/sh',
+            maxBuffer: 1024 * 1024 * 10, // 10MB to prevent maxBuffer exceeded errors
             ...(IS_WIN ? { windowsHide: true } : {}),
           };
           const result = await execAsync(shellCmd, execOpts) as unknown as { stdout: string; stderr: string };
@@ -1106,9 +1107,18 @@ export async function POST(req: NextRequest) {
             const latency = Date.now() - startTime;
             console.log(`[gemini/chat] CLI succeeded with model=${tryModel}, latency=${latency}ms`);
             try {
-              const parsed = JSON.parse(stdout);
-              return NextResponse.json({ ...parsed, via: 'gemini-cli', latency, model: tryModel, tier: 1 });
-            } catch {
+              // Extract the outermost JSON object to bypass warnings (like "Warning: 256-color support not detected")
+              const firstBrace = stdout.indexOf('{');
+              const lastBrace = stdout.lastIndexOf('}');
+              if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                const cleanJson = stdout.slice(firstBrace, lastBrace + 1);
+                const parsed = JSON.parse(cleanJson);
+                return NextResponse.json({ ...parsed, via: 'gemini-cli', latency, model: tryModel, tier: 1 });
+              } else {
+                throw new Error('No valid JSON object found in output');
+              }
+            } catch (parseError) {
+              console.warn(`[gemini/chat] JSON parse warning for model=${tryModel}, falling back to raw output`);
               return NextResponse.json({ response: stdout.trim(), model: tryModel, latency, via: 'gemini-cli', tier: 1 });
             }
           }
