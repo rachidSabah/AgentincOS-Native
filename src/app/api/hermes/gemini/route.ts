@@ -997,7 +997,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
-  const { action, message, model, apiKey: clientApiKey, provider: clientProvider } = body;
+  const { action, message, model, apiKey: clientApiKey, provider: clientProvider, skillPrompt } = body;
 
   switch (action) {
     case 'start': {
@@ -1044,7 +1044,7 @@ export async function POST(req: NextRequest) {
       // Step 3: Internal analysis engine (ALWAYS succeeds — CLI failure ≠ task failure)
 
       const startTime = Date.now();
-      const userMessage = message || '';
+      const userMessage = (skillPrompt ? `${skillPrompt}\n\n` : '') + (message || '');
       const resolvedModel = resolveModel(model || FALLBACK_MODEL);
 
       console.log(`[gemini/chat] Request: model=${resolvedModel}, msg_len=${userMessage.length}, hasApiKey=${!!(clientApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)}`);

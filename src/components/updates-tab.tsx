@@ -7,7 +7,7 @@ import {
   Clock, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
   RotateCcw, Package, ArrowDownToLine, Server, Wifi,
   WifiOff, Loader2, ExternalLink, X, ToggleLeft, ToggleRight,
-  Gauge, GitBranch, Eye, EyeOff,
+  Gauge, GitBranch, Eye, EyeOff, GitCommit, Search,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Slider } from '@/components/ui/slider';
@@ -110,11 +110,12 @@ function UpdateToast({ message, type, onClose }: { message: string; type: 'succe
 
 // ─── Update Entry Card ───
 
-function UpdateCard({ update, onInstall, onRollback, isInstalling }: {
+function UpdateCard({ update, onInstall, onRollback, isInstalling, onInstallCommit }: {
   update: UpdateEntry;
   onInstall: (id: string) => void;
   onRollback: (id: string) => void;
   isInstalling: boolean;
+  onInstallCommit?: (commitSha: string, branch: string) => void;
 }) {
   const typeConfig = TYPE_CONFIG[update.type];
   const statusConfig = STATUS_CONFIG[update.status];
@@ -163,6 +164,19 @@ function UpdateCard({ update, onInstall, onRollback, isInstalling }: {
                   {typeConfig.label}
                 </span>
                 <span className="text-[9px] font-mono text-[#8888aa]">v{update.version}</span>
+                {/* Branch badge */}
+                {update.branch && update.branch !== 'main' && (
+                  <span
+                    className="text-[7px] px-1.5 py-0.5 rounded-full border font-bold tracking-wider"
+                    style={{
+                      borderColor: '#9d4edd35',
+                      color: '#9d4edd',
+                      background: '#9d4edd10',
+                    }}
+                  >
+                    {update.branch}
+                  </span>
+                )}
               </div>
               <h4 className="text-white font-semibold text-xs mt-0.5 line-clamp-1">{update.title}</h4>
             </div>
@@ -220,21 +234,40 @@ function UpdateCard({ update, onInstall, onRollback, isInstalling }: {
 
           {/* Action buttons */}
           {isAvailable && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onInstall(update.id)}
-              disabled={isInstalling}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200"
-              style={{
-                background: `linear-gradient(135deg, ${typeConfig.color}15, ${typeConfig.color}08)`,
-                border: `1px solid ${typeConfig.color}30`,
-                color: typeConfig.color,
-              }}
-            >
-              <Download size={10} />
-              Install
-            </motion.button>
+            <div className="flex items-center gap-2">
+              {update.branch && update.branch !== 'main' && onInstallCommit ? (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onInstallCommit(update.commitHash, update.branch)}
+                  disabled={isInstalling}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200"
+                  style={{
+                    background: 'linear-gradient(135deg, #9d4edd15, #9d4edd08)',
+                    border: '1px solid #9d4edd30',
+                    color: '#9d4edd',
+                  }}
+                >
+                  <GitCommit size={10} />
+                  Install Commit
+                </motion.button>
+              ) : null}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => onInstall(update.id)}
+                disabled={isInstalling}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all duration-200"
+                style={{
+                  background: `linear-gradient(135deg, ${typeConfig.color}15, ${typeConfig.color}08)`,
+                  border: `1px solid ${typeConfig.color}30`,
+                  color: typeConfig.color,
+                }}
+              >
+                <Download size={10} />
+                Install
+              </motion.button>
+            </div>
           )}
 
           {isInstalled && (
@@ -302,6 +335,301 @@ function ChangelogSection({ changelog, color }: { changelog: string; color: stri
       </AnimatePresence>
     </div>
   );
+}
+
+// ─── Branch Selector Component ───
+
+function BranchSelector() {
+  const {
+    availableBranches,
+    selectedBranch,
+    currentBranch,
+    isFetchingBranches,
+    fetchBranches,
+    setSelectedBranch,
+    checkForUpdatesFromBranch,
+    isChecking,
+    updateSettings,
+  } = useUpdateStore();
+
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch branches on mount
+  useEffect(() => {
+    fetchBranches();
+  }, [fetchBranches]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectBranch = (branch: string) => {
+    setSelectedBranch(branch);
+    setIsOpen(false);
+  };
+
+  const handleCheckBranch = async () => {
+    await checkForUpdatesFromBranch(selectedBranch);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Branch selector row */}
+      <GlassCard>
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <GitBranch size={14} className="text-[#9d4edd]" />
+              <span className="text-white text-xs font-bold uppercase tracking-wider">Branch Source</span>
+              {currentBranch && (
+                <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20 font-bold">
+                  CURRENT: {currentBranch}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Dropdown */}
+            <div className="relative flex-1" ref={dropdownRef}>
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => setIsOpen(!isOpen)}
+                disabled={isFetchingBranches}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[11px] font-medium transition-all duration-200 disabled:opacity-50"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(157,78,221,0.08), rgba(157,78,221,0.03))',
+                  border: '1px solid rgba(157,78,221,0.25)',
+                  color: '#ccccdd',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <GitBranch size={12} className="text-[#9d4edd]" />
+                  <span className="font-mono">{selectedBranch}</span>
+                  {selectedBranch === currentBranch && (
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20 font-bold">
+                      LOCAL
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {isFetchingBranches ? (
+                    <Loader2 size={12} className="animate-spin text-[#9d4edd]" />
+                  ) : (
+                    <ChevronDown size={12} className="text-[#8888aa]" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                  )}
+                </div>
+              </motion.button>
+
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 mt-1 z-40 rounded-lg border overflow-hidden max-h-60 overflow-y-auto custom-scrollbar"
+                    style={{
+                      background: 'rgba(18,18,42,0.95)',
+                      backdropFilter: 'blur(12px)',
+                      borderColor: 'rgba(157,78,221,0.3)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 16px rgba(157,78,221,0.1)',
+                    }}
+                  >
+                    {availableBranches.map((branch) => (
+                      <button
+                        key={branch}
+                        onClick={() => handleSelectBranch(branch)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] transition-all duration-150 hover:bg-[rgba(157,78,221,0.1)]"
+                        style={{
+                          color: selectedBranch === branch ? '#9d4edd' : '#ccccdd',
+                          background: selectedBranch === branch ? 'rgba(157,78,221,0.1)' : 'transparent',
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <GitBranch size={10} style={{ color: selectedBranch === branch ? '#9d4edd' : '#8888aa' }} />
+                          <span className="font-mono">{branch}</span>
+                          {branch === currentBranch && (
+                            <span className="text-[7px] px-1 py-0.5 rounded bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20 font-bold">
+                              LOCAL
+                            </span>
+                          )}
+                        </div>
+                        {selectedBranch === branch && (
+                          <CheckCircle2 size={10} className="text-[#9d4edd]" />
+                        )}
+                      </button>
+                    ))}
+                    {availableBranches.length === 0 && (
+                      <div className="px-3 py-4 text-[10px] text-[#8888aa] text-center">
+                        {isFetchingBranches ? 'Loading branches...' : 'No branches found'}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Check Branch button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleCheckBranch}
+              disabled={isChecking || isFetchingBranches}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-[11px] font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              style={{
+                background: 'linear-gradient(135deg, rgba(157,78,221,0.12), rgba(157,78,221,0.06))',
+                border: '1px solid rgba(157,78,221,0.3)',
+                color: '#9d4edd',
+              }}
+            >
+              <motion.div
+                animate={{ rotate: isChecking ? 360 : 0 }}
+                transition={{ duration: 1, repeat: isChecking ? Infinity : 0, ease: 'linear' }}
+              >
+                <Search size={12} />
+              </motion.div>
+              {isChecking ? 'Checking...' : 'Check Branch'}
+            </motion.button>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Commit list for non-main branches */}
+      <BranchCommitList />
+    </div>
+  );
+}
+
+// ─── Branch Commit List ───
+
+function BranchCommitList() {
+  const {
+    selectedBranch,
+    branchCommits,
+    isInstalling,
+    installFromCommit,
+    knownCommitHashes,
+  } = useUpdateStore();
+
+  // Only show commit list when a non-main branch is selected and there are commits
+  if (selectedBranch === 'main' || branchCommits.length === 0) return null;
+
+  return (
+    <GlassCard>
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <GitCommit size={14} className="text-[#9d4edd]" />
+            <span className="text-white text-xs font-bold uppercase tracking-wider">
+              Commits on <span className="text-[#9d4edd] font-mono">{selectedBranch}</span>
+            </span>
+            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#9d4edd]/10 text-[#9d4edd] border border-[#9d4edd]/20 font-mono">
+              {branchCommits.length}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+          {branchCommits.map((commit, i) => {
+            const shortSha = commit.sha.substring(0, 7);
+            const isKnown = knownCommitHashes.includes(shortSha);
+            const message = commit.commit.message.split('\n')[0];
+            const typeColor = getTypeColor(message);
+
+            return (
+              <motion.div
+                key={commit.sha}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className="flex items-center gap-3 p-3 rounded-lg transition-all duration-200 hover:bg-[rgba(157,78,221,0.06)]"
+                style={{
+                  background: 'rgba(10,10,26,0.4)',
+                  border: '1px solid rgba(157,78,221,0.1)',
+                }}
+              >
+                {/* Commit hash */}
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 font-mono text-[9px] font-bold"
+                  style={{
+                    background: `${typeColor}10`,
+                    border: `1px solid ${typeColor}25`,
+                    color: typeColor,
+                  }}
+                >
+                  {shortSha.substring(0, 4)}
+                </div>
+
+                {/* Commit info */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] text-white font-medium truncate">{message}</div>
+                  <div className="flex items-center gap-2 mt-0.5 text-[9px] text-[#8888aa]">
+                    <span className="font-mono">{shortSha}</span>
+                    <span>·</span>
+                    <span>{new Date(commit.commit.author.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    {isKnown && (
+                      <>
+                        <span>·</span>
+                        <span className="text-[#00ff88]">installed</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Install commit button */}
+                {!isKnown && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => installFromCommit(commit.sha, selectedBranch)}
+                    disabled={isInstalling}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-medium transition-all duration-200 disabled:opacity-50 whitespace-nowrap"
+                    style={{
+                      background: 'linear-gradient(135deg, #9d4edd15, #9d4edd08)',
+                      border: '1px solid #9d4edd30',
+                      color: '#9d4edd',
+                    }}
+                  >
+                    <Download size={9} />
+                    Install This Commit
+                  </motion.button>
+                )}
+
+                {/* View on GitHub link */}
+                <a
+                  href={commit.html_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 text-[#8888aa] hover:text-[#00ffff] transition-colors"
+                >
+                  <ExternalLink size={10} />
+                </a>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+// Helper to get type-based color from commit message
+function getTypeColor(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('security') || lower.includes('vuln') || lower.includes('cve')) return '#E63946';
+  if (lower.includes('fix') || lower.includes('bug') || lower.includes('patch') || lower.includes('hotfix')) return '#FFB627';
+  if (lower.includes('perf') || lower.includes('optim') || lower.includes('speed') || lower.includes('fast')) return '#00ff88';
+  return '#00ffff';
 }
 
 // ─── Settings Panel ───
@@ -522,7 +850,7 @@ function ConnectionStatus({ isConnected }: { isConnected: boolean }) {
 
 // ─── Version Badge ───
 
-function VersionBadge({ version }: { version: string }) {
+function VersionBadge({ version, branch }: { version: string; branch?: string }) {
   return (
     <motion.div
       className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
@@ -533,6 +861,12 @@ function VersionBadge({ version }: { version: string }) {
     >
       <GitBranch size={12} className="text-[#00ffff]" />
       <span className="text-[10px] font-mono font-bold text-[#00ffff]">v{version}</span>
+      {branch && branch !== 'main' && (
+        <>
+          <span className="text-[8px] text-[#8888aa]">·</span>
+          <span className="text-[9px] font-mono font-bold text-[#9d4edd]">{branch}</span>
+        </>
+      )}
     </motion.div>
   );
 }
@@ -576,10 +910,12 @@ export function UpdatesTab() {
     isInstalling,
     lastChecked,
     currentVersion,
+    selectedBranch,
     checkForUpdates,
     installUpdate,
     installAllUpdates,
     rollbackUpdate,
+    installFromCommit,
   } = useUpdateStore();
 
   const [activeTab, setActiveTab] = useState<'available' | 'installed'>('available');
@@ -678,7 +1014,7 @@ export function UpdatesTab() {
   useEffect(() => {
     if (availableUpdates.length > 0 && availableUpdates.length !== prevUpdateCountRef.current && !isChecking) {
       prevUpdateCountRef.current = availableUpdates.length;
-      addToast(`${availableUpdates.length} update${availableUpdates.length > 1 ? 's' : ''} available`, 'info'); // eslint-disable-line react-hooks/set-state-in-effect
+      addToast(`${availableUpdates.length} update${availableUpdates.length > 1 ? 's' : ''} available`, 'info');
     }
   }, [availableUpdates.length, isChecking, addToast]);
 
@@ -712,6 +1048,17 @@ export function UpdatesTab() {
     await installAllUpdates();
     addToast('All updates installed!', 'success');
   }, [installAllUpdates, availableUpdates.length, addToast]);
+
+  // Handle install from commit
+  const handleInstallCommit = useCallback(async (commitSha: string, branch: string) => {
+    addToast(`Installing commit ${commitSha.substring(0, 7)} from ${branch}...`, 'info');
+    try {
+      await installFromCommit(commitSha, branch);
+      addToast('Commit installed successfully!', 'success');
+    } catch {
+      addToast('Failed to install commit', 'warning');
+    }
+  }, [installFromCommit, addToast]);
 
   const formatLastChecked = (timestamp: number) => {
     if (!timestamp) return 'Never';
@@ -783,7 +1130,7 @@ export function UpdatesTab() {
               </motion.h2>
               <p className="text-[#8888aa] text-xs">Auto-pull from GitHub (no token needed) · Install updates · Rollback changes</p>
             </div>
-            <VersionBadge version={currentVersion} />
+            <VersionBadge version={currentVersion} branch={selectedBranch !== 'main' ? selectedBranch : undefined} />
           </div>
 
           {/* Stats row */}
@@ -801,6 +1148,13 @@ export function UpdatesTab() {
               Last checked: {formatLastChecked(lastChecked)}
             </div>
             <ConnectionStatus isConnected={isConnected} />
+            {/* Branch info badge */}
+            {selectedBranch !== 'main' && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#9d4edd]/10 border border-[#9d4edd]/20">
+                <GitBranch size={10} className="text-[#9d4edd]" />
+                <span className="text-[10px] text-[#9d4edd] font-medium font-mono">{selectedBranch}</span>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}
@@ -838,6 +1192,9 @@ export function UpdatesTab() {
           </div>
         </div>
       </motion.div>
+
+      {/* ─── Branch Selector ─── */}
+      <BranchSelector />
 
       {/* ─── Settings Panel ─── */}
       <UpdateSettingsPanel />
@@ -899,6 +1256,7 @@ export function UpdatesTab() {
                   onInstall={handleInstall}
                   onRollback={handleRollback}
                   isInstalling={isInstalling}
+                  onInstallCommit={handleInstallCommit}
                 />
               ))
             )}
@@ -924,6 +1282,7 @@ export function UpdatesTab() {
                   onInstall={handleInstall}
                   onRollback={handleRollback}
                   isInstalling={isInstalling}
+                  onInstallCommit={handleInstallCommit}
                 />
               ))
             )}
@@ -982,6 +1341,18 @@ export function UpdatesTab() {
                     style={{ backgroundColor: TYPE_CONFIG[update.type].color }}
                   />
                   <span className="text-[#ccccdd] truncate flex-1">{update.title}</span>
+                  {update.branch && update.branch !== 'main' && (
+                    <span
+                      className="text-[7px] px-1.5 py-0.5 rounded-full border font-bold tracking-wider flex-shrink-0"
+                      style={{
+                        borderColor: '#9d4edd35',
+                        color: '#9d4edd',
+                        background: '#9d4edd10',
+                      }}
+                    >
+                      {update.branch}
+                    </span>
+                  )}
                   <span className="text-[#8888aa] flex-shrink-0">
                     {new Date(update.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
@@ -1025,11 +1396,24 @@ export function UpdatesTab() {
             <div className="flex-1 min-w-0">
               <div className="text-white text-[11px] font-medium truncate">rachidSabah/Agentic-os</div>
               <div className="text-[9px] text-[#8888aa]">
-                main branch · auto-pull enabled
-                {updateSettings.githubToken ? (
-                  <span className="text-[#00ff88] ml-1">· token active</span>
+                {selectedBranch !== 'main' ? (
+                  <span>
+                    <span className="font-mono text-[#9d4edd]">{selectedBranch}</span> branch · checking for updates
+                    {updateSettings.githubToken ? (
+                      <span className="text-[#00ff88] ml-1">· token active</span>
+                    ) : (
+                      <span className="text-[#FFB627] ml-1">· no token (public only)</span>
+                    )}
+                  </span>
                 ) : (
-                  <span className="text-[#FFB627] ml-1">· no token (public only)</span>
+                  <span>
+                    main branch · auto-pull enabled
+                    {updateSettings.githubToken ? (
+                      <span className="text-[#00ff88] ml-1">· token active</span>
+                    ) : (
+                      <span className="text-[#FFB627] ml-1">· no token (public only)</span>
+                    )}
+                  </span>
                 )}
               </div>
             </div>

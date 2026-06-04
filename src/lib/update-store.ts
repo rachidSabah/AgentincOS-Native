@@ -22,6 +22,7 @@ export interface UpdateEntry {
   changelog: string;
   timestamp: number;
   commitHash: string;
+  branch?: string; // Branch this update originates from
   progress?: number; // 0-100 for download/install progress
 }
 
@@ -31,6 +32,7 @@ export interface UpdateSettings {
   checkInterval: number; // minutes
   channel: UpdateChannel;
   githubToken?: string; // User-provided GitHub token (stored in localStorage, not .env)
+  selectedBranch: string; // Currently selected branch for checking updates
 }
 
 export interface GitHubCommit {
@@ -50,6 +52,14 @@ export interface GitHubTag {
     sha: string;
   };
   zipball_url: string;
+}
+
+export interface GitHubBranch {
+  name: string;
+  commit: {
+    sha: string;
+  };
+  protected: boolean;
 }
 
 export interface UpdateCheckResult {
@@ -92,6 +102,13 @@ interface UpdateState {
   dismissedUpdateIds: string[]; // IDs of updates dismissed by user
   knownCommitHashes: string[]; // Commit hashes that have been seen (available, installed, or dismissed) — prevents re-showing on restart
 
+  // Branch tracking state
+  availableBranches: string[]; // List of branches available in the repo
+  currentBranch: string; // Current git branch the project is on
+  selectedBranch: string; // Branch selected in UI for checking updates
+  branchCommits: GitHubCommit[]; // Commits from the selected branch (for commit-level install)
+  isFetchingBranches: boolean; // Loading state for branch fetch
+
   // Actions
   checkForUpdates: () => Promise<void>;
   installUpdate: (id: string) => Promise<void>;
@@ -100,6 +117,12 @@ interface UpdateState {
   setUpdateSettings: (settings: Partial<UpdateSettings>) => void;
   setUpdateStatus: (id: string, status: UpdateStatus, progress?: number) => void;
   dismissUpdate: (id: string) => void;
+
+  // Branch actions
+  fetchBranches: () => Promise<void>;
+  setSelectedBranch: (branch: string) => void;
+  checkForUpdatesFromBranch: (branch: string) => Promise<void>;
+  installFromCommit: (commitSha: string, branch: string) => Promise<void>;
 }
 
 // ─── Helper Functions ───
@@ -143,6 +166,7 @@ function getSeedUpdates(): UpdateEntry[] {
       changelog: '- Initial installation',
       timestamp: Date.now(),
       commitHash: 'init',
+      branch: 'main',
     },
   ];
 }
@@ -166,6 +190,7 @@ export const useUpdateStore = create<UpdateState>()(
         autoInstall: false,
         checkInterval: 30,
         channel: 'stable' as UpdateChannel,
+        selectedBranch: 'main',
       },
       isChecking: false,
       isInstalling: false,
@@ -174,6 +199,13 @@ export const useUpdateStore = create<UpdateState>()(
       installProgress: {},
       dismissedUpdateIds: [],
       knownCommitHashes: [], // populated from persisted data + installed updates on hydration
+
+      // Branch tracking defaults
+      availableBranches: ['main'],
+      currentBranch: 'main',
+      selectedBranch: 'main',
+      branchCommits: [],
+      isFetchingBranches: false,
 
       checkForUpdates: async () => {
         const state = get();
@@ -399,6 +431,201 @@ export const useUpdateStore = create<UpdateState>()(
           };
         });
       },
+
+      // ─── Branch Actions ───
+
+      fetchBranches: async () => {
+        const state = get();
+        if (state.isFetchingBranches) return;
+
+        set({ isFetchingBranches: true });
+
+        try {
+          const headers: {[key: string]: string} = {};
+          if (state.updateSettings.githubToken) {
+            headers['X-GitHub-Token'] = state.updateSettings.githubToken;
+          }
+
+          const params = new URLSearchParams({ action: 'branches' });
+          const response = await fetch(`/api/updates?${params}`, { headers });
+          if (!response.ok) throw new Error('Failed to fetch branches');
+
+          const data = await response.json();
+          const branches: string[] = data.branches || ['main'];
+          const currentBranch: string = data.currentBranch || 'main';
+
+          set({
+            availableBranches: branches,
+            currentBranch,
+            isFetchingBranches: false,
+          });
+        } catch (error) {
+          console.error('Failed to fetch branches:', error);
+          set({ isFetchingBranches: false });
+        }
+      },
+
+      setSelectedBranch: (branch: string) => {
+        set((prev) => ({
+          selectedBranch: branch,
+          updateSettings: { ...prev.updateSettings, selectedBranch: branch },
+          branchCommits: [], // Clear commits when branch changes
+        }));
+      },
+
+      checkForUpdatesFromBranch: async (branch: string) => {
+        const state = get();
+        if (state.isChecking) return;
+
+        set({ isChecking: true });
+
+        try {
+          const params = new URLSearchParams({
+            action: 'check',
+            version: state.currentVersion,
+            channel: state.updateSettings.channel,
+            branch,
+          });
+          const headers: {[key: string]: string} = {};
+          if (state.updateSettings.githubToken) {
+            headers['X-GitHub-Token'] = state.updateSettings.githubToken;
+          }
+
+          const response = await fetch(`/api/updates?${params}`, { headers });
+          if (!response.ok) throw new Error('Failed to check for updates from branch');
+
+          const data: UpdateCheckResult & { commits?: GitHubCommit[] } = await response.json();
+
+          // Tag all updates with the branch
+          const branchUpdates = (data.updates || []).map(u => ({
+            ...u,
+            branch,
+          }));
+
+          // Store branch commits for the commit-level UI
+          const branchCommits = data.commits || [];
+
+          // Build known hashes
+          const knownHashes = new Set<string>(state.knownCommitHashes);
+          for (const u of state.installedUpdates) {
+            if (u.commitHash) knownHashes.add(u.commitHash);
+          }
+          for (const u of state.availableUpdates) {
+            if (u.commitHash) knownHashes.add(u.commitHash);
+          }
+
+          // Deduplicate
+          const installedVersions = new Set(state.installedUpdates.map(u => u.version));
+          const installedIds = new Set(state.installedUpdates.map(u => u.id));
+          const existingAvailableIds = new Set(state.availableUpdates.map(u => u.id));
+          const dismissedIds = new Set(state.dismissedUpdateIds);
+          const newAvailable = branchUpdates.filter(u =>
+            !knownHashes.has(u.commitHash) &&
+            !installedVersions.has(u.version) &&
+            !installedIds.has(u.id) &&
+            !existingAvailableIds.has(u.id) &&
+            !dismissedIds.has(u.id)
+          );
+
+          // Merge with existing available updates
+          const mergedAvailable = [...state.availableUpdates];
+          const newHashes: string[] = [];
+          for (const update of newAvailable) {
+            if (!mergedAvailable.find(u => u.id === update.id)) {
+              mergedAvailable.push(update);
+              if (update.commitHash) newHashes.push(update.commitHash);
+            }
+          }
+          const finalAvailable = mergedAvailable.filter(
+            u => !installedIds.has(u.id) && !installedVersions.has(u.version)
+          );
+
+          const allKnownHashes = [...new Set([...state.knownCommitHashes, ...newHashes])];
+
+          set({
+            availableUpdates: finalAvailable,
+            branchCommits,
+            lastChecked: Date.now(),
+            isChecking: false,
+            selectedBranch: branch,
+            knownCommitHashes: allKnownHashes,
+          });
+
+          // Auto-install if enabled
+          if (state.updateSettings.autoInstall && newAvailable.length > 0) {
+            for (const update of newAvailable) {
+              await get().installUpdate(update.id);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to check for updates from branch:', error);
+          set({ isChecking: false });
+        }
+      },
+
+      installFromCommit: async (commitSha: string, branch: string) => {
+        const state = get();
+        if (state.isInstalling) return;
+
+        set({ isInstalling: true });
+
+        try {
+          // Call the API to install from a specific commit
+          const response = await fetch('/api/updates', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(state.updateSettings.githubToken
+                ? { 'X-GitHub-Token': state.updateSettings.githubToken }
+                : {}),
+            },
+            body: JSON.stringify({
+              action: 'install-commit',
+              commitSha,
+              branch,
+            }),
+          });
+
+          if (!response.ok) throw new Error('Failed to install from commit');
+
+          const data = await response.json();
+
+          if (data.success) {
+            // Create a new UpdateEntry for this commit installation
+            const commitInfo = state.branchCommits.find(c => c.sha.startsWith(commitSha));
+            const message = commitInfo?.commit.message.split('\n')[0] || `Commit ${commitSha.substring(0, 7)}`;
+            const baseVersion = state.currentVersion.split('-')[0];
+
+            const installedUpdate: UpdateEntry = {
+              id: `commit-${commitSha.substring(0, 7)}`,
+              version: `${baseVersion}-commit.${commitSha.substring(0, 7)}`,
+              title: message,
+              description: `Installed from commit ${commitSha.substring(0, 7)} on branch ${branch}`,
+              type: parseUpdateType(message),
+              status: 'installed',
+              size: Math.floor(Math.random() * 200000) + 50000,
+              changelog: commitInfo?.commit.message || message,
+              timestamp: Date.now(),
+              commitHash: commitSha.substring(0, 7),
+              branch,
+            };
+
+            // Add commit hash to known hashes
+            const newKnownHashes = [...new Set([...state.knownCommitHashes, commitSha.substring(0, 7)])];
+
+            set((prev) => ({
+              installedUpdates: [installedUpdate, ...prev.installedUpdates],
+              knownCommitHashes: newKnownHashes,
+              isInstalling: false,
+            }));
+          } else {
+            throw new Error(data.message || 'Install from commit failed');
+          }
+        } catch (error) {
+          console.error('Failed to install from commit:', error);
+          set({ isInstalling: false });
+        }
+      },
     }),
     {
       name: 'agentic-os-update-store', // localStorage key
@@ -419,6 +646,9 @@ export const useUpdateStore = create<UpdateState>()(
         dismissedUpdateIds: state.dismissedUpdateIds,
         availableUpdates: state.availableUpdates.filter(u => u.status === 'available'),
         knownCommitHashes: state.knownCommitHashes,
+        availableBranches: state.availableBranches,
+        currentBranch: state.currentBranch,
+        selectedBranch: state.selectedBranch,
       }),
       // Merge persisted data with defaults on hydration
       // KEY FIX: Persisted data ALWAYS wins over seed/defaults to prevent
@@ -447,6 +677,10 @@ export const useUpdateStore = create<UpdateState>()(
           lastChecked: persisted.lastChecked || 0,
           dismissedUpdateIds: persisted.dismissedUpdateIds || [],
           knownCommitHashes: allKnownHashes,
+          // Branch state persistence
+          availableBranches: persisted.availableBranches || currentState.availableBranches,
+          currentBranch: persisted.currentBranch || currentState.currentBranch,
+          selectedBranch: persisted.selectedBranch || currentState.selectedBranch,
         };
       },
     }

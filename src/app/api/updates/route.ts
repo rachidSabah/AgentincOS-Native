@@ -39,6 +39,15 @@ interface GitHubTag {
   node_id: string;
 }
 
+interface GitHubBranch {
+  name: string;
+  commit: {
+    sha: string;
+    url: string;
+  };
+  protected: boolean;
+}
+
 interface UpdateEntry {
   id: string;
   version: string;
@@ -50,6 +59,7 @@ interface UpdateEntry {
   changelog: string;
   timestamp: number;
   commitHash: string;
+  branch?: string;
 }
 
 interface RateLimitInfo {
@@ -176,7 +186,16 @@ async function fetchGitHub<T>(endpoint: string, clientToken?: string): Promise<{
   }
 }
 
-async function checkForUpdates(currentVersion: string, channel: string, clientToken?: string): Promise<{
+/**
+ * Helper to run a local git command safely.
+ */
+async function gitExec(args: string[], cwd: string, timeout = 10000): Promise<string> {
+  const shellOpt = IS_WIN ? { shell: true } : {};
+  const { stdout } = await execFileAsync('git', args, { timeout, cwd, ...shellOpt });
+  return stdout.trim();
+}
+
+async function checkForUpdates(currentVersion: string, channel: string, clientToken?: string, branch?: string): Promise<{
   hasUpdates: boolean;
   updates: UpdateEntry[];
   latestVersion: string;
@@ -185,20 +204,55 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
 }> {
   const repo = getGithubRepo();
 
-  // Fetch tags and recent commits in parallel
-  const [tagsResult, commitsResult] = await Promise.all([
-    fetchGitHub<GitHubTag[]>(`/repos/${repo}/tags?per_page=10`, clientToken),
-    fetchGitHub<GitHubCommit[]>(`/repos/${repo}/commits?per_page=20`, clientToken),
-  ]);
+  // Build the list of branches to check commits for
+  // Always check default (main) commits; additionally check the specified branch if different
+  const branchesToCheck: string[] = [];
+  if (branch) {
+    branchesToCheck.push(branch);
+  }
 
-  const tags = tagsResult.data;
-  const commits = commitsResult.data;
+  // Fetch tags and commits in parallel
+  const fetchTasks: Promise<{ data: GitHubTag[] | GitHubCommit[] | null; rateLimited: boolean; rateLimitRemaining?: number; rateLimitReset?: number }>[] = [];
+
+  // Tags
+  fetchTasks.push(fetchGitHub<GitHubTag[]>(`/repos/${repo}/tags?per_page=10`, clientToken));
+
+  // Default branch commits (always fetched)
+  fetchTasks.push(fetchGitHub<GitHubCommit[]>(`/repos/${repo}/commits?per_page=20`, clientToken));
+
+  // Additional branch commits if specified and different from default
+  for (const b of branchesToCheck) {
+    fetchTasks.push(fetchGitHub<GitHubCommit[]>(`/repos/${repo}/commits?sha=${encodeURIComponent(b)}&per_page=20`, clientToken));
+  }
+
+  const results = await Promise.all(fetchTasks);
+
+  const tagsResult = results[0];
+  const defaultCommitsResult = results[1];
+  const branchCommitResults = results.slice(2);
+
+  const tags = tagsResult.data as GitHubTag[] | null;
+  const defaultCommits = defaultCommitsResult.data as GitHubCommit[] | null;
 
   // Build rate limit info from the most constrained response
+  let minRemaining = Infinity;
+  let maxReset = 0;
+  let anyRateLimited = false;
+
+  for (const r of results) {
+    if (r.rateLimited) anyRateLimited = true;
+    if (r.rateLimitRemaining !== undefined && r.rateLimitRemaining < minRemaining) {
+      minRemaining = r.rateLimitRemaining;
+    }
+    if (r.rateLimitReset !== undefined && r.rateLimitReset > maxReset) {
+      maxReset = r.rateLimitReset;
+    }
+  }
+
   const rateLimitInfo: RateLimitInfo = {
-    rateLimited: tagsResult.rateLimited || commitsResult.rateLimited,
-    rateLimitRemaining: Math.min(tagsResult.rateLimitRemaining ?? Infinity, commitsResult.rateLimitRemaining ?? Infinity),
-    rateLimitReset: Math.max(tagsResult.rateLimitReset ?? 0, commitsResult.rateLimitReset ?? 0) || undefined,
+    rateLimited: anyRateLimited,
+    rateLimitRemaining: minRemaining === Infinity ? undefined : minRemaining,
+    rateLimitReset: maxReset || undefined,
   };
 
   if (rateLimitInfo.rateLimited) {
@@ -234,8 +288,10 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
     }
   }
 
-  // Process recent commits as incremental updates for ALL channels
-  if (commits && commits.length > 0) {
+  // Process recent commits from the default branch
+  const processCommits = (commits: GitHubCommit[] | null, sourceBranch: string) => {
+    if (!commits || commits.length === 0) return;
+
     const commitUpdates: UpdateEntry[] = [];
     const baseVersion = currentVersion.split('-')[0];
     for (const commit of commits) {
@@ -250,7 +306,7 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
 
       if (isRecent) {
         commitUpdates.push({
-          id: `commit-${shortSha}`,
+          id: `commit-${sourceBranch}-${shortSha}`,
           version: channel === 'stable'
             ? `${baseVersion}-patch.${shortSha}`
             : `${baseVersion}-dev.${shortSha}`,
@@ -262,6 +318,7 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
           changelog: commit.commit.message,
           timestamp: commitDate,
           commitHash: shortSha,
+          branch: sourceBranch,
         });
       }
     }
@@ -273,6 +330,14 @@ async function checkForUpdates(currentVersion: string, channel: string, clientTo
         seenVersions.add(cu.version);
       }
     }
+  };
+
+  processCommits(defaultCommits, 'main');
+
+  // Process commits from additional branches
+  for (let i = 0; i < branchesToCheck.length; i++) {
+    const branchCommits = branchCommitResults[i]?.data as GitHubCommit[] | null;
+    processCommits(branchCommits, branchesToCheck[i]);
   }
 
   return {
@@ -289,14 +354,87 @@ export async function GET(request: NextRequest) {
   const action = searchParams.get('action') || 'check';
   const clientVersion = searchParams.get('version');
   const channel = searchParams.get('channel') || 'stable';
+  const branch = searchParams.get('branch') || undefined;
   const clientToken = request.headers.get('X-GitHub-Token') || undefined;
 
   switch (action) {
     case 'check': {
       const pkgVersion = await getAppVersion();
       const currentVersion = clientVersion || pkgVersion;
-      const result = await checkForUpdates(currentVersion, channel, clientToken);
+      const result = await checkForUpdates(currentVersion, channel, clientToken, branch);
       return NextResponse.json(result);
+    }
+
+    case 'branches': {
+      const repo = getGithubRepo();
+      const result = await fetchGitHub<GitHubBranch[]>(`/repos/${repo}/branches?per_page=100`, clientToken);
+
+      if (!result.data) {
+        return NextResponse.json({
+          branches: [],
+          rateLimited: result.rateLimited,
+          rateLimitRemaining: result.rateLimitRemaining,
+          rateLimitReset: result.rateLimitReset,
+          message: result.rateLimited
+            ? 'GitHub API rate limit reached. Add a GITHUB_TOKEN in Settings or .env for higher limits.'
+            : 'Could not fetch branches from GitHub.',
+        });
+      }
+
+      const branches = result.data.map((b) => ({
+        name: b.name,
+        commitSha: b.commit.sha,
+        protected: b.protected,
+      }));
+
+      return NextResponse.json({
+        branches,
+        rateLimited: result.rateLimited,
+        rateLimitRemaining: result.rateLimitRemaining,
+        rateLimitReset: result.rateLimitReset,
+      });
+    }
+
+    case 'commits': {
+      const targetBranch = branch || 'main';
+      const repo = getGithubRepo();
+      const perPage = Math.min(Math.max(Number(searchParams.get('per_page')) || 20, 1), 100);
+      const result = await fetchGitHub<GitHubCommit[]>(
+        `/repos/${repo}/commits?sha=${encodeURIComponent(targetBranch)}&per_page=${perPage}`,
+        clientToken
+      );
+
+      if (!result.data) {
+        return NextResponse.json({
+          branch: targetBranch,
+          commits: [],
+          rateLimited: result.rateLimited,
+          rateLimitRemaining: result.rateLimitRemaining,
+          rateLimitReset: result.rateLimitReset,
+          message: result.rateLimited
+            ? 'GitHub API rate limit reached. Add a GITHUB_TOKEN in Settings or .env for higher limits.'
+            : `Could not fetch commits for branch "${targetBranch}" from GitHub.`,
+        });
+      }
+
+      const commits = result.data.map((c) => ({
+        sha: c.sha,
+        shortSha: c.sha.substring(0, 7),
+        message: c.commit.message.split('\n')[0],
+        fullMessage: c.commit.message,
+        author: c.commit.author.name,
+        date: c.commit.author.date,
+        timestamp: new Date(c.commit.author.date).getTime(),
+        url: c.html_url,
+      }));
+
+      return NextResponse.json({
+        branch: targetBranch,
+        commits,
+        rateLimited: result.rateLimited,
+        rateLimitRemaining: result.rateLimitRemaining,
+        rateLimitReset: result.rateLimitReset,
+      });
     }
 
     case 'status': {
@@ -336,6 +474,64 @@ export async function GET(request: NextRequest) {
         githubReachable = false;
       }
 
+      // Get current git branch and latest commit hash
+      const projectDir = process.cwd();
+      let currentBranch = 'unknown';
+      let latestCommitHash = 'unknown';
+      let remoteHasNewer = false;
+
+      try {
+        currentBranch = await gitExec(['branch', '--show-current'], projectDir);
+      } catch {
+        // Not a git repo or other error — keep default
+      }
+
+      try {
+        latestCommitHash = await gitExec(['rev-parse', '--short', 'HEAD'], projectDir);
+      } catch {
+        // fallback — keep default
+      }
+
+      // Check if remote branches have newer commits than local
+      try {
+        // Fetch first to get up-to-date remote refs
+        await gitExec(['fetch', 'origin'], projectDir, 15000);
+
+        // Check current branch's remote tracking branch
+        if (currentBranch && currentBranch !== 'unknown') {
+          try {
+            const aheadBehind = await gitExec(
+              ['rev-list', '--left-right', '--count', `HEAD...origin/${currentBranch}`],
+              projectDir
+            );
+            const [, behind] = aheadBehind.trim().split(/\s+/).map(Number);
+            if ((behind || 0) > 0) {
+              remoteHasNewer = true;
+            }
+          } catch {
+            // May not have a tracking branch — not critical
+          }
+        }
+
+        // Also check if main branch has newer commits
+        if (currentBranch !== 'main') {
+          try {
+            const mainAheadBehind = await gitExec(
+              ['rev-list', '--left-right', '--count', 'HEAD...origin/main'],
+              projectDir
+            );
+            const [, behindMain] = mainAheadBehind.trim().split(/\s+/).map(Number);
+            if ((behindMain || 0) > 0) {
+              remoteHasNewer = true;
+            }
+          } catch {
+            // May not have main branch — not critical
+          }
+        }
+      } catch {
+        // fetch failed — can't determine remote status
+      }
+
       return NextResponse.json({
         currentVersion,
         lastChecked: Date.now(),
@@ -347,32 +543,38 @@ export async function GET(request: NextRequest) {
         hasToken: !!effectiveToken,
         rateLimited,
         rateLimitRemaining,
+        currentBranch,
+        latestCommitHash,
+        remoteHasNewer,
         message: rateLimited
           ? 'GitHub API rate limit reached. Add a GITHUB_TOKEN in Settings or .env for higher limits (5000 req/hr).'
           : !githubReachable
           ? 'Could not reach GitHub. Check your internet connection.'
+          : remoteHasNewer
+          ? 'There are newer commits available on remote branches.'
           : 'Updates are working. A token increases rate limits for private repos.',
       });
     }
 
     default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid action. Use: check, branches, commits, status' }, { status: 400 });
   }
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { action, updateId } = body;
+  const { action, updateId, branch, commitSha } = body;
   const projectDir = process.cwd();
 
   switch (action) {
     case 'install': {
       // Perform actual git pull to update from GitHub
+      // Supports: branch param (pull from specific branch) and commitSha (checkout specific commit)
       try {
         const shellOpt = IS_WIN ? { shell: true } : {};
 
         // Step 1: Fetch latest from origin
-        const { stdout: fetchOut } = await execFileAsync('git', ['fetch', 'origin'], {
+        await execFileAsync('git', ['fetch', 'origin'], {
           timeout: 30000,
           cwd: projectDir,
           ...shellOpt,
@@ -385,12 +587,26 @@ export async function POST(request: NextRequest) {
           ...shellOpt,
         });
 
-        // Step 3: Pull latest changes
-        const { stdout: pullOut, stderr: pullErr } = await execFileAsync('git', ['pull', '--rebase', 'origin', 'main'], {
-          timeout: 60000,
-          cwd: projectDir,
-          ...shellOpt,
-        });
+        // Step 3: Pull latest changes from the specified branch or default to main
+        const targetBranch = branch || 'main';
+        const { stdout: pullOut, stderr: pullErr } = await execFileAsync(
+          'git',
+          ['pull', '--rebase', 'origin', targetBranch],
+          {
+            timeout: 60000,
+            cwd: projectDir,
+            ...shellOpt,
+          }
+        );
+
+        // Step 3b: If a specific commit SHA is requested, checkout that commit
+        if (commitSha) {
+          await execFileAsync('git', ['checkout', commitSha], {
+            timeout: 15000,
+            cwd: projectDir,
+            ...shellOpt,
+          });
+        }
 
         // Step 4: Install dependencies if package.json changed
         let depsInstalled = false;
@@ -441,12 +657,23 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Get current commit hash after install
+        let installedCommitHash = 'unknown';
+        try {
+          installedCommitHash = await gitExec(['rev-parse', '--short', 'HEAD'], projectDir);
+        } catch {
+          // not critical
+        }
+
         return NextResponse.json({
           success: true,
           updateId,
-          message: `Updated successfully to ${newVersion}. ${depsInstalled ? 'Dependencies installed.' : ''} ${rebuilt ? 'App rebuilt.' : 'Restart the dev server to see changes.'}`,
+          message: `Updated successfully to ${newVersion}${branch ? ` from branch '${branch}'` : ''}${commitSha ? ` at commit ${commitSha}` : ''}. ${depsInstalled ? 'Dependencies installed.' : ''} ${rebuilt ? 'App rebuilt.' : 'Restart the dev server to see changes.'}`,
           output: pullOut || pullErr || 'Already up to date.',
           version: newVersion,
+          branch: targetBranch,
+          commitSha: commitSha || null,
+          installedCommitHash,
           depsInstalled,
           rebuilt,
           timestamp: Date.now(),
@@ -512,6 +739,7 @@ export async function POST(request: NextRequest) {
       // Check if there are local changes not yet committed
       try {
         const shellOpt = IS_WIN ? { shell: true } : {};
+
         const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
           timeout: 10000,
           cwd: projectDir,
@@ -524,20 +752,42 @@ export async function POST(request: NextRequest) {
           ...shellOpt,
         });
 
-        const { stdout: aheadBehind } = await execFileAsync('git', ['rev-list', '--left-right', '--count', 'HEAD...origin/main'], {
-          timeout: 10000,
-          cwd: projectDir,
-          ...shellOpt,
-        });
+        const localBranch = branchOut.trim();
 
-        const [ahead, behind] = aheadBehind.trim().split(/\s+/).map(Number);
+        // Use the current branch for ahead/behind check instead of hardcoding main
+        let ahead = 0;
+        let behind = 0;
+        try {
+          const aheadBehind = await execFileAsync('git', ['rev-list', '--left-right', '--count', `HEAD...origin/${localBranch}`], {
+            timeout: 10000,
+            cwd: projectDir,
+            ...shellOpt,
+          });
+          const parts = aheadBehind.trim().split(/\s+/).map(Number);
+          ahead = parts[0] || 0;
+          behind = parts[1] || 0;
+        } catch {
+          // May not have a tracking branch for the current branch — fallback to main
+          try {
+            const aheadBehind = await execFileAsync('git', ['rev-list', '--left-right', '--count', 'HEAD...origin/main'], {
+              timeout: 10000,
+              cwd: projectDir,
+              ...shellOpt,
+            });
+            const parts = aheadBehind.trim().split(/\s+/).map(Number);
+            ahead = parts[0] || 0;
+            behind = parts[1] || 0;
+          } catch {
+            // Can't determine — keep defaults
+          }
+        }
 
         return NextResponse.json({
-          branch: branchOut.trim(),
+          branch: localBranch,
           uncommittedChanges: stdout.trim().split('\n').filter(Boolean).length,
-          ahead: ahead || 0,
-          behind: behind || 0,
-          needsUpdate: (behind || 0) > 0,
+          ahead,
+          behind,
+          needsUpdate: behind > 0,
           timestamp: Date.now(),
         });
       } catch (err: unknown) {
@@ -549,7 +799,103 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    case 'install-commit': {
+      // Install from a specific commit on a specific branch
+      try {
+        const shellOpt = IS_WIN ? { shell: true } : {};
+
+        if (!commitSha) {
+          return NextResponse.json({
+            success: false,
+            message: 'commitSha is required for install-commit action.',
+            timestamp: Date.now(),
+          });
+        }
+
+        const targetBranch = branch || 'main';
+
+        // Step 1: Fetch latest from origin
+        await execFileAsync('git', ['fetch', 'origin'], {
+          timeout: 30000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        // Step 2: Checkout the specific branch first
+        try {
+          await execFileAsync('git', ['checkout', targetBranch], {
+            timeout: 15000,
+            cwd: projectDir,
+            ...shellOpt,
+          });
+        } catch {
+          // Branch might not exist locally — try creating it from remote
+          try {
+            await execFileAsync('git', ['checkout', '-b', targetBranch, `origin/${targetBranch}`], {
+              timeout: 15000,
+              cwd: projectDir,
+              ...shellOpt,
+            });
+          } catch {
+            // Continue anyway — we'll try to checkout the commit directly
+          }
+        }
+
+        // Step 3: Checkout the specific commit
+        await execFileAsync('git', ['checkout', commitSha], {
+          timeout: 15000,
+          cwd: projectDir,
+          ...shellOpt,
+        });
+
+        // Step 4: Install dependencies if package.json changed
+        let depsInstalled = false;
+        try {
+          const npmCmd = IS_WIN ? 'npm.cmd' : 'npm';
+          await execFileAsync(npmCmd, ['install'], {
+            timeout: 120000,
+            cwd: projectDir,
+            ...shellOpt,
+          });
+          depsInstalled = true;
+        } catch {
+          // npm install failed — not critical
+        }
+
+        // Step 5: Get the new version
+        const newVersion = await getAppVersion();
+
+        // Step 6: Clear .next cache so changes are picked up
+        try {
+          const { rm } = await import('fs/promises');
+          const nextDir = join(projectDir, '.next');
+          await rm(nextDir, { recursive: true, force: true });
+        } catch {
+          // .next dir might not exist or be locked — not critical
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Checked out commit ${commitSha} from branch '${targetBranch}'. ${depsInstalled ? 'Dependencies installed.' : ''} Restart the dev server to see changes.`,
+          version: newVersion,
+          branch: targetBranch,
+          commitSha,
+          depsInstalled,
+          timestamp: Date.now(),
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error('[Updates] Git checkout commit failed:', errorMsg);
+        return NextResponse.json({
+          success: false,
+          message: `Install from commit failed: ${errorMsg}`,
+          error: errorMsg,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
     default:
-      return NextResponse.json({ error: 'Invalid action. Use: install, rollback, check-local' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid action. Use: install, install-commit, rollback, check-local' }, { status: 400 });
   }
 }
