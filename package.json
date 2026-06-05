@@ -1,12 +1,13 @@
 {
-  "name": "agentic-os",
-  "version": "5.0.2-alpha.2",
+  "name": "agentic-os-v2",
+  "version": "2.0.0",
   "private": true,
-  "description": "Agentic OS Ultimate Edition V5.0 — Cyberpunk AI OS Dashboard with 7-Layer Agent Architecture, Gemini CLI Integration, Swarm Intelligence, Agent Builder, Marketplace, and more.",
+  "description": "Agentic OS V2 — Lightweight autonomous AI operating system with 7-brain reasoning, agent swarms, and multi-model failover.",
   "scripts": {
-    "dev": "next dev -p 3100",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3100",
+    "start": "next start -p 3000",
+    "db:push": "bunx prisma db push --accept-data-loss",
     "stop": "node scripts/stop.js",
     "restart": "npm run stop && node scripts/sleep.js && npm run start",
     "lint": "eslint .",
@@ -80,6 +81,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
+    "z-ai-web-dev-sdk": "^0.0.18",
     "zod": "^4.0.2",
     "zustand": "^5.0.6"
   },

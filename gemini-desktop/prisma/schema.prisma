@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("New Chat")
+  model     String    @default("gemini-2.5-pro")
+  systemPrompt String?
+  isFavorite Boolean  @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  agentId        String?
+  role           String       // "user", "assistant", "system"
+  content        String
+  attachments    String?      // JSON array of file references
+  metadata       String?      // JSON for extra info (model, tokens, etc.)
+  toolCalls      String?      // JSON array of tool calls
+  edited         Boolean      @default(false)
+  parentId       String?      // For conversation branching
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  key       String   // Memory key/topic
+  content   String   // Memory content/summary
+  source    String   // Source conversation ID or "manual"
+  embedding String?  // JSON array of embedding vector
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Settings {
+  id    String @id @default("singleton")
+  key   String @unique
+  value String
+}
+
+model UploadedFile {
+  id        String   @id @default(cuid())
+  name      String
+  path      String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+}
+
+model Provider {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  baseUrl   String?
+  apiKey    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Agent {
+  id           String   @id @default(cuid())
+  name         String
+  role         String
+  systemPrompt String
+  avatar       String?  // Icon/Emoji representation
+  skills       String?  // JSON array of skill names/IDs
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Prompt {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
