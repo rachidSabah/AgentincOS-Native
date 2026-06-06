@@ -69,6 +69,7 @@ export function SwarmViewer() {
     medium: '#FFB627',
     complex: '#E8751A',
     enterprise: '#E6394A',
+    multi_swarm: '#9d4edd',
   };
 
   return (

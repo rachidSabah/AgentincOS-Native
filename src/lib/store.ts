@@ -3,7 +3,7 @@
 // ============================================================
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ViewType, ChatMessage, ArtifactData, BrainOutput } from './types';
+import type { ViewType, ChatMessage, ArtifactData, BrainOutput, KernelStatus, BrainOverlayType } from './types';
 
 interface OSState {
   // Navigation
@@ -26,6 +26,10 @@ interface OSState {
   artifactPanelOpen: boolean;
   activeArtifact: ArtifactData | null;
 
+  // Kernel & Brain
+  kernelStatus: KernelStatus;
+  activeOverlays: BrainOverlayType[];
+
   // Actions
   setActiveView: (view: ViewType) => void;
   toggleSidebar: () => void;
@@ -43,6 +47,9 @@ interface OSState {
   setModelMonitorVisible: (visible: boolean) => void;
   setArtifactPanelOpen: (open: boolean) => void;
   setActiveArtifact: (artifact: ArtifactData | null) => void;
+  setKernelStatus: (status: KernelStatus) => void;
+  setActiveOverlays: (overlays: BrainOverlayType[]) => void;
+  toggleOverlay: (overlay: BrainOverlayType) => void;
   _hasHydrated: boolean;
   setHasHydrated: (hydrated: boolean) => void;
 }
@@ -70,6 +77,10 @@ export const useOSStore = create<OSState>()(
       artifactPanelOpen: false,
       activeArtifact: null,
 
+      // Kernel & Brain
+      kernelStatus: 'stopped',
+      activeOverlays: ['default'],
+
       // Actions
       setActiveView: (view) => set({ activeView: view }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
@@ -87,6 +98,13 @@ export const useOSStore = create<OSState>()(
       setModelMonitorVisible: (visible) => set({ modelMonitorVisible: visible }),
       setArtifactPanelOpen: (open) => set({ artifactPanelOpen: open }),
       setActiveArtifact: (artifact) => set({ activeArtifact: artifact }),
+      setKernelStatus: (status) => set({ kernelStatus: status }),
+      setActiveOverlays: (overlays) => set({ activeOverlays: overlays }),
+      toggleOverlay: (overlay) => set((s) => ({
+        activeOverlays: s.activeOverlays.includes(overlay)
+          ? s.activeOverlays.filter((o) => o !== overlay)
+          : [...s.activeOverlays, overlay],
+      })),
 
       _hasHydrated: false,
       setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),

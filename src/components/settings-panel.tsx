@@ -22,11 +22,19 @@ const PROVIDERS: Array<{ id: ModelProviderType; name: string; baseUrl: string }>
   { id: 'mistral', name: 'Mistral', baseUrl: 'https://api.mistral.ai' },
   { id: 'qwen', name: 'Qwen (Alibaba)', baseUrl: 'https://dashscope.aliyuncs.com/api' },
   { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com' },
+  { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
+  { id: 'ollama', name: 'Ollama (Local)', baseUrl: 'http://localhost:11434' },
+  { id: 'lmstudio', name: 'LM Studio (Local)', baseUrl: 'http://localhost:1234/v1' },
+  { id: 'llamacpp', name: 'llama.cpp (Local)', baseUrl: 'http://localhost:8080' },
+  { id: 'vllm', name: 'vLLM (Local)', baseUrl: 'http://localhost:8000/v1' },
+  { id: 'grok', name: 'Grok (xAI)', baseUrl: 'https://api.x.ai' },
+  { id: 'moonshot', name: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.cn/v1' },
 ];
 
 export function SettingsPanel() {
   const [apiKeys, setApiKeys] = useState<Record<ModelProviderType, string>>({
     openai: '', claude: '', gemini: '', glm: '', mistral: '', qwen: '', deepseek: '',
+    openrouter: '', ollama: '', lmstudio: '', llamacpp: '', vllm: '', grok: '', moonshot: '',
   });
   const [baseUrls, setBaseUrls] = useState<Record<ModelProviderType, string>>(
     Object.fromEntries(PROVIDERS.map((p) => [p.id, p.baseUrl])) as Record<ModelProviderType, string>

@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Brain,
+  Cpu,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -36,11 +37,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Home', icon: LayoutDashboard },
   { id: 'chat', label: 'Chat', icon: MessageSquare },
   { id: 'agents', label: 'Agents', icon: Bot },
+  { id: 'brain', label: 'Brains', icon: Brain },
   { id: 'swarm', label: 'Swarm', icon: Network },
   { id: 'memory', label: 'Memory', icon: Database },
   { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
   { id: 'artifacts', label: 'Artifacts', icon: FileCode },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'kernel', label: 'Kernel', icon: Cpu },
   { id: 'observability', label: 'Observability', icon: Activity },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

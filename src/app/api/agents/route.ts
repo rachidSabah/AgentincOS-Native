@@ -1,14 +1,16 @@
 // ============================================================
-// Agentic OS V2 — Agents API Route
+// Agentic OS X — Agents API Route
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { agentRegistry } from '@/lib/agent-runtime';
-import type { AgentType } from '@/lib/types';
+import type { ExtendedAgentType } from '@/lib/types';
 
 export async function GET() {
   try {
     const agents = agentRegistry.list();
-    return NextResponse.json({ agents });
+    const stats = agentRegistry.getStatistics();
+    const supportedTypes = agentRegistry.getSupportedTypes();
+    return NextResponse.json({ agents, stats, supportedTypes });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ error: errorMessage }, { status: 500 });
@@ -18,7 +20,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
-      type: AgentType;
+      type: ExtendedAgentType;
       config?: Record<string, unknown>;
     };
 
@@ -26,9 +28,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Agent type is required' }, { status: 400 });
     }
 
-    const validTypes: AgentType[] = ['planner', 'architect', 'researcher', 'coder', 'reviewer', 'verifier', 'memory'];
+    const validTypes = agentRegistry.getSupportedTypes();
     if (!validTypes.includes(body.type)) {
-      return NextResponse.json({ error: `Invalid agent type: ${body.type}` }, { status: 400 });
+      return NextResponse.json({ error: `Invalid agent type: ${body.type}. Valid types: ${validTypes.join(', ')}` }, { status: 400 });
     }
 
     const agent = agentRegistry.spawn(body.type);
