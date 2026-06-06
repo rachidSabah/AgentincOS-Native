@@ -18,7 +18,11 @@
     "uninstall-agentic": "node scripts/uninstall.js",
     "tauri:dev": "node scripts/tauri-dev.js",
     "tauri:build": "npm run build && tauri build",
-    "tauri:build:debug": "npm run build && tauri build --debug"
+    "tauri:build:debug": "npm run build && tauri build --debug",
+    "installer:stage": "node installer/stage.js",
+    "installer:build": "powershell -File installer/build-exe.ps1",
+    "installer:build:linux": "bash installer/build-exe.sh",
+    "installer:tauri": "powershell -File installer/tauri-build.ps1"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
