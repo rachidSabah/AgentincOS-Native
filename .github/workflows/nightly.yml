@@ -1,0 +1,193 @@
+# ============================================================
+# AgenticOS-V2 — Nightly Build Pipeline
+# Runs at 02:00 UTC every day
+# Builds, tests, and creates a "nightly" tagged release
+# ============================================================
+
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  BUN_VERSION: "latest"
+
+jobs:
+  # ─── Build and Test ──────────────────────────────────────
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: |
+            node_modules
+            .bun
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock', 'package.json') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate
+
+      - name: Run Prisma migrations
+        run: bunx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: "file:./nightly-test.db"
+
+      - name: Run lint
+        run: bun run lint
+
+      - name: Run type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: bun run test
+
+      - name: Build Next.js app
+        run: bun run build
+        env:
+          DATABASE_URL: "file:./nightly-build.db"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # ─── Create Nightly Release ──────────────────────────────
+  nightly-release:
+    name: Nightly Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Build Next.js standalone
+        run: bun run build
+        env:
+          DATABASE_URL: "file:./nightly-release.db"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Package standalone output
+        run: |
+          NIGHTLY_TAG="nightly-$(date -u +'%Y-%m-%d')"
+          echo "NIGHTLY_TAG=${NIGHTLY_TAG}" >> $GITHUB_ENV
+          
+          mkdir -p release-web
+          cp -r .next/standalone release-web/
+          cp -r .next/static release-web/standalone/.next/static
+          cp -r public release-web/standalone/public
+          cp package.json release-web/standalone/
+          tar -czf agenticos-nightly.tar.gz -C release-web standalone
+
+      - name: Generate SHA256 checksums
+        run: |
+          sha256sum agenticos-nightly.tar.gz > SHA256SUMS.txt
+          echo "Checksums:"
+          cat SHA256SUMS.txt
+
+      - name: Delete previous nightly release
+        run: |
+          # Delete the old nightly release and tag if it exists
+          gh release delete nightly --yes 2>/dev/null || true
+          git push origin :refs/tags/nightly 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create nightly tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f nightly
+          git push origin nightly --force
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          LAST_NIGHTLY=$(git tag --sort=-creatordate | grep "^nightly-" | head -n 1)
+          
+          echo "# Nightly Build — $(date -u +'%Y-%m-%d')" > nightly_notes.md
+          echo "" >> nightly_notes.md
+          echo "> **Warning**: This is a nightly build and may be unstable." >> nightly_notes.md
+          echo "" >> nightly_notes.md
+          echo "## Recent Changes" >> nightly_notes.md
+          echo "" >> nightly_notes.md
+          
+          if [ -n "$LAST_NIGHTLY" ]; then
+            echo "Changes since ${LAST_NIGHTLY}:" >> nightly_notes.md
+            echo "" >> nightly_notes.md
+            git log "${LAST_NIGHTLY}..HEAD" --pretty=format:"- %s (%h)" >> nightly_notes.md
+          else
+            echo "Changes in the last 24 hours:" >> nightly_notes.md
+            echo "" >> nightly_notes.md
+            git log --since="24 hours ago" --pretty=format:"- %s (%h)" >> nightly_notes.md
+          fi
+          
+          echo "" >> nightly_notes.md
+          echo "" >> nightly_notes.md
+          echo "## Commit: \`${{ github.sha }}\`" >> nightly_notes.md
+          
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          cat nightly_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Nightly GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: "Nightly Build — $(date -u +'%Y-%m-%d')"
+          body: ${{ steps.release_notes.outputs.notes }}
+          prerelease: true
+          files: |
+            agenticos-nightly.tar.gz
+            SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

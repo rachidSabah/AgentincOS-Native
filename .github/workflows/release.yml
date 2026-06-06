@@ -1,0 +1,305 @@
+# ============================================================
+# AgenticOS-V2 — Release Pipeline
+# Triggered on push of version tags (v*)
+# Builds Next.js standalone + Tauri desktop app (Windows x64)
+# Creates GitHub Release with installers, checksums, and notes
+# ============================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  BUN_VERSION: "latest"
+
+jobs:
+  # ─── Build Web (Next.js Standalone) ─────────────────────
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: |
+            node_modules
+            .bun
+          key: bun-deps-${{ runner.os }}-${{ hashFiles('bun.lock', 'package.json') }}
+          restore-keys: |
+            bun-deps-${{ runner.os }}-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Build Next.js standalone
+        run: bun run build
+        env:
+          DATABASE_URL: "file:./release.db"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Package standalone output
+        run: |
+          mkdir -p release-web
+          cp -r .next/standalone release-web/
+          cp -r .next/static release-web/standalone/.next/static
+          cp -r public release-web/standalone/public
+          cp package.json release-web/standalone/
+          tar -czf agenticos-web-${{ github.ref_name }}.tar.gz -C release-web standalone
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: agenticos-web-${{ github.ref_name }}.tar.gz
+          retention-days: 5
+
+  # ─── Build Tauri (Windows x64) ──────────────────────────
+  build-tauri:
+    name: Build Tauri (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: bun-deps-windows-${{ hashFiles('bun.lock', 'package.json') }}
+          restore-keys: |
+            bun-deps-windows-
+
+      - name: Install dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DATABASE_URL: "file:./release.db"
+          NEXT_TELEMETRY_DISABLED: "1"
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "AgenticOS-V2 ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download the installer for your platform."
+          releaseDraft: true
+          prerelease: false
+          updaterJsonPreferNsis: true
+
+      - name: Upload Tauri artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-build-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          retention-days: 5
+
+  # ─── Create GitHub Release ──────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-web, build-tauri]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: artifacts
+
+      - name: Download Tauri artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tauri-build-windows
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -laR artifacts/
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          sha256sum * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt .
+          echo "Checksums:"
+          cat SHA256SUMS.txt
+
+      - name: Generate latest.json for auto-update
+        run: |
+          VERSION="${{ github.ref_name }}"
+          BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          
+          # Find NSIS and MSI files
+          NSIS_FILE=$(find artifacts -name "*.exe" -type f | head -n 1)
+          MSI_FILE=$(find artifacts -name "*.msi" -type f | head -n 1)
+          
+          NSIS_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/$(basename "$NSIS_FILE")"
+          MSI_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/$(basename "$MSI_FILE")"
+          
+          NSIS_SHA256=""
+          MSI_SHA256=""
+          if [ -f "$NSIS_FILE" ]; then
+            NSIS_SHA256=$(sha256sum "$NSIS_FILE" | awk '{print $1}')
+          fi
+          if [ -f "$MSI_FILE" ]; then
+            MSI_SHA256=$(sha256sum "$MSI_FILE" | awk '{print $1}')
+          fi
+          
+          cat > artifacts/latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "buildDate": "${BUILD_DATE}",
+            "platforms": {
+              "windows-x86_64": {
+                "nsis": {
+                  "url": "${NSIS_URL}",
+                  "sha256": "${NSIS_SHA256}"
+                },
+                "msi": {
+                  "url": "${MSI_URL}",
+                  "sha256": "${MSI_SHA256}"
+                }
+              }
+            }
+          }
+          EOF
+          echo "latest.json:"
+          cat artifacts/latest.json
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ github.ref_name }}"
+          PREVIOUS_TAG=$(git tag --sort=-creatordate | head -n 2 | tail -n 1)
+          
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+          
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "### Commits since ${PREVIOUS_TAG}" >> release_notes.md
+            echo "" >> release_notes.md
+            git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"- %s (%h)" >> release_notes.md
+          else
+            echo "### All commits" >> release_notes.md
+            echo "" >> release_notes.md
+            git log --pretty=format:"- %s (%h)" -20 >> release_notes.md
+          fi
+          
+          echo "" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### Assets" >> release_notes.md
+          echo "- **Web**: \`agenticos-web-${VERSION}.tar.gz\` (Next.js standalone)" >> release_notes.md
+          echo "- **Windows**: NSIS installer (\`.exe\`) and MSI installer (\`.msi\`)" >> release_notes.md
+          echo "- **Checksums**: \`SHA256SUMS.txt\`" >> release_notes.md
+          echo "- **Auto-update**: \`latest.json\`" >> release_notes.md
+          
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Sign binaries (optional)
+        if: secrets.WINDOWS_CERTIFICATE != ''
+        run: |
+          echo "Certificate found — signing binaries..."
+          # Decode certificate from base64 secret
+          echo "${{ secrets.WINDOWS_CERTIFICATE }}" | base64 -d > certificate.pfx
+          
+          # Sign NSIS installer
+          NSIS_FILE=$(find artifacts -name "*.exe" -type f | head -n 1)
+          if [ -n "$NSIS_FILE" ]; then
+            osslsigncode sign \
+              -pkcs12 certificate.pfx \
+              -pass "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" \
+              -n "AgenticOS-V2" \
+              -i "https://github.com/${{ github.repository }}" \
+              -in "$NSIS_FILE" \
+              -out "$NSIS_FILE.signed"
+            mv "$NSIS_FILE.signed" "$NSIS_FILE"
+          fi
+          
+          # Sign MSI installer
+          MSI_FILE=$(find artifacts -name "*.msi" -type f | head -n 1)
+          if [ -n "$MSI_FILE" ]; then
+            osslsigncode sign \
+              -pkcs12 certificate.pfx \
+              -pass "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" \
+              -n "AgenticOS-V2" \
+              -i "https://github.com/${{ github.repository }}" \
+              -in "$MSI_FILE" \
+              -out "$MSI_FILE.signed"
+            mv "$MSI_FILE.signed" "$MSI_FILE"
+          fi
+          
+          rm -f certificate.pfx
+        continue-on-error: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "AgenticOS-V2 ${{ github.ref_name }}"
+          body: ${{ steps.release_notes.outputs.notes }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          files: |
+            artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

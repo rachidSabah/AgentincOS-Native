@@ -191,3 +191,87 @@ model Metric {
   @@index([type])
   @@index([createdAt])
 }
+
+// ─── Enterprise Auth & RBAC Models ─────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String
+  salt         String
+  role         String    @default("viewer")
+  mfaEnabled   Boolean   @default(false)
+  mfaSecret    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+
+  @@index([username])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  resource  String
+  result    String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([resource])
+}
+
+model EncryptedSecret {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // encrypted JSON
+  keyId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+model Permission {
+  id        String  @id @default(cuid())
+  userId    String
+  resource  String
+  action    String
+  granted   Boolean @default(true)
+  grantedBy String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, resource, action])
+  @@index([userId])
+}
+
+model CustomRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions String   // JSON array
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+}

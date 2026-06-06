@@ -21,6 +21,9 @@ import {
   ChevronRight,
   Brain,
   Cpu,
+  Shield,
+  Globe,
+  Code2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -42,9 +45,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'memory', label: 'Memory', icon: Database },
   { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
   { id: 'artifacts', label: 'Artifacts', icon: FileCode },
+  { id: 'editor', label: 'Code Editor', icon: Code2 },
   { id: 'terminal', label: 'Terminal', icon: Terminal },
   { id: 'kernel', label: 'Kernel', icon: Cpu },
   { id: 'observability', label: 'Observability', icon: Activity },
+  { id: 'healing', label: 'Self-Healing', icon: Shield },
+  { id: 'browser', label: 'Browser', icon: Globe },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

@@ -383,7 +383,7 @@ export interface ProviderHealth {
 }
 
 // ─── Navigation Types ───
-export type ViewType = 'home' | 'chat' | 'agents' | 'swarm' | 'memory' | 'knowledge' | 'artifacts' | 'terminal' | 'observability' | 'settings' | 'brain' | 'kernel';
+export type ViewType = 'home' | 'chat' | 'agents' | 'swarm' | 'memory' | 'knowledge' | 'artifacts' | 'terminal' | 'observability' | 'settings' | 'brain' | 'kernel' | 'healing' | 'browser' | 'editor';
 
 export interface ChatMessage {
   id: string;

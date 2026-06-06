@@ -12,11 +12,14 @@ import { TerminalPanel } from '@/components/terminal-panel';
 import { AgentMonitor } from '@/components/agent-monitor';
 import { ModelMonitor } from '@/components/model-monitor';
 import { HomeDashboard } from '@/components/home-dashboard';
+import { SelfHealingDashboard } from '@/components/self-healing-dashboard';
 import { SwarmViewer } from '@/components/swarm-viewer';
 import { ObservabilityDashboard } from '@/components/observability-dashboard';
 import { MemoryBrowser } from '@/components/memory-browser';
 import { KnowledgeBrowser } from '@/components/knowledge-browser';
 import { SettingsPanel } from '@/components/settings-panel';
+import { FileEditor } from '@/components/file-editor';
+import { BrowserAgent } from '@/components/browser-agent';
 import type { ViewType, BrainOverlayType, KernelState } from '@/lib/types';
 import {
   Bot, Terminal, Activity, FileCode, Brain, Cpu, Clock,
@@ -733,9 +736,12 @@ function ViewRenderer({ view }: { view: ViewType }) {
     case 'memory': return <MemoryBrowser />;
     case 'knowledge': return <KnowledgeBrowser />;
     case 'artifacts': return <ArtifactsView />;
+    case 'editor': return <FileEditor />;
     case 'terminal': return <TerminalView />;
     case 'observability': return <ObservabilityDashboard />;
+    case 'healing': return <SelfHealingDashboard />;
     case 'settings': return <SettingsPanel />;
+    case 'browser': return <BrowserAgent />;
     default: return <HomeDashboard />;
   }
 }
