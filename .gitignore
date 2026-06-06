@@ -82,3 +82,13 @@ image_analysis.json
 
 # Large binary files not needed in repo
 *.zip
+
+# Installer build artifacts
+installer/stage/
+installer/nsis-tool/
+installer/sfx-tool/
+installer/icon-sizes/
+installer/node-runtime/
+installer/AgenticOS-Setup-2.0.0.exe
+installer/payload.zip
+installer/AgenticOS-payload.zip
