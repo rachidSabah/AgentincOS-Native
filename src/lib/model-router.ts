@@ -3,8 +3,8 @@
 // Load Balancing, Circuit Breakers, Traffic Shaping &
 // Comprehensive Health Monitoring
 //
-// V2.1 — Lazy Provider Initialization, Provider Pooling &
-// Idle Provider Unloading
+// V2.2 — Lazy Provider Initialization, Direct Provider APIs
+// (No ZAI SDK dependency — each provider called natively)
 // ============================================================
 import type {
   ModelProviderType,
@@ -172,8 +172,8 @@ class ModelRouter {
     Object.entries(CONTEXT_WINDOW) as [ModelProviderType, number][],
   );
 
-  // Cached SDK client for connection reuse (Provider Pooling)
-  private sdkClient: any = null;
+  // Cached provider client instances for connection reuse
+  private providerClients: Map<ModelProviderType, any> = new Map();
 
   // EMA alpha — higher = more responsive to recent data
   private readonly EMA_ALPHA = 0.3;
@@ -235,20 +235,121 @@ class ModelRouter {
   }
 
   // ────────────────────────────────────────────────────────
-  // Provider Pooling — SDK Client Reuse
+  // Provider Client Pooling — Direct API Clients
   // ────────────────────────────────────────────────────────
 
   /**
-   * Lazy accessor for the Z-AI SDK client.
-   * Caches the imported module to avoid re-importing on every call,
-   * enabling connection reuse for repeated calls to the same provider.
+   * Lazy accessor for a provider's native API client.
+   * Caches the client instance to enable connection reuse
+   * for repeated calls to the same provider.
    */
-  private async getSDKClient(): Promise<any> {
-    if (!this.sdkClient) {
-      const mod = await import('z-ai-web-dev-sdk');
-      this.sdkClient = mod.default;
+  private async getProviderClient(provider: ModelProviderType): Promise<any> {
+    if (this.providerClients.has(provider)) {
+      return this.providerClients.get(provider);
     }
-    return this.sdkClient;
+
+    let client: any;
+    const apiKey = this.getApiKey(provider);
+
+    switch (provider) {
+      case 'openai': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey });
+        break;
+      }
+      case 'claude': {
+        const Anthropic = (await import('@anthropic-ai/sdk')).default;
+        client = new Anthropic({ apiKey });
+        break;
+      }
+      case 'gemini':
+      case 'gemini-cli': {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        client = new GoogleGenerativeAI(apiKey || '');
+        break;
+      }
+      case 'deepseek': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://api.deepseek.com/v1' });
+        break;
+      }
+      case 'mistral': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://api.mistral.ai/v1' });
+        break;
+      }
+      case 'openrouter': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1' });
+        break;
+      }
+      case 'glm': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://open.bigmodel.cn/api/paas/v4' });
+        break;
+      }
+      case 'qwen': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1' });
+        break;
+      }
+      case 'grok': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://api.x.ai/v1' });
+        break;
+      }
+      case 'moonshot': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey, baseURL: 'https://api.moonshot.cn/v1' });
+        break;
+      }
+      case 'ollama': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey: 'ollama', baseURL: 'http://localhost:11434/v1' });
+        break;
+      }
+      case 'lmstudio': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey: 'lmstudio', baseURL: 'http://localhost:1234/v1' });
+        break;
+      }
+      case 'vllm': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey: 'vllm', baseURL: 'http://localhost:8000/v1' });
+        break;
+      }
+      case 'llamacpp': {
+        const { OpenAI } = await import('openai');
+        client = new OpenAI({ apiKey: 'llamacpp', baseURL: 'http://localhost:8080/v1' });
+        break;
+      }
+      default:
+        throw new Error(`No native client available for provider: ${provider}`);
+    }
+
+    this.providerClients.set(provider, client);
+    return client;
+  }
+
+  /**
+   * Get the API key for a provider from environment variables.
+   */
+  private getApiKey(provider: ModelProviderType): string | undefined {
+    const envMap: Partial<Record<ModelProviderType, string>> = {
+      openai: 'OPENAI_API_KEY',
+      claude: 'ANTHROPIC_API_KEY',
+      gemini: 'GEMINI_API_KEY',
+      'gemini-cli': 'GEMINI_API_KEY',
+      glm: 'GLM_API_KEY',
+      mistral: 'MISTRAL_API_KEY',
+      qwen: 'QWEN_API_KEY',
+      deepseek: 'DEEPSEEK_API_KEY',
+      openrouter: 'OPENROUTER_API_KEY',
+      grok: 'XAI_API_KEY',
+      moonshot: 'MOONSHOT_API_KEY',
+    };
+    const envKey = envMap[provider];
+    return envKey ? process.env[envKey] : undefined;
   }
 
   // ────────────────────────────────────────────────────────
@@ -750,13 +851,13 @@ class ModelRouter {
   }
 
   /**
-   * Call a model provider.
+   * Call a model provider using its native API client.
    *
    * For 'gemini-cli': Uses the Gemini CLI Discovery Engine to execute
    * prompts locally via the discovered CLI executable.
    *
-   * For all other providers: Routes through the Z-AI SDK gateway
-   * using the cached SDK client for connection reuse.
+   * For all other providers: Calls the provider's native SDK directly
+   * (OpenAI-compatible, Anthropic, Google Generative AI, etc.).
    */
   private async callProvider(provider: ModelProviderType, request: ModelRequest): Promise<ModelResponse> {
     // Special handling for Gemini CLI provider
@@ -764,16 +865,45 @@ class ModelRouter {
       return this.callGeminiCLI(request);
     }
 
-    // Standard Z-AI SDK gateway for all other providers (using pooled client)
     const startTime = Date.now();
+    const model = this.dynamicModelMap.get(provider) ?? MODEL_MAP[provider] ?? 'gpt-4o';
 
-    const ZAI = await this.getSDKClient();
-    const response = await ZAI.chat.completions.create({
-      model: this.dynamicModelMap.get(provider) ?? MODEL_MAP[provider] ?? 'gpt-4o',
-      messages: [
-        ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
-        { role: 'user' as const, content: request.prompt },
-      ],
+    // Anthropic uses a different API shape
+    if (provider === 'claude') {
+      return this.callAnthropic(provider, model, request, startTime);
+    }
+
+    // Google Generative AI uses a different API shape
+    if (provider === 'gemini') {
+      return this.callGoogleGenAI(provider, model, request, startTime);
+    }
+
+    // OpenAI-compatible providers (openai, deepseek, mistral-openai, openrouter, glm, qwen, grok, moonshot, ollama, lmstudio, vllm, llamacpp)
+    return this.callOpenAICompatible(provider, model, request, startTime);
+  }
+
+  /**
+   * Call a provider using the OpenAI-compatible chat completions API.
+   * Works for: OpenAI, DeepSeek, OpenRouter, GLM, Qwen, Grok, Moonshot,
+   * Ollama, LM Studio, vLLM, llama.cpp
+   */
+  private async callOpenAICompatible(
+    provider: ModelProviderType,
+    model: string,
+    request: ModelRequest,
+    startTime: number,
+  ): Promise<ModelResponse> {
+    const client = await this.getProviderClient(provider);
+
+    const messages: Array<{ role: string; content: string }> = [];
+    if (request.systemPrompt) {
+      messages.push({ role: 'system', content: request.systemPrompt });
+    }
+    messages.push({ role: 'user', content: request.prompt });
+
+    const response = await client.chat.completions.create({
+      model,
+      messages,
       max_tokens: request.maxTokens ?? 2048,
       temperature: request.temperature ?? 0.7,
     });
@@ -784,7 +914,72 @@ class ModelRouter {
     return {
       content,
       provider,
-      model: this.dynamicModelMap.get(provider) ?? MODEL_MAP[provider] ?? 'gpt-4o',
+      model,
+      tokensUsed,
+      latencyMs: Date.now() - startTime,
+      success: true,
+    };
+  }
+
+  /**
+   * Call Anthropic (Claude) using the native Anthropic SDK.
+   */
+  private async callAnthropic(
+    provider: ModelProviderType,
+    model: string,
+    request: ModelRequest,
+    startTime: number,
+  ): Promise<ModelResponse> {
+    const client = await this.getProviderClient(provider);
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: request.maxTokens ?? 2048,
+      ...(request.systemPrompt ? { system: request.systemPrompt } : {}),
+      messages: [{ role: 'user', content: request.prompt }],
+    });
+
+    const content = response.content?.[0]?.text ?? '';
+    const tokensUsed = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+
+    return {
+      content,
+      provider,
+      model,
+      tokensUsed,
+      latencyMs: Date.now() - startTime,
+      success: true,
+    };
+  }
+
+  /**
+   * Call Google Generative AI (Gemini) using the native Google SDK.
+   */
+  private async callGoogleGenAI(
+    provider: ModelProviderType,
+    model: string,
+    request: ModelRequest,
+    startTime: number,
+  ): Promise<ModelResponse> {
+    const client = await this.getProviderClient(provider);
+    const genModel = client.getGenerativeModel({ model });
+
+    const parts: Array<{ text: string }> = [];
+    if (request.systemPrompt) {
+      // Google GenAI uses systemInstruction for system prompts
+      genModel.systemInstruction = request.systemPrompt;
+    }
+    parts.push({ text: request.prompt });
+
+    const result = await genModel.generateContent({ contents: [{ role: 'user', parts }] });
+    const response = result.response;
+    const content = response.text();
+    const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
+
+    return {
+      content,
+      provider,
+      model,
       tokensUsed,
       latencyMs: Date.now() - startTime,
       success: true,
@@ -841,24 +1036,22 @@ class ModelRouter {
       .join('\n\n---\n\n');
 
     try {
-      // Z-AI SDK gateway for multi-model merge (using pooled client)
-      const ZAI = await this.getSDKClient();
-      const response = await ZAI.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system' as const,
-            content:
-              'You are a synthesis engine. Merge the following multi-model responses into a single coherent, comprehensive answer. ' +
-              'Preserve key insights from each perspective, resolve contradictions by favoring more specific/detailed claims, ' +
-              'and organize the output with clear structure. Do not mention the individual models or providers.',
-          },
-          { role: 'user' as const, content: mergePrompt },
-        ],
-        max_tokens: 4096,
-        temperature: 0.3,
-      });
-      return response.choices?.[0]?.message?.content ?? this.concatenateResults(results);
+      // Use the model router itself to merge results (self-referential)
+      const mergeResult = await this.callOpenAICompatible(
+        'openai',
+        'gpt-4o',
+        {
+          prompt: mergePrompt,
+          systemPrompt:
+            'You are a synthesis engine. Merge the following multi-model responses into a single coherent, comprehensive answer. ' +
+            'Preserve key insights from each perspective, resolve contradictions by favoring more specific/detailed claims, ' +
+            'and organize the output with clear structure. Do not mention the individual models or providers.',
+          maxTokens: 4096,
+          temperature: 0.3,
+        },
+        Date.now(),
+      );
+      return mergeResult.content || this.concatenateResults(results);
     } catch {
       return this.concatenateResults(results);
     }

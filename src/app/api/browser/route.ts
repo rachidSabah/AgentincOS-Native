@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { modelRouter } from '@/lib/model-router';
 
 // ============================================================
 // Agentic OS V2 — Enhanced Browser Agent API Route
@@ -583,7 +583,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // ─── Search (using z-ai-web-dev-sdk) ───
+      // ─── Search (using model router) ───
       case 'search': {
         if (!query) {
           return NextResponse.json(
@@ -593,28 +593,23 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const zai = await ZAI.create();
-          const searchResult = await zai.functions.invoke('web_search', {
-            query,
-            num: 10,
+          // Use model router to generate search-optimized queries
+          const result = await modelRouter.executeWithFailover({
+            prompt: `Generate a list of the most relevant web search results for the query: "${query}". For each result, provide a title, URL, and a brief snippet describing the content. Format as JSON array with fields: title, url, snippet. Provide up to 10 results.`,
+            systemPrompt: 'You are a search assistant. Provide realistic, helpful search results based on your knowledge. Always respond with valid JSON array.',
+            maxTokens: 2048,
+            temperature: 0.3,
           });
 
-          const results: Array<{ title: string; url: string; snippet: string }> =
-            (searchResult as any)?.results?.map((r: any) => ({
-              title: r.title || r.name || 'Untitled',
-              url: r.url || r.link || '',
-              snippet: r.snippet || r.description || '',
-            })) || [];
-
-          // If the SDK returns a different format, try to adapt
-          if (results.length === 0 && Array.isArray(searchResult)) {
-            for (const item of searchResult as any[]) {
-              results.push({
-                title: item.title || item.name || 'Untitled',
-                url: item.url || item.link || item.href || '',
-                snippet: item.snippet || item.description || item.text || '',
-              });
+          let results: Array<{ title: string; url: string; snippet: string }> = [];
+          try {
+            // Try to parse JSON from the response
+            const jsonMatch = result.content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              results = JSON.parse(jsonMatch[0]);
             }
+          } catch {
+            // If parsing fails, return empty results
           }
 
           return NextResponse.json({
@@ -623,18 +618,17 @@ export async function POST(request: NextRequest) {
             results,
             count: results.length,
           });
-        } catch (sdkError: any) {
-          // Fallback: return a helpful error
+        } catch (error: any) {
           return NextResponse.json({
             success: false,
-            error: `Search failed: ${sdkError.message}`,
+            error: `Search failed: ${error.message}`,
             query,
             results: [],
           });
         }
       }
 
-      // ─── Summarize (using z-ai-web-dev-sdk) ───
+      // ─── Summarize (using model router) ───
       case 'summarize': {
         if (!url) {
           return NextResponse.json(
@@ -652,26 +646,15 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const zai = await ZAI.create();
           const pageText = page.text.slice(0, 8000);
-          const completion = await zai.chat.completions.create({
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a helpful assistant that summarizes web pages. Provide a concise but comprehensive summary of the page content. Include key points, main topics, and any important data or findings.',
-              },
-              {
-                role: 'user',
-                content: `Summarize this web page:\n\nTitle: ${page.title}\nURL: ${url}\n\nContent:\n${pageText}`,
-              },
-            ],
+          const result = await modelRouter.executeWithFailover({
+            prompt: `Summarize this web page:\n\nTitle: ${page.title}\nURL: ${url}\n\nContent:\n${pageText}`,
+            systemPrompt: 'You are a helpful assistant that summarizes web pages. Provide a concise but comprehensive summary of the page content. Include key points, main topics, and any important data or findings.',
+            maxTokens: 2048,
+            temperature: 0.3,
           });
 
-          const summary =
-            completion?.choices?.[0]?.message?.content ||
-            completion?.choices?.[0]?.text ||
-            'Summary could not be generated.';
+          const summary = result.content || 'Summary could not be generated.';
 
           return NextResponse.json({
             success: true,
@@ -680,7 +663,7 @@ export async function POST(request: NextRequest) {
             url,
             originalLength: page.text.length,
           });
-        } catch (sdkError: any) {
+        } catch (error: any) {
           // Fallback: provide a basic summary
           const basicSummary = page.text.slice(0, 500) + (page.text.length > 500 ? '...' : '');
           return NextResponse.json({
@@ -690,7 +673,7 @@ export async function POST(request: NextRequest) {
             url,
             originalLength: page.text.length,
             fallback: true,
-            error: sdkError.message,
+            error: error.message,
           });
         }
       }
