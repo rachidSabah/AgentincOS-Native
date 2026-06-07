@@ -23,7 +23,8 @@ interface ProviderInfo {
 const PROVIDER_NAMES: Record<ModelProviderType, string> = {
   openai: 'OpenAI',
   claude: 'Claude',
-  gemini: 'Gemini',
+  gemini: 'Gemini API',
+  'gemini-cli': 'Gemini CLI',
   glm: 'GLM',
   mistral: 'Mistral',
   qwen: 'Qwen',
@@ -53,6 +54,7 @@ export function ModelMonitor() {
         setProviders([
           { provider: 'openai', healthy: true, latencyMs: 0, successRate: 1.0, status: 'healthy' },
           { provider: 'claude', healthy: true, latencyMs: 0, successRate: 1.0, status: 'healthy' },
+          { provider: 'gemini-cli', healthy: false, latencyMs: 0, successRate: 0, status: 'down' },
           { provider: 'gemini', healthy: true, latencyMs: 0, successRate: 1.0, status: 'healthy' },
           { provider: 'glm', healthy: true, latencyMs: 0, successRate: 1.0, status: 'healthy' },
           { provider: 'mistral', healthy: true, latencyMs: 0, successRate: 1.0, status: 'healthy' },
@@ -147,7 +149,7 @@ export function ModelMonitor() {
           <div className="text-[10px] text-muted-foreground mb-1">Failover Chain</div>
           <div className="flex items-center gap-1 flex-wrap">
             {providers.sort((a, b) => {
-              const order: ModelProviderType[] = ['openai', 'claude', 'gemini', 'glm', 'mistral', 'qwen', 'deepseek', 'openrouter', 'ollama', 'lmstudio', 'llamacpp', 'vllm', 'grok', 'moonshot'];
+              const order: ModelProviderType[] = ['openai', 'claude', 'gemini-cli', 'gemini', 'glm', 'mistral', 'qwen', 'deepseek', 'openrouter', 'ollama', 'lmstudio', 'llamacpp', 'vllm', 'grok', 'moonshot'];
               return order.indexOf(a.provider) - order.indexOf(b.provider);
             }).map((p, i) => (
               <span key={p.provider} className="flex items-center gap-0.5">

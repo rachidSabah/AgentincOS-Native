@@ -139,7 +139,7 @@ export function HomeDashboard() {
                 <div className="p-3 rounded-lg bg-[#00ff88]/5 border border-[#00ff88]/10">
                   <div className="font-medium text-[#00ff88] mb-1">Model Router</div>
                   <div className="text-muted-foreground">
-                    Priority failover: OpenAI → Claude → Gemini → GLM → Mistral → Qwen → DeepSeek
+                    Priority failover: OpenAI → Claude → Gemini CLI → Gemini API → GLM → Mistral → Qwen → DeepSeek
                   </div>
                 </div>
               </div>

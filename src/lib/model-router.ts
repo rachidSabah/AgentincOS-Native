@@ -17,14 +17,14 @@ import type {
 // ─── Constants ───────────────────────────────────────────────
 
 const ALL_PROVIDERS: ModelProviderType[] = [
-  'openai', 'claude', 'gemini', 'glm', 'mistral', 'qwen', 'deepseek',
+  'openai', 'claude', 'gemini', 'gemini-cli', 'glm', 'mistral', 'qwen', 'deepseek',
   'openrouter', 'ollama', 'lmstudio', 'llamacpp', 'vllm',
   'grok', 'moonshot',
 ];
 
 /** Default priority order for failover when no task type is specified */
 const PROVIDER_PRIORITY: ModelProviderType[] = [
-  'openai', 'claude', 'gemini', 'glm', 'deepseek',
+  'openai', 'claude', 'gemini-cli', 'gemini', 'glm', 'deepseek',
   'mistral', 'qwen', 'openrouter', 'grok', 'moonshot',
   'ollama', 'lmstudio', 'llamacpp', 'vllm',
 ];
@@ -34,6 +34,7 @@ const MODEL_MAP: Record<ModelProviderType, string> = {
   openai: 'gpt-4o',
   claude: 'claude-sonnet-4-20250514',
   gemini: 'gemini-2.0-flash',
+  'gemini-cli': 'gemini-2.5-flash',  // Default CLI model; updated dynamically by discovery engine
   glm: 'glm-4',
   mistral: 'mistral-large-latest',
   qwen: 'qwen-max',
@@ -52,6 +53,7 @@ const COST_PER_1K_TOKENS: Record<ModelProviderType, number> = {
   openai: 0.015,
   claude: 0.012,
   gemini: 0.001,
+  'gemini-cli': 0.0,   // Free tier via local CLI
   glm: 0.008,
   mistral: 0.008,
   qwen: 0.006,
@@ -70,6 +72,7 @@ const CONTEXT_WINDOW: Record<ModelProviderType, number> = {
   openai: 128_000,
   claude: 200_000,
   gemini: 1_000_000,
+  'gemini-cli': 1_000_000,  // Dynamic; updated by discovery engine
   glm: 128_000,
   mistral: 128_000,
   qwen: 32_000,
@@ -85,12 +88,12 @@ const CONTEXT_WINDOW: Record<ModelProviderType, number> = {
 
 /** Task-type → preferred provider ordering (traffic shaping) */
 const TASK_PROVIDER_PREFERENCE: Record<string, ModelProviderType[]> = {
-  coding: ['deepseek', 'openai', 'claude'],
-  research: ['openai', 'gemini', 'claude'],
-  planning: ['claude', 'gemini', 'glm'],
-  review: ['claude', 'mistral', 'openai'],
-  analysis: ['gemini', 'openai', 'qwen'],
-  creative: ['claude', 'openai', 'mistral'],
+  coding: ['deepseek', 'openai', 'claude', 'gemini-cli'],
+  research: ['gemini-cli', 'gemini', 'openai', 'claude'],
+  planning: ['claude', 'gemini-cli', 'gemini', 'glm'],
+  review: ['claude', 'mistral', 'openai', 'gemini-cli'],
+  analysis: ['gemini-cli', 'gemini', 'openai', 'qwen'],
+  creative: ['claude', 'openai', 'mistral', 'gemini-cli'],
 };
 
 /** Roles that map to task types for traffic shaping */
@@ -156,6 +159,10 @@ class ModelRouter {
   private stateMap: Map<ModelProviderType, ProviderState> = new Map();
   private circuitBreakers: Map<ModelProviderType, CircuitBreakerState> = new Map();
 
+  // Dynamic model map — can be updated by Gemini CLI discovery
+  private dynamicModelMap: Map<ModelProviderType, string> = new Map(Object.entries(MODEL_MAP) as [ModelProviderType, string][]);
+  private dynamicContextWindow: Map<ModelProviderType, number> = new Map(Object.entries(CONTEXT_WINDOW) as [ModelProviderType, number][]);
+
   // EMA alpha — higher = more responsive to recent data
   private readonly EMA_ALPHA = 0.3;
 
@@ -188,6 +195,16 @@ class ModelRouter {
         tripThreshold: 3,
         resetTimeoutMs: 30_000,
       });
+    }
+
+    // Gemini CLI starts with circuit open until discovery validates it
+    const geminiCliCB = this.circuitBreakers.get('gemini-cli');
+    if (geminiCliCB) {
+      geminiCliCB.state = 'open'; // Not yet validated
+    }
+    const geminiCliHealth = this.healthMap.get('gemini-cli');
+    if (geminiCliHealth) {
+      geminiCliHealth.healthy = false; // Not yet validated
     }
   }
 
@@ -571,22 +588,68 @@ class ModelRouter {
   // ────────────────────────────────────────────────────────
 
   /**
-   * Call a model provider through the Z-AI SDK gateway.
+   * Update the dynamic model map (called by Gemini CLI Discovery Engine).
+   * Allows the discovery engine to set the best available model for gemini-cli.
+   */
+  updateDynamicModel(provider: ModelProviderType, modelId: string, contextWindow?: number): void {
+    this.dynamicModelMap.set(provider, modelId);
+    if (contextWindow) {
+      this.dynamicContextWindow.set(provider, contextWindow);
+    }
+  }
+
+  /**
+   * Mark a provider as validated (circuit closed, healthy).
+   * Called by the Gemini CLI Discovery Engine after successful validation.
+   */
+  markProviderValidated(provider: ModelProviderType): void {
+    const cb = this.circuitBreakers.get(provider);
+    if (cb) {
+      cb.state = 'closed';
+      cb.failureCount = 0;
+    }
+    const health = this.healthMap.get(provider);
+    if (health) {
+      health.healthy = true;
+    }
+  }
+
+  /**
+   * Mark a provider as degraded (circuit open, unhealthy).
+   * Called by the Gemini CLI Discovery Engine when CLI is unavailable.
+   */
+  markProviderDegraded(provider: ModelProviderType, reason?: string): void {
+    const cb = this.circuitBreakers.get(provider);
+    if (cb) {
+      cb.state = 'open';
+      cb.lastFailureTime = Date.now();
+    }
+    const health = this.healthMap.get(provider);
+    if (health) {
+      health.healthy = false;
+    }
+  }
+
+  /**
+   * Call a model provider.
    *
-   * ARCHITECTURE NOTE: All provider calls route through z-ai-web-dev-sdk,
-   * which acts as a unified API gateway. The "provider" name selects the
-   * underlying model (e.g., 'openai' → gpt-4o, 'claude' → claude-sonnet-4),
-   * but the actual HTTP call goes to the Z-AI gateway endpoint configured
-   * in /etc/.z-ai-config or .z-ai-config. This is NOT hidden routing —
-   * it is the intentional architecture. To use direct provider APIs instead,
-   * replace callProvider() with direct fetch() calls to each provider's API.
+   * For 'gemini-cli': Uses the Gemini CLI Discovery Engine to execute
+   * prompts locally via the discovered CLI executable.
+   *
+   * For all other providers: Routes through the Z-AI SDK gateway.
    */
   private async callProvider(provider: ModelProviderType, request: ModelRequest): Promise<ModelResponse> {
+    // Special handling for Gemini CLI provider
+    if (provider === 'gemini-cli') {
+      return this.callGeminiCLI(request);
+    }
+
+    // Standard Z-AI SDK gateway for all other providers
     const startTime = Date.now();
 
     const ZAI = (await import('z-ai-web-dev-sdk')).default;
     const response = await ZAI.chat.completions.create({
-      model: MODEL_MAP[provider] ?? 'gpt-4o',
+      model: this.dynamicModelMap.get(provider) ?? MODEL_MAP[provider] ?? 'gpt-4o',
       messages: [
         ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
         { role: 'user' as const, content: request.prompt },
@@ -601,9 +664,43 @@ class ModelRouter {
     return {
       content,
       provider,
-      model: MODEL_MAP[provider] ?? 'gpt-4o',
+      model: this.dynamicModelMap.get(provider) ?? MODEL_MAP[provider] ?? 'gpt-4o',
       tokensUsed,
       latencyMs: Date.now() - startTime,
+      success: true,
+    };
+  }
+
+  /**
+   * Execute a prompt via the Gemini CLI Discovery Engine.
+   * Falls back to the Gemini API provider if CLI is unavailable.
+   */
+  private async callGeminiCLI(request: ModelRequest): Promise<ModelResponse> {
+    // Lazy import to avoid circular dependency
+    const { geminiCLIDiscovery } = await import('./gemini-cli-discovery');
+
+    if (!geminiCLIDiscovery.isAvailable()) {
+      // CLI not available — fall back to Gemini API
+      throw new Error('Gemini CLI not available; failing over to Gemini API');
+    }
+
+    const model = this.dynamicModelMap.get('gemini-cli') ?? 'gemini-2.5-flash';
+    const fullPrompt = request.systemPrompt
+      ? `${request.systemPrompt}\n\n${request.prompt}`
+      : request.prompt;
+
+    const result = await geminiCLIDiscovery.executePrompt(fullPrompt, model);
+
+    if (!result.success) {
+      throw new Error(result.error ?? 'Gemini CLI execution failed');
+    }
+
+    return {
+      content: result.content,
+      provider: 'gemini-cli',
+      model,
+      tokensUsed: Math.ceil(result.content.length / 4), // Approximate token count for CLI
+      latencyMs: result.latencyMs,
       success: true,
     };
   }

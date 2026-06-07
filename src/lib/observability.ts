@@ -41,7 +41,7 @@ class ObservabilityEngine {
   getActiveModels(): ProviderHealth[] {
     const healthMap = modelRouter.getProviderHealth();
     const providers: ModelProviderType[] = [
-      'openai', 'claude', 'gemini', 'glm', 'mistral', 'qwen', 'deepseek',
+      'openai', 'claude', 'gemini-cli', 'gemini', 'glm', 'mistral', 'qwen', 'deepseek',
       'openrouter', 'ollama', 'lmstudio', 'llamacpp', 'vllm', 'grok', 'moonshot',
     ];
 

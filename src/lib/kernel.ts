@@ -27,6 +27,7 @@ import { observabilityEngine } from './observability';
 import { selfHealingEngine } from './self-healing';
 import { swarmEngine } from './swarm-engine';
 import { db } from './db';
+import { geminiCLIDiscovery } from './gemini-cli-discovery';
 
 // Conditional import for knowledge-engine — may not exist yet
 let knowledgeEngine: any = null;
@@ -799,6 +800,7 @@ class AgenticKernel {
   readonly selfHealingEngine = selfHealingEngine;
   readonly swarmEngine = swarmEngine;
   readonly knowledgeEngine = knowledgeEngine;
+  readonly geminiCLIDiscovery = geminiCLIDiscovery;
   readonly db = db;
 
   constructor() {
@@ -839,6 +841,80 @@ class AgenticKernel {
       // Set initial kernel state
       this.stateManager.setState('kernel.status', 'initializing');
       this.stateManager.setState('kernel.startedAt', Date.now());
+
+      // ─── Gemini CLI Auto-Discovery ───
+      // Automatically detect and register Gemini CLI on startup
+      try {
+        console.log('[Kernel] Starting Gemini CLI auto-discovery...');
+        this.eventBus.emit('gemini-cli:discovering', {});
+
+        const cliState = await geminiCLIDiscovery.discover();
+
+        if (cliState.discovery.status === 'available' && cliState.health.available) {
+          // CLI found and validated — register with model router
+          modelRouter.markProviderValidated('gemini-cli');
+
+          const bestModel = geminiCLIDiscovery.selectBestModel('balanced');
+          if (bestModel) {
+            modelRouter.updateDynamicModel('gemini-cli', bestModel.id, bestModel.contextWindow);
+          }
+
+          // Register discovered models in the kernel model registry
+          for (const model of cliState.models) {
+            this.registries.registerModel({
+              id: `gemini-cli-${model.id}`,
+              name: model.name,
+              provider: 'gemini-cli',
+              enabled: model.status === 'available',
+              priority: cliState.routingPriority,
+              config: {
+                modelId: model.id,
+                contextWindow: model.contextWindow,
+                capabilities: model.capabilities,
+                mode: cliState.mode,
+                executablePath: cliState.discovery.executablePath,
+                version: cliState.discovery.version,
+              },
+            });
+          }
+
+          console.log(`[Kernel] Gemini CLI discovered: ${cliState.discovery.version} at ${cliState.discovery.executablePath}`);
+          console.log(`[Kernel] Gemini CLI models: ${cliState.models.map((m) => m.id).join(', ')}`);
+          this.eventBus.emit('gemini-cli:discovered', {
+            version: cliState.discovery.version,
+            executablePath: cliState.discovery.executablePath,
+            models: cliState.models.map((m) => m.id),
+            healthScore: cliState.health.healthScore,
+          });
+        } else {
+          // CLI not available — mark provider as degraded in router
+          modelRouter.markProviderDegraded('gemini-cli', cliState.health.degradationReason ?? 'Not found');
+          console.log('[Kernel] Gemini CLI not available — using Gemini API fallback');
+          this.eventBus.emit('gemini-cli:unavailable', {
+            reason: cliState.health.degradationReason,
+          });
+        }
+      } catch (err) {
+        // Discovery failure should not block kernel startup
+        console.warn('[Kernel] Gemini CLI discovery failed (non-blocking):', err);
+        modelRouter.markProviderDegraded('gemini-cli', 'Discovery error');
+        this.eventBus.emit('gemini-cli:error', { error: err });
+      }
+
+      // Wire up Gemini CLI discovery events to model router
+      geminiCLIDiscovery.on('health:recovered', () => {
+        modelRouter.markProviderValidated('gemini-cli');
+        const bestModel = geminiCLIDiscovery.selectBestModel('balanced');
+        if (bestModel) {
+          modelRouter.updateDynamicModel('gemini-cli', bestModel.id, bestModel.contextWindow);
+        }
+        console.log('[Kernel] Gemini CLI recovered — routing restored');
+      });
+
+      geminiCLIDiscovery.on('health:degraded', () => {
+        modelRouter.markProviderDegraded('gemini-cli');
+        console.log('[Kernel] Gemini CLI degraded — failing over to Gemini API');
+      });
 
       // Mark as running
       this._status = 'running';
@@ -895,6 +971,14 @@ class AgenticKernel {
         console.log('[Kernel] Database disconnected');
       } catch (err) {
         console.warn('[Kernel] Database disconnect failed:', err);
+      }
+
+      // Shut down Gemini CLI discovery
+      try {
+        geminiCLIDiscovery.shutdown();
+        console.log('[Kernel] Gemini CLI discovery shut down');
+      } catch (err) {
+        console.warn('[Kernel] Gemini CLI shutdown failed:', err);
       }
 
       this._status = 'stopped';

@@ -191,7 +191,7 @@ export interface HealingPattern {
 
 // ─── Model Types ───
 export type ModelProviderType =
-  | 'openai' | 'claude' | 'gemini' | 'glm' | 'mistral' | 'qwen' | 'deepseek'
+  | 'openai' | 'claude' | 'gemini' | 'gemini-cli' | 'glm' | 'mistral' | 'qwen' | 'deepseek'
   | 'openrouter' | 'ollama' | 'lmstudio' | 'llamacpp' | 'vllm'
   | 'grok' | 'moonshot';
 
@@ -444,6 +444,87 @@ export type BrainOverlayType =
   | 'default' | 'claude' | 'hermes' | 'research' | 'coding'
   | 'architect' | 'analyst' | 'devops' | 'security' | 'business'
   | 'recruitment' | 'aviation' | 'custom';
+
+// ─── Gemini CLI Discovery Types ───
+export type GeminiCLIStatus = 'available' | 'unavailable' | 'degraded' | 'discovering' | 'error';
+
+export type GeminiCLIMode = 'cli' | 'api'; // CLI = local executable, API = cloud API via SDK
+
+export interface GeminiCLIDiscovery {
+  status: GeminiCLIStatus;
+  executablePath: string | null;
+  version: string | null;
+  installSource: string | null; // 'npm-global' | 'pnpm-global' | 'yarn-global' | 'bun-global' | 'path' | 'wsl' | 'local-dev' | 'custom'
+  discoveredAt: number;
+  lastValidatedAt: number;
+  platform: 'windows' | 'linux' | 'macos';
+}
+
+export interface GeminiCLIModel {
+  id: string;           // e.g. 'gemini-2.5-pro'
+  name: string;         // Display name
+  provider: 'gemini-cli';
+  contextWindow: number;
+  capabilities: GeminiCLIModelCapabilities;
+  discoveredAt: number;
+  lastValidatedAt: number;
+  status: 'available' | 'unavailable' | 'rate_limited';
+}
+
+export interface GeminiCLIModelCapabilities {
+  streaming: boolean;
+  functionCalling: boolean;
+  reasoning: boolean;
+  toolUse: boolean;
+  codeExecution: boolean;
+  grounding: boolean;
+  outputModes: string[];
+}
+
+export interface GeminiCLIHealth {
+  available: boolean;
+  executableLaunches: boolean;
+  authenticationValid: boolean;
+  modelDiscoveryWorks: boolean;
+  testPromptSucceeded: boolean;
+  lastLatencyMs: number;
+  successRate: number;
+  healthScore: number;       // 0-100 composite score
+  degradationReason: string | null;
+  lastChecked: number;
+}
+
+export interface GeminiCLIProviderState {
+  discovery: GeminiCLIDiscovery;
+  models: GeminiCLIModel[];
+  health: GeminiCLIHealth;
+  routingPriority: number;  // Position in failover chain
+  failoverChain: string[];  // Provider failover chain when CLI degrades
+  mode: GeminiCLIMode;
+}
+
+export interface GeminiCLISearchPath {
+  path: string;
+  type: 'path' | 'npm-global' | 'pnpm-global' | 'yarn-global' | 'bun-global' | 'wsl' | 'local-dev' | 'custom';
+  found: boolean;
+  executable?: string;
+  version?: string;
+}
+
+export interface GeminiCLICapabilityReport {
+  version: string;
+  supportedModels: string[];
+  features: {
+    streaming: boolean;
+    functionCalling: boolean;
+    reasoning: boolean;
+    toolUse: boolean;
+    codeExecution: boolean;
+    grounding: boolean;
+  };
+  contextWindows: Record<string, number>;
+  outputModes: string[];
+}
 
 // ─── Knowledge Types ───
 export interface KnowledgeDocument {

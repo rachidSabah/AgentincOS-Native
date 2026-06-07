@@ -67,6 +67,7 @@ export function ObservabilityDashboard() {
         setProviders([
           { provider: 'openai', healthy: true, latencyMs: 0, successRate: 1, status: 'healthy' },
           { provider: 'claude', healthy: true, latencyMs: 0, successRate: 1, status: 'healthy' },
+          { provider: 'gemini-cli', healthy: false, latencyMs: 0, successRate: 0, status: 'unhealthy' },
           { provider: 'gemini', healthy: true, latencyMs: 0, successRate: 1, status: 'healthy' },
           { provider: 'glm', healthy: true, latencyMs: 0, successRate: 1, status: 'healthy' },
           { provider: 'mistral', healthy: true, latencyMs: 0, successRate: 1, status: 'healthy' },

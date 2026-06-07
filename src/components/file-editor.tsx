@@ -352,7 +352,7 @@ export type SwarmStatus = 'forming' | 'active' | 'completed' | 'failed' | 'cance
 
 // ─── Model Types ───
 export type ModelProviderType =
-  | 'openai' | 'claude' | 'gemini' | 'glm' | 'mistral' | 'qwen' | 'deepseek'
+  | 'openai' | 'claude' | 'gemini' | 'gemini-cli' | 'glm' | 'mistral' | 'qwen' | 'deepseek'
   | 'openrouter' | 'ollama' | 'lmstudio';
 
 export interface ModelResponse {
