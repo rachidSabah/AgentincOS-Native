@@ -1,7 +1,7 @@
 // ============================================================
-// Agentic OS X — Enhanced Swarm Engine
-// Multi-Swarm Network with Roles, Levels, Parallel Execution,
-// Shared Memory, Auto-Formation, and Real-Time Map Data
+// Agentic OS X — On-Demand Swarm Engine
+// Prebuilt Templates, Auto-Destruction, Resource Cleanup,
+// Phase-Based Parallel Execution, Shared Memory, Real-Time Map
 // ============================================================
 import type {
   TaskComplexity,
@@ -15,9 +15,18 @@ import type {
   SwarmMapNode,
   SwarmMapEdge,
   ExtendedAgentType,
+  SwarmTemplateName,
+  SwarmTemplate,
+  SwarmTemplateAgentSlot,
 } from './types';
 import { agentRegistry } from './agent-runtime';
 import { v4 as uuidv4 } from 'uuid';
+
+// ─── Constants ──────────────────────────────────────────────
+const DEFAULT_RETENTION_COMPLETED_MS = 60_000;   // 60 seconds
+const DEFAULT_RETENTION_FAILED_MS    = 300_000;   // 300 seconds (5 min)
+const CLEANUP_INTERVAL_MS            = 15_000;    // Run cleanup every 15 seconds
+const SWARM_SPAWN_TARGET_MS          = 2_000;     // Performance target
 
 // ─── Swarm Role Definitions ─────────────────────────────────
 const ROLE_DESCRIPTIONS: Record<SwarmRoleType, string> = {
@@ -99,12 +108,256 @@ const SWARM_LEVELS: SwarmLevelConfig[] = [
   },
 ];
 
+// ─── Prebuilt Swarm Templates ───────────────────────────────
+const SWARM_TEMPLATES: Record<SwarmTemplateName, SwarmTemplate> = {
+  software_factory: {
+    name: 'Software Factory',
+    description: 'Full-stack software development pipeline: planning, coding, reviewing, and verification for production-grade applications.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Tech Lead' },
+      { role: 'coordinator', agentType: 'architect', label: 'Architect' },
+      { role: 'worker', agentType: 'coder', label: 'Backend Developer' },
+      { role: 'worker', agentType: 'coder', label: 'Frontend Developer' },
+      { role: 'worker', agentType: 'researcher', label: 'Dev Researcher' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Code Reviewer' },
+      { role: 'verifier', agentType: 'verifier', label: 'QA Engineer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Context Keeper' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  research: {
+    name: 'Research Swarm',
+    description: 'Deep research and analysis team: discovers sources, synthesizes findings, and produces comprehensive reports.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Research Director' },
+      { role: 'worker', agentType: 'researcher', label: 'Primary Researcher' },
+      { role: 'worker', agentType: 'researcher', label: 'Secondary Researcher' },
+      { role: 'knowledge_agent', agentType: 'researcher', label: 'Knowledge Specialist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Peer Reviewer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Research Librarian' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  marketing: {
+    name: 'Marketing Swarm',
+    description: 'End-to-end marketing team: strategy, content creation, SEO optimization, and campaign management.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Marketing Director' },
+      { role: 'coordinator', agentType: 'architect', label: 'Campaign Manager' },
+      { role: 'worker', agentType: 'coder', label: 'Content Creator' },
+      { role: 'worker', agentType: 'seo', label: 'SEO Specialist' },
+      { role: 'worker', agentType: 'business', label: 'Brand Strategist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Brand Reviewer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Asset Librarian' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  recruitment: {
+    name: 'Recruitment Swarm',
+    description: 'Talent acquisition team: job description creation, candidate sourcing, screening, and interview coordination.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Recruitment Lead' },
+      { role: 'coordinator', agentType: 'architect', label: 'HR Coordinator' },
+      { role: 'worker', agentType: 'recruitment', label: 'Sourcer' },
+      { role: 'worker', agentType: 'recruitment', label: 'Screening Specialist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Hiring Manager' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Candidate Tracker' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  security: {
+    name: 'Security Swarm',
+    description: 'Cybersecurity team: threat analysis, vulnerability scanning, penetration testing, and security hardening.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Security Lead' },
+      { role: 'coordinator', agentType: 'architect', label: 'SOC Coordinator' },
+      { role: 'worker', agentType: 'security', label: 'Threat Analyst' },
+      { role: 'worker', agentType: 'security', label: 'Pen Tester' },
+      { role: 'worker', agentType: 'security', label: 'Hardening Specialist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Security Auditor' },
+      { role: 'verifier', agentType: 'verifier', label: 'Compliance Checker' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Threat Intel DB' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  data: {
+    name: 'Data Swarm',
+    description: 'Data engineering and analytics team: ETL pipelines, data modeling, statistical analysis, and visualization.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Data Lead' },
+      { role: 'coordinator', agentType: 'architect', label: 'Data Architect' },
+      { role: 'worker', agentType: 'database', label: 'Data Engineer' },
+      { role: 'worker', agentType: 'researcher', label: 'Data Analyst' },
+      { role: 'worker', agentType: 'coder', label: 'Pipeline Developer' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Data Quality Reviewer' },
+      { role: 'verifier', agentType: 'verifier', label: 'Data Validator' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Metadata Store' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  knowledge: {
+    name: 'Knowledge Swarm',
+    description: 'Knowledge management team: document processing, indexing, retrieval optimization, and knowledge graph construction.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Knowledge Director' },
+      { role: 'worker', agentType: 'researcher', label: 'Content Analyst' },
+      { role: 'worker', agentType: 'documentation', label: 'Documentation Specialist' },
+      { role: 'knowledge_agent', agentType: 'researcher', label: 'Knowledge Engineer' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Quality Reviewer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Index Manager' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  devops: {
+    name: 'DevOps Swarm',
+    description: 'DevOps and SRE team: CI/CD pipelines, infrastructure automation, monitoring, and incident response.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'DevOps Lead' },
+      { role: 'coordinator', agentType: 'architect', label: 'Release Manager' },
+      { role: 'worker', agentType: 'devops', label: 'CI/CD Engineer' },
+      { role: 'worker', agentType: 'devops', label: 'Infrastructure Engineer' },
+      { role: 'worker', agentType: 'automation', label: 'Automation Specialist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Change Reviewer' },
+      { role: 'verifier', agentType: 'verifier', label: 'Deployment Validator' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Config Store' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  cloud_infrastructure: {
+    name: 'Cloud Infrastructure Swarm',
+    description: 'Cloud architecture and infrastructure team: multi-cloud provisioning, cost optimization, scalability, and disaster recovery.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Cloud Architect Lead' },
+      { role: 'coordinator', agentType: 'architect', label: 'Cloud Coordinator' },
+      { role: 'worker', agentType: 'devops', label: 'Cloud Provisioner' },
+      { role: 'worker', agentType: 'security', label: 'Cloud Security Specialist' },
+      { role: 'worker', agentType: 'database', label: 'Cloud DBA' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Cost Optimizer' },
+      { role: 'verifier', agentType: 'verifier', label: 'Infrastructure Validator' },
+      { role: 'memory_agent', agentType: 'memory', label: 'State Manager' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  wordpress: {
+    name: 'WordPress Swarm',
+    description: 'WordPress development team: theme development, plugin engineering, performance tuning, and security hardening.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'WP Project Lead' },
+      { role: 'worker', agentType: 'coder', label: 'Theme Developer' },
+      { role: 'worker', agentType: 'coder', label: 'Plugin Developer' },
+      { role: 'worker', agentType: 'security', label: 'WP Security Specialist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Code Reviewer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'WP Config Store' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  moodle: {
+    name: 'Moodle Swarm',
+    description: 'Moodle LMS team: course design, plugin development, user management, and platform optimization.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Moodle Lead' },
+      { role: 'worker', agentType: 'coder', label: 'Moodle Developer' },
+      { role: 'worker', agentType: 'researcher', label: 'Instructional Designer' },
+      { role: 'worker', agentType: 'database', label: 'DB Specialist' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Platform Reviewer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Course Data Store' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  aviation_recruitment: {
+    name: 'Aviation Recruitment Swarm',
+    description: 'Aviation industry talent acquisition: pilot sourcing, crew recruitment, regulatory compliance, and safety qualification verification.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Aviation Recruitment Director' },
+      { role: 'coordinator', agentType: 'architect', label: 'Crew Planning Coordinator' },
+      { role: 'worker', agentType: 'aviation', label: 'Pilot Recruiter' },
+      { role: 'worker', agentType: 'recruitment', label: 'Cabin Crew Recruiter' },
+      { role: 'worker', agentType: 'security', label: 'Compliance & Safety Officer' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Qualification Reviewer' },
+      { role: 'verifier', agentType: 'verifier', label: 'License Verifier' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Candidate Database' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  customer_success: {
+    name: 'Customer Success Swarm',
+    description: 'Customer success and support team: onboarding, issue resolution, health scoring, and retention optimization.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'CS Director' },
+      { role: 'coordinator', agentType: 'architect', label: 'Account Coordinator' },
+      { role: 'worker', agentType: 'business', label: 'Onboarding Specialist' },
+      { role: 'worker', agentType: 'automation', label: 'Support Automation Engineer' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'CS Quality Reviewer' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Customer Context Store' },
+    ],
+    complexity: 'medium',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+  executive_planning: {
+    name: 'Executive Planning Swarm',
+    description: 'Strategic executive team: market analysis, financial modeling, strategic planning, and board-level decision support.',
+    agents: [
+      { role: 'leader', agentType: 'planner', label: 'Chief Strategy Officer' },
+      { role: 'coordinator', agentType: 'architect', label: 'Chief of Staff' },
+      { role: 'worker', agentType: 'business', label: 'Market Analyst' },
+      { role: 'worker', agentType: 'researcher', label: 'Competitive Intelligence' },
+      { role: 'worker', agentType: 'business', label: 'Financial Modeler' },
+      { role: 'reviewer', agentType: 'reviewer', label: 'Strategy Reviewer' },
+      { role: 'verifier', agentType: 'verifier', label: 'Risk Assessor' },
+      { role: 'knowledge_agent', agentType: 'researcher', label: 'Industry Expert' },
+      { role: 'memory_agent', agentType: 'memory', label: 'Decision Archive' },
+    ],
+    complexity: 'complex',
+    canParallelize: true,
+    retentionMsCompleted: 60_000,
+    retentionMsFailed: 300_000,
+  },
+};
+
 // ─── Dependency Graph for Parallel Execution ────────────────
 interface TaskDependencyNode {
   agentId: string;
   role: SwarmRoleType;
   dependsOn: SwarmRoleType[];
-  phase: number; // Execution phase: 0 = can run immediately
+  phase: number;
 }
 
 // Phase-based execution order:
@@ -121,6 +374,25 @@ const ROLE_PHASES: Record<SwarmRoleType, { phase: number; dependsOn: SwarmRoleTy
   reviewer: { phase: 2, dependsOn: ['worker'] },
   verifier: { phase: 3, dependsOn: ['reviewer'] },
 };
+
+// ─── Cleanup Event ──────────────────────────────────────────
+interface SwarmCleanupEvent {
+  swarmId: string;
+  templateName?: SwarmTemplateName;
+  status: SwarmStatus;
+  lifetimeMs: number;
+  agentsRemoved: number;
+  memoryCleared: number;
+  cleanedUpAt: number;
+}
+
+// ─── Retention Tracker ──────────────────────────────────────
+interface SwarmRetentionEntry {
+  swarmId: string;
+  scheduledAt: number;
+  destroyAt: number;
+  templateName?: SwarmTemplateName;
+}
 
 // ─── Swarm Memory ───────────────────────────────────────────
 class SwarmMemory {
@@ -204,17 +476,14 @@ class ComplexityAnalyzer {
     const words = task.split(/\s+/);
     const wordCount = words.length;
 
-    // Check for multi-swarm indicators first (highest priority)
     if (this.KEYWORDS_MULTI.test(task) || wordCount > 50) {
       return 'multi_swarm';
     }
 
-    // Check for complex/enterprise indicators
     if (this.KEYWORDS_HIGH.test(task) || wordCount > 30) {
       return 'complex';
     }
 
-    // Check for medium indicators
     if (wordCount > 15 || this.KEYWORDS_MID.test(task)) {
       return 'medium';
     }
@@ -277,6 +546,7 @@ class Swarm {
   readonly parentSwarmId?: string;
   readonly childSwarmIds: string[];
   readonly artifacts: string[];
+  readonly templateName?: SwarmTemplateName;
 
   private _status: SwarmStatus;
   private completedAt?: number;
@@ -288,6 +558,7 @@ class Swarm {
     roles: SwarmRole[],
     agentIds: string[],
     parentSwarmId?: string,
+    templateName?: SwarmTemplateName,
   ) {
     this.id = uuidv4();
     this.task = task;
@@ -300,6 +571,7 @@ class Swarm {
     this.parentSwarmId = parentSwarmId;
     this.childSwarmIds = [];
     this.artifacts = [];
+    this.templateName = templateName;
     this._status = 'forming';
   }
 
@@ -361,12 +633,241 @@ class Swarm {
   }
 }
 
-// ─── Swarm Network ──────────────────────────────────────────
+// ─── Swarm Network (On-Demand) ──────────────────────────────
 class SwarmNetwork {
   private swarms: Map<string, Swarm> = new Map();
   private complexityAnalyzer: ComplexityAnalyzer = new ComplexityAnalyzer();
 
-  // ─── Swarm Creation ───
+  // On-demand auto-destruction
+  private retentionQueue: Map<string, SwarmRetentionEntry> = new Map();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Event listeners for cleanup and lifecycle events
+  private cleanupEventListeners: Array<(event: SwarmCleanupEvent) => void> = [];
+  private lifecycleListeners: Array<(event: { swarmId: string; status: SwarmStatus; templateName?: SwarmTemplateName }) => void> = [];
+
+  // Statistics tracking
+  private lifetimeHistory: Array<{ swarmId: string; lifetimeMs: number; templateName?: SwarmTemplateName }> = [];
+  private templateUsageCount: Record<string, number> = {};
+  private totalAgentsSpawned: number = 0;
+  private totalAgentsRemoved: number = 0;
+
+  constructor() {
+    this.startCleanupTimer();
+  }
+
+  // ─── Cleanup Timer ────────────────────────────────────────
+
+  private startCleanupTimer(): void {
+    if (this.cleanupTimer) return;
+    this.cleanupTimer = setInterval(() => this.runCleanup(), CLEANUP_INTERVAL_MS);
+    // Allow the process to exit even if the timer is running
+    if (this.cleanupTimer && typeof this.cleanupTimer === 'object' && 'unref' in this.cleanupTimer) {
+      this.cleanupTimer.unref();
+    }
+  }
+
+  private stopCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  /**
+   * Run a single cleanup pass — destroy any swarms whose retention
+   * period has elapsed.
+   */
+  private runCleanup(): void {
+    const now = Date.now();
+    const toDestroy: string[] = [];
+
+    for (const [swarmId, entry] of this.retentionQueue.entries()) {
+      if (now >= entry.destroyAt) {
+        toDestroy.push(swarmId);
+      }
+    }
+
+    for (const swarmId of toDestroy) {
+      this.destroySwarm(swarmId);
+    }
+  }
+
+  // ─── Retention Scheduling ─────────────────────────────────
+
+  /**
+   * Schedule a completed/failed swarm for auto-destruction after
+   * its retention period elapses.
+   */
+  private scheduleRetention(swarm: Swarm): void {
+    const template = swarm.templateName ? SWARM_TEMPLATES[swarm.templateName] : undefined;
+    const isFailed = swarm.status === 'failed' || swarm.status === 'cancelled';
+
+    const retentionMs = isFailed
+      ? (template?.retentionMsFailed ?? DEFAULT_RETENTION_FAILED_MS)
+      : (template?.retentionMsCompleted ?? DEFAULT_RETENTION_COMPLETED_MS);
+
+    const entry: SwarmRetentionEntry = {
+      swarmId: swarm.id,
+      scheduledAt: Date.now(),
+      destroyAt: Date.now() + retentionMs,
+      templateName: swarm.templateName,
+    };
+
+    this.retentionQueue.set(swarm.id, entry);
+  }
+
+  // ─── Swarm Destruction ────────────────────────────────────
+
+  /**
+   * Destroy a swarm and release all associated resources.
+   * Removes agents (unless shared with other active swarms),
+   * clears memory, removes from maps, and emits cleanup events.
+   */
+  destroySwarm(swarmId: string): boolean {
+    const swarm = this.swarms.get(swarmId);
+    if (!swarm) return false;
+
+    const now = Date.now();
+    const lifetimeMs = (swarm.completedAt ?? now) - swarm.createdAt;
+
+    // Track lifetime for statistics
+    this.lifetimeHistory.push({
+      swarmId: swarm.id,
+      lifetimeMs,
+      templateName: swarm.templateName,
+    });
+
+    // Determine which agents are safe to remove (not shared with other active swarms)
+    const agentsInOtherSwarms = new Set<string>();
+    for (const [otherId, otherSwarm] of this.swarms.entries()) {
+      if (otherId === swarmId) continue;
+      if (otherSwarm.status === 'active' || otherSwarm.status === 'forming') {
+        for (const agentId of otherSwarm.agentIds) {
+          agentsInOtherSwarms.add(agentId);
+        }
+      }
+    }
+
+    let agentsRemoved = 0;
+    for (const agentId of swarm.agentIds) {
+      if (!agentsInOtherSwarms.has(agentId)) {
+        const removed = agentRegistry.remove(agentId);
+        if (removed) {
+          agentsRemoved++;
+          this.totalAgentsRemoved++;
+        }
+      }
+    }
+
+    // Clear swarm memory
+    const memoryCleared = swarm.memory.size;
+    swarm.memory.clear();
+
+    // Remove from the swarms map
+    this.swarms.delete(swarmId);
+
+    // Remove from retention queue
+    this.retentionQueue.delete(swarmId);
+
+    // Remove as a child from any parent
+    for (const [, parentSwarm] of this.swarms.entries()) {
+      const childIdx = parentSwarm.childSwarmIds.indexOf(swarmId);
+      if (childIdx !== -1) {
+        parentSwarm.childSwarmIds.splice(childIdx, 1);
+      }
+    }
+
+    // Emit cleanup event
+    const cleanupEvent: SwarmCleanupEvent = {
+      swarmId,
+      templateName: swarm.templateName,
+      status: swarm.status,
+      lifetimeMs,
+      agentsRemoved,
+      memoryCleared,
+      cleanedUpAt: now,
+    };
+
+    for (const listener of this.cleanupEventListeners) {
+      try {
+        listener(cleanupEvent);
+      } catch {
+        // Listener errors must not break cleanup
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Immediately destroy all completed/failed swarms, ignoring retention.
+   */
+  destroyAllCompleted(): number {
+    const toDestroy: string[] = [];
+    for (const [id, swarm] of this.swarms.entries()) {
+      if (swarm.status === 'completed' || swarm.status === 'failed' || swarm.status === 'cancelled') {
+        toDestroy.push(id);
+      }
+    }
+    for (const id of toDestroy) {
+      this.destroySwarm(id);
+    }
+    return toDestroy.length;
+  }
+
+  // ─── Event Listeners ──────────────────────────────────────
+
+  onCleanup(listener: (event: SwarmCleanupEvent) => void): () => void {
+    this.cleanupEventListeners.push(listener);
+    return () => {
+      const idx = this.cleanupEventListeners.indexOf(listener);
+      if (idx !== -1) this.cleanupEventListeners.splice(idx, 1);
+    };
+  }
+
+  onLifecycle(listener: (event: { swarmId: string; status: SwarmStatus; templateName?: SwarmTemplateName }) => void): () => void {
+    this.lifecycleListeners.push(listener);
+    return () => {
+      const idx = this.lifecycleListeners.indexOf(listener);
+      if (idx !== -1) this.lifecycleListeners.splice(idx, 1);
+    };
+  }
+
+  private emitLifecycle(swarmId: string, status: SwarmStatus, templateName?: SwarmTemplateName): void {
+    for (const listener of this.lifecycleListeners) {
+      try {
+        listener({ swarmId, status, templateName });
+      } catch {
+        // Listener errors must not break execution
+      }
+    }
+  }
+
+  // ─── Template Access ──────────────────────────────────────
+
+  /**
+   * Get all available swarm templates.
+   */
+  getTemplates(): Record<SwarmTemplateName, SwarmTemplate> {
+    return { ...SWARM_TEMPLATES };
+  }
+
+  /**
+   * Get a specific template by name.
+   */
+  getTemplate(name: SwarmTemplateName): SwarmTemplate {
+    return SWARM_TEMPLATES[name];
+  }
+
+  /**
+   * List all template names.
+   */
+  listTemplateNames(): SwarmTemplateName[] {
+    return Object.keys(SWARM_TEMPLATES) as SwarmTemplateName[];
+  }
+
+  // ─── Swarm Creation ───────────────────────────────────────
 
   /**
    * Create a new swarm for a given task, automatically determining
@@ -377,7 +878,6 @@ class SwarmNetwork {
     const level = this.complexityAnalyzer.complexityToLevel(resolvedComplexity);
     const levelConfig = this.complexityAnalyzer.getLevelConfig(level);
 
-    // Spawn agents based on the level composition
     const roles: SwarmRole[] = [];
     const agentIds: string[] = [];
 
@@ -387,10 +887,66 @@ class SwarmNetwork {
       roles.push({ agentId: agent.id, role: slot.role });
     }
 
+    this.totalAgentsSpawned += agentIds.length;
+
     const swarm = new Swarm(task, resolvedComplexity, level, roles, agentIds);
     swarm.status = 'active';
 
     this.swarms.set(swarm.id, swarm);
+    this.emitLifecycle(swarm.id, 'active');
+
+    return swarm.toConfig();
+  }
+
+  /**
+   * Create a swarm from a prebuilt template.
+   * The template defines which agents to spawn, their roles,
+   * the complexity level, and whether parallel execution is beneficial.
+   */
+  createSwarmFromTemplate(templateName: SwarmTemplateName, task: string): SwarmConfig {
+    const template = SWARM_TEMPLATES[templateName];
+    if (!template) throw new Error(`Unknown swarm template: ${templateName}`);
+
+    const spawnStart = Date.now();
+
+    const roles: SwarmRole[] = [];
+    const agentIds: string[] = [];
+
+    for (const slot of template.agents) {
+      const agent = agentRegistry.spawn(slot.agentType);
+      agentIds.push(agent.id);
+      roles.push({ agentId: agent.id, role: slot.role });
+    }
+
+    this.totalAgentsSpawned += agentIds.length;
+
+    const level = this.complexityAnalyzer.complexityToLevel(template.complexity);
+
+    const swarm = new Swarm(
+      task,
+      template.complexity,
+      level,
+      roles,
+      agentIds,
+      undefined,
+      templateName,
+    );
+    swarm.status = 'active';
+
+    this.swarms.set(swarm.id, swarm);
+
+    // Track template usage
+    this.templateUsageCount[templateName] = (this.templateUsageCount[templateName] ?? 0) + 1;
+
+    this.emitLifecycle(swarm.id, 'active', templateName);
+
+    const spawnDuration = Date.now() - spawnStart;
+    if (spawnDuration > SWARM_SPAWN_TARGET_MS) {
+      console.warn(
+        `[SwarmEngine] Swarm spawn from template "${templateName}" took ${spawnDuration}ms (target: <${SWARM_SPAWN_TARGET_MS}ms)`,
+      );
+    }
+
     return swarm.toConfig();
   }
 
@@ -404,19 +960,18 @@ class SwarmNetwork {
     const config = this.createSwarm(task, complexity);
     const childSwarm = this.swarms.get(config.id)!;
 
-    // Link parent and child
-    // We use a reflective update since the Swarm class fields are readonly
     (childSwarm as { parentSwarmId: string }).parentSwarmId = parentSwarmId;
     parent.childSwarmIds.push(config.id);
 
     return config;
   }
 
-  // ─── Swarm Execution ───
+  // ─── Swarm Execution ──────────────────────────────────────
 
   /**
    * Execute a swarm using phase-based parallel execution.
-   * Agents in the same phase run concurrently, phases run sequentially.
+   * After completion (success or failure), the swarm is scheduled
+   * for auto-destruction after its retention period.
    */
   async executeSwarm(swarmId: string, task: string): Promise<SwarmExecutionResult> {
     const swarm = this.swarms.get(swarmId);
@@ -424,6 +979,7 @@ class SwarmNetwork {
 
     const startTime = Date.now();
     swarm.status = 'active';
+    this.emitLifecycle(swarmId, 'active', swarm.templateName);
 
     const results: SwarmExecutionResult['results'] = [];
     const phases = swarm.getPhases();
@@ -434,7 +990,6 @@ class SwarmNetwork {
       const phaseAgents = phases.get(phase) ?? [];
       if (phaseAgents.length === 0) continue;
 
-      // Run all agents in this phase in parallel
       const phaseResults = await Promise.allSettled(
         phaseAgents.map(async (dep) => {
           const agentStart = Date.now();
@@ -453,12 +1008,10 @@ class SwarmNetwork {
           }
 
           try {
-            // Enhance the task prompt based on role
             const rolePrompt = this.buildRolePrompt(task, dep.role, swarm);
             const message = await agent.execute(rolePrompt);
             const durationMs = Date.now() - agentStart;
 
-            // Write result to swarm memory
             swarm.memory.write(
               `result:${dep.role}:${dep.agentId}`,
               message.content,
@@ -479,7 +1032,6 @@ class SwarmNetwork {
             const durationMs = Date.now() - agentStart;
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-            // Write error to swarm memory for other agents to see
             swarm.memory.write(
               `error:${dep.role}:${dep.agentId}`,
               errorMessage,
@@ -500,7 +1052,6 @@ class SwarmNetwork {
         }),
       );
 
-      // Collect results from this phase
       for (const result of phaseResults) {
         if (result.status === 'fulfilled') {
           results.push(result.value);
@@ -524,6 +1075,11 @@ class SwarmNetwork {
     const finalStatus: SwarmStatus = allSuccess ? 'completed' : anySuccess ? 'completed' : 'failed';
     swarm.status = finalStatus;
 
+    this.emitLifecycle(swarmId, finalStatus, swarm.templateName);
+
+    // Schedule auto-destruction after retention period
+    this.scheduleRetention(swarm);
+
     return {
       swarmId,
       results,
@@ -536,15 +1092,27 @@ class SwarmNetwork {
   }
 
   /**
+   * Execute a swarm from a template in a single call.
+   * Creates the swarm, executes it, and returns the result.
+   * The swarm will be auto-destroyed after its retention period.
+   */
+  async executeFromTemplate(
+    templateName: SwarmTemplateName,
+    task: string,
+  ): Promise<{ config: SwarmConfig; result: SwarmExecutionResult }> {
+    const config = this.createSwarmFromTemplate(templateName, task);
+    const result = await this.executeSwarm(config.id, task);
+    return { config, result };
+  }
+
+  /**
    * Execute multiple swarms in parallel (for multi-swarm network tasks).
    */
   async executeMultiSwarm(
     tasks: Array<{ task: string; complexity?: TaskComplexity }>,
   ): Promise<Array<{ swarm: SwarmConfig; result: SwarmExecutionResult }>> {
-    // Create all swarms first
     const swarmConfigs = tasks.map((t) => this.createSwarm(t.task, t.complexity));
 
-    // Execute all swarms in parallel
     const executionResults = await Promise.allSettled(
       swarmConfigs.map((config) => this.executeSwarm(config.id, config.task)),
     );
@@ -567,7 +1135,7 @@ class SwarmNetwork {
     });
   }
 
-  // ─── Swarm Query ───
+  // ─── Swarm Query ──────────────────────────────────────────
 
   /** Get a swarm by ID */
   getSwarm(id: string): SwarmConfig | undefined {
@@ -586,12 +1154,16 @@ class SwarmNetwork {
     return Array.from(this.swarms.values()).map((s) => s.toConfig());
   }
 
-  /** Cancel a swarm */
+  /** Cancel a swarm — also schedules it for retention-based cleanup */
   cancelSwarm(swarmId: string): boolean {
     const swarm = this.swarms.get(swarmId);
     if (!swarm) return false;
     if (swarm.status !== 'active' && swarm.status !== 'forming') return false;
     swarm.status = 'cancelled';
+
+    this.emitLifecycle(swarmId, 'cancelled', swarm.templateName);
+    this.scheduleRetention(swarm);
+
     return true;
   }
 
@@ -610,12 +1182,15 @@ class SwarmNetwork {
     return true;
   }
 
-  // ─── Swarm Map / Visualization ───
+  /** Get retention queue status */
+  getRetentionQueue(): SwarmRetentionEntry[] {
+    return Array.from(this.retentionQueue.values());
+  }
+
+  // ─── Swarm Map / Visualization ────────────────────────────
 
   /**
    * Generate real-time swarm map data for visualization.
-   * Includes agent nodes, memory nodes, artifact nodes, and the
-   * relationships (edges) between them.
    */
   getSwarmMap(swarmId: string): SwarmMapData {
     const swarm = this.swarms.get(swarmId);
@@ -624,7 +1199,6 @@ class SwarmNetwork {
     const nodes: SwarmMapNode[] = [];
     const edges: SwarmMapEdge[] = [];
 
-    // Layout configuration
     const centerX = 400;
     const centerY = 300;
     const radius = 200;
@@ -677,7 +1251,6 @@ class SwarmNetwork {
     const verifierId = swarm.roles.find((r) => r.role === 'verifier')?.agentId;
     const memoryAgentId = swarm.roles.find((r) => r.role === 'memory_agent')?.agentId;
 
-    // Leader assigns tasks to workers
     const workerIds = swarm.roles.filter((r) => r.role === 'worker').map((r) => r.agentId);
     for (const workerId of workerIds) {
       if (leaderId) {
@@ -690,7 +1263,6 @@ class SwarmNetwork {
       }
     }
 
-    // Workers deliver results to reviewer
     for (const workerId of workerIds) {
       if (reviewerId) {
         edges.push({
@@ -702,7 +1274,6 @@ class SwarmNetwork {
       }
     }
 
-    // Reviewer sends to verifier
     if (reviewerId && verifierId) {
       edges.push({
         sourceId: reviewerId,
@@ -712,7 +1283,6 @@ class SwarmNetwork {
       });
     }
 
-    // Coordinator manages communication
     if (coordinatorId) {
       for (const r of swarm.roles) {
         if (r.agentId !== coordinatorId && r.role !== 'leader') {
@@ -726,7 +1296,6 @@ class SwarmNetwork {
       }
     }
 
-    // Memory agent connects to shared memory
     if (memoryAgentId) {
       edges.push({
         sourceId: memoryAgentId,
@@ -736,7 +1305,6 @@ class SwarmNetwork {
       });
     }
 
-    // All agents can access shared memory (simplified as edges to memory node)
     for (const r of swarm.roles) {
       if (r.role !== 'memory_agent') {
         edges.push({
@@ -767,7 +1335,6 @@ class SwarmNetwork {
       const offsetX = (swarmIndex % 3) * spacing;
       const offsetY = Math.floor(swarmIndex / 3) * spacing;
 
-      // Offset all nodes for this swarm
       for (const node of swarmMap.nodes) {
         allNodes.push({
           ...node,
@@ -777,7 +1344,6 @@ class SwarmNetwork {
         });
       }
 
-      // Offset all edges for this swarm
       for (const edge of swarmMap.edges) {
         allEdges.push({
           ...edge,
@@ -786,7 +1352,6 @@ class SwarmNetwork {
         });
       }
 
-      // Add inter-swarm edges (parent-child relationships)
       const swarm = this.swarms.get(swarmId)!;
       if (swarm.parentSwarmId) {
         const parentLeader = this.swarms.get(swarm.parentSwarmId)?.roles.find((r) => r.role === 'leader')?.agentId;
@@ -807,7 +1372,7 @@ class SwarmNetwork {
     return { nodes: allNodes, edges: allEdges };
   }
 
-  // ─── Auto-Swarm Formation ───
+  // ─── Auto-Swarm Formation ─────────────────────────────────
 
   /**
    * Automatically determine whether to form a swarm, what level,
@@ -816,7 +1381,6 @@ class SwarmNetwork {
   autoFormSwarm(task: string, complexity?: TaskComplexity): SwarmConfig {
     const resolvedComplexity = complexity ?? this.complexityAnalyzer.analyze(task);
 
-    // For multi-swarm complexity, create a parent swarm + child swarms
     if (resolvedComplexity === 'multi_swarm') {
       return this.createMultiSwarmNetwork(task);
     }
@@ -826,16 +1390,11 @@ class SwarmNetwork {
 
   /**
    * Create a multi-swarm network for complex cross-domain tasks.
-   * Decomposes the task into sub-tasks and creates coordinated swarms.
    */
   private createMultiSwarmNetwork(task: string): SwarmConfig {
-    // Create the parent/orchestrator swarm
     const parentConfig = this.createSwarm(task, 'enterprise');
-
-    // Decompose task into sub-domains (simplified heuristic)
     const subTasks = this.decomposeTask(task);
 
-    // Create child swarms for each sub-task
     for (const subTask of subTasks) {
       try {
         this.createChildSwarm(parentConfig.id, subTask.task, subTask.complexity);
@@ -849,12 +1408,9 @@ class SwarmNetwork {
 
   /**
    * Decompose a task into sub-tasks using heuristic analysis.
-   * In production, this would use AI-powered decomposition.
    */
   private decomposeTask(task: string): Array<{ task: string; complexity: TaskComplexity }> {
     const subTasks: Array<{ task: string; complexity: TaskComplexity }> = [];
-
-    // Split by common delimiters that indicate sub-tasks
     const parts = task.split(/[;.]\s*/).filter((p) => p.trim().length > 10);
 
     if (parts.length > 1) {
@@ -863,16 +1419,15 @@ class SwarmNetwork {
         subTasks.push({ task: part.trim(), complexity: partComplexity });
       }
     } else {
-      // Single task — decompose by domain
       subTasks.push({ task: `Research and plan: ${task}`, complexity: 'medium' });
       subTasks.push({ task: `Implement: ${task}`, complexity: 'complex' });
       subTasks.push({ task: `Review and verify: ${task}`, complexity: 'medium' });
     }
 
-    return subTasks.slice(0, 5); // Cap at 5 child swarms
+    return subTasks.slice(0, 5);
   }
 
-  // ─── Utilities ───
+  // ─── Utilities ────────────────────────────────────────────
 
   /**
    * Build a role-specific prompt for an agent in the swarm.
@@ -891,36 +1446,60 @@ class SwarmNetwork {
       ? `\n\nLeader's plan:\n${leaderResult.value.slice(0, 500)}`
       : '';
 
+    const templateContext = swarm.templateName
+      ? `\n\nSwarm template: ${SWARM_TEMPLATES[swarm.templateName].name} — ${SWARM_TEMPLATES[swarm.templateName].description}`
+      : '';
+
     switch (role) {
       case 'leader':
-        return `You are the LEADER of this swarm. ${roleDesc}\n\nTask: ${task}\n\nCreate a clear execution plan, decompose the work, and assign responsibilities. Your plan will be shared with all other agents.${memoryContext}`;
+        return `You are the LEADER of this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nCreate a clear execution plan, decompose the work, and assign responsibilities. Your plan will be shared with all other agents.${memoryContext}`;
       case 'coordinator':
-        return `You are the COORDINATOR of this swarm. ${roleDesc}\n\nTask: ${task}\n\nEnsure smooth communication between agents. Resolve conflicts and prioritize work.${leaderContext}${memoryContext}`;
+        return `You are the COORDINATOR of this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nEnsure smooth communication between agents. Resolve conflicts and prioritize work.${leaderContext}${memoryContext}`;
       case 'worker':
-        return `You are a WORKER in this swarm. ${roleDesc}\n\nTask: ${task}\n\nExecute your assigned portion of the work thoroughly and precisely.${leaderContext}${memoryContext}`;
+        return `You are a WORKER in this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nExecute your assigned portion of the work thoroughly and precisely.${leaderContext}${memoryContext}`;
       case 'reviewer':
-        return `You are the REVIEWER of this swarm. ${roleDesc}\n\nTask: ${task}\n\nReview the work produced by the workers. Check for quality, completeness, and best practices.${leaderContext}${memoryContext}`;
+        return `You are the REVIEWER of this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nReview the work produced by the workers. Check for quality, completeness, and best practices.${leaderContext}${memoryContext}`;
       case 'verifier':
-        return `You are the VERIFIER of this swarm. ${roleDesc}\n\nTask: ${task}\n\nVerify the final output against requirements. Confirm correctness and completeness.${leaderContext}${memoryContext}`;
+        return `You are the VERIFIER of this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nVerify the final output against requirements. Confirm correctness and completeness.${leaderContext}${memoryContext}`;
       case 'memory_agent':
-        return `You are the MEMORY AGENT of this swarm. ${roleDesc}\n\nTask: ${task}\n\nManage the shared memory. Index important information, retrieve relevant context, and ensure all agents have access to what they need.${memoryContext}`;
+        return `You are the MEMORY AGENT of this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nManage the shared memory. Index important information, retrieve relevant context, and ensure all agents have access to what they need.${memoryContext}`;
       case 'knowledge_agent':
-        return `You are the KNOWLEDGE AGENT of this swarm. ${roleDesc}\n\nTask: ${task}\n\nRetrieve relevant knowledge from the knowledge engine. Provide domain expertise and reference information.${memoryContext}`;
+        return `You are the KNOWLEDGE AGENT of this swarm. ${roleDesc}${templateContext}\n\nTask: ${task}\n\nRetrieve relevant knowledge from the knowledge engine. Provide domain expertise and reference information.${memoryContext}`;
     }
   }
 
+  // ─── Enhanced Statistics ──────────────────────────────────
+
   /**
-   * Get aggregate statistics about all swarms.
+   * Get aggregate statistics about all swarms, including template
+   * usage, average lifetime, and resource usage.
    */
   getStatistics(): {
     totalSwarms: number;
     activeSwarms: number;
     completedSwarms: number;
     failedSwarms: number;
+    cancelledSwarms: number;
     byLevel: Record<string, number>;
     byComplexity: Record<string, number>;
     avgDurationMs: number;
+    avgLifetimeMs: number;
     totalAgentsUsed: number;
+    totalAgentsSpawned: number;
+    totalAgentsRemoved: number;
+    pendingRetention: number;
+    templateUsage: Record<string, number>;
+    templateBreakdown: Array<{
+      name: SwarmTemplateName;
+      displayName: string;
+      usageCount: number;
+      avgLifetimeMs: number;
+    }>;
+    resourceUsage: {
+      activeAgents: number;
+      activeMemoryEntries: number;
+      swarmMapSize: number;
+    };
   } {
     const allSwarms = Array.from(this.swarms.values());
     const byLevel: Record<string, number> = {};
@@ -928,11 +1507,13 @@ class SwarmNetwork {
     let totalDuration = 0;
     let completedCount = 0;
     let totalAgents = 0;
+    let activeMemoryEntries = 0;
 
     for (const swarm of allSwarms) {
       byLevel[swarm.level] = (byLevel[swarm.level] ?? 0) + 1;
       byComplexity[swarm.complexity] = (byComplexity[swarm.complexity] ?? 0) + 1;
       totalAgents += swarm.agentIds.length;
+      activeMemoryEntries += swarm.memory.size;
 
       if (swarm.status === 'completed' && swarm.completedAt) {
         totalDuration += swarm.completedAt - swarm.createdAt;
@@ -940,16 +1521,80 @@ class SwarmNetwork {
       }
     }
 
+    // Compute average lifetime from history
+    const avgLifetimeMs = this.lifetimeHistory.length > 0
+      ? this.lifetimeHistory.reduce((sum, h) => sum + h.lifetimeMs, 0) / this.lifetimeHistory.length
+      : 0;
+
+    // Compute template breakdown
+    const templateBreakdown: Array<{
+      name: SwarmTemplateName;
+      displayName: string;
+      usageCount: number;
+      avgLifetimeMs: number;
+    }> = [];
+
+    for (const name of Object.keys(SWARM_TEMPLATES) as SwarmTemplateName[]) {
+      const usageCount = this.templateUsageCount[name] ?? 0;
+      const templateLifetimes = this.lifetimeHistory
+        .filter((h) => h.templateName === name)
+        .map((h) => h.lifetimeMs);
+      const avgTemplateLifetime = templateLifetimes.length > 0
+        ? templateLifetimes.reduce((a, b) => a + b, 0) / templateLifetimes.length
+        : 0;
+
+      templateBreakdown.push({
+        name,
+        displayName: SWARM_TEMPLATES[name].name,
+        usageCount,
+        avgLifetimeMs: avgTemplateLifetime,
+      });
+    }
+
     return {
       totalSwarms: allSwarms.length,
       activeSwarms: allSwarms.filter((s) => s.status === 'active').length,
       completedSwarms: allSwarms.filter((s) => s.status === 'completed').length,
       failedSwarms: allSwarms.filter((s) => s.status === 'failed').length,
+      cancelledSwarms: allSwarms.filter((s) => s.status === 'cancelled').length,
       byLevel,
       byComplexity,
       avgDurationMs: completedCount > 0 ? totalDuration / completedCount : 0,
+      avgLifetimeMs,
       totalAgentsUsed: totalAgents,
+      totalAgentsSpawned: this.totalAgentsSpawned,
+      totalAgentsRemoved: this.totalAgentsRemoved,
+      pendingRetention: this.retentionQueue.size,
+      templateUsage: { ...this.templateUsageCount },
+      templateBreakdown,
+      resourceUsage: {
+        activeAgents: totalAgents,
+        activeMemoryEntries,
+        swarmMapSize: this.swarms.size,
+      },
     };
+  }
+
+  // ─── Lifecycle ────────────────────────────────────────────
+
+  /**
+   * Gracefully shut down the swarm engine — stops the cleanup
+   * timer, destroys all swarms, and releases all references.
+   */
+  shutdown(): void {
+    this.stopCleanupTimer();
+    this.destroyAllCompleted();
+    // Force-destroy any remaining active swarms
+    const remaining = Array.from(this.swarms.keys());
+    for (const id of remaining) {
+      const swarm = this.swarms.get(id);
+      if (swarm) {
+        swarm.status = 'cancelled';
+        this.destroySwarm(id);
+      }
+    }
+    this.cleanupEventListeners.length = 0;
+    this.lifecycleListeners.length = 0;
   }
 }
 

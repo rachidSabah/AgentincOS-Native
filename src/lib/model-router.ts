@@ -2,6 +2,9 @@
 // Agentic OS V2 — Multi-Model Router with Kubernetes-Style
 // Load Balancing, Circuit Breakers, Traffic Shaping &
 // Comprehensive Health Monitoring
+//
+// V2.1 — Lazy Provider Initialization, Provider Pooling &
+// Idle Provider Unloading
 // ============================================================
 import type {
   ModelProviderType,
@@ -128,6 +131,7 @@ interface ProviderState {
   contextTokensUsed: number;
   latencyBuffer: LatencyRingBuffer;
   healthEma: number; // exponential moving average of health (0-1)
+  lastUsedAt: number; // timestamp of last actual usage for idle unloading
 }
 
 // ─── Helper: Ring Buffer ─────────────────────────────────────
@@ -155,57 +159,152 @@ function percentile(sorted: number[], p: number): number {
 // ─── ModelRouter Class ───────────────────────────────────────
 
 class ModelRouter {
+  // Lazy-initialized maps — empty until a provider is first accessed
   private healthMap: Map<ModelProviderType, ModelHealth> = new Map();
   private stateMap: Map<ModelProviderType, ProviderState> = new Map();
   private circuitBreakers: Map<ModelProviderType, CircuitBreakerState> = new Map();
 
   // Dynamic model map — can be updated by Gemini CLI discovery
-  private dynamicModelMap: Map<ModelProviderType, string> = new Map(Object.entries(MODEL_MAP) as [ModelProviderType, string][]);
-  private dynamicContextWindow: Map<ModelProviderType, number> = new Map(Object.entries(CONTEXT_WINDOW) as [ModelProviderType, number][]);
+  private dynamicModelMap: Map<ModelProviderType, string> = new Map(
+    Object.entries(MODEL_MAP) as [ModelProviderType, string][],
+  );
+  private dynamicContextWindow: Map<ModelProviderType, number> = new Map(
+    Object.entries(CONTEXT_WINDOW) as [ModelProviderType, number][],
+  );
+
+  // Cached SDK client for connection reuse (Provider Pooling)
+  private sdkClient: any = null;
 
   // EMA alpha — higher = more responsive to recent data
   private readonly EMA_ALPHA = 0.3;
 
+  /** Default idle timeout: 5 minutes */
+  private readonly DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+
+  /**
+   * Near-zero cost constructor — no provider state is initialized.
+   * Providers are lazily created on first access via ensureProvider().
+   */
   constructor() {
-    for (const provider of ALL_PROVIDERS) {
-      this.healthMap.set(provider, {
-        provider,
-        healthy: true,
-        latencyMs: 0,
-        successRate: 1.0,
-        lastChecked: Date.now(),
-      });
+    // Intentionally empty — all provider state is created lazily
+  }
 
-      this.stateMap.set(provider, {
-        requestCount: 0,
-        failCount: 0,
-        recentResults: [],
-        totalTokensUsed: 0,
-        estimatedCost: 0,
-        contextTokensUsed: 0,
-        latencyBuffer: createRingBuffer(100),
-        healthEma: 1.0,
-      });
+  // ────────────────────────────────────────────────────────
+  // Lazy Provider Initialization
+  // ────────────────────────────────────────────────────────
 
-      this.circuitBreakers.set(provider, {
-        provider,
-        state: 'closed',
-        failureCount: 0,
-        lastFailureTime: 0,
-        tripThreshold: 3,
-        resetTimeoutMs: 30_000,
-      });
+  /**
+   * Ensure a provider's state, health, and circuit breaker are initialized.
+   * Called lazily on first access — no eager initialization of all 15 providers.
+   * Subsequent calls are a fast no-op (Map.has() check).
+   */
+  private ensureProvider(provider: ModelProviderType): void {
+    if (this.stateMap.has(provider)) return;
+
+    const now = Date.now();
+    const isGeminiCli = provider === 'gemini-cli';
+
+    this.healthMap.set(provider, {
+      provider,
+      healthy: !isGeminiCli,
+      latencyMs: 0,
+      successRate: isGeminiCli ? 0 : 1.0,
+      lastChecked: now,
+    });
+
+    this.stateMap.set(provider, {
+      requestCount: 0,
+      failCount: 0,
+      recentResults: [],
+      totalTokensUsed: 0,
+      estimatedCost: 0,
+      contextTokensUsed: 0,
+      latencyBuffer: createRingBuffer(100),
+      healthEma: 1.0,
+      lastUsedAt: now,
+    });
+
+    this.circuitBreakers.set(provider, {
+      provider,
+      state: isGeminiCli ? 'open' : 'closed', // gemini-cli starts with circuit open until validated
+      failureCount: 0,
+      lastFailureTime: 0,
+      tripThreshold: 3,
+      resetTimeoutMs: 30_000,
+    });
+  }
+
+  // ────────────────────────────────────────────────────────
+  // Provider Pooling — SDK Client Reuse
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Lazy accessor for the Z-AI SDK client.
+   * Caches the imported module to avoid re-importing on every call,
+   * enabling connection reuse for repeated calls to the same provider.
+   */
+  private async getSDKClient(): Promise<any> {
+    if (!this.sdkClient) {
+      const mod = await import('z-ai-web-dev-sdk');
+      this.sdkClient = mod.default;
+    }
+    return this.sdkClient;
+  }
+
+  // ────────────────────────────────────────────────────────
+  // Idle Provider Unloading
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Unload providers that have been idle longer than the specified timeout.
+   * Removes state, health, and circuit breaker entries — the next use
+   * will re-initialize the provider lazily via ensureProvider().
+   *
+   * Called periodically by the kernel's maintenance cycle.
+   *
+   * @param timeoutMs - Idle threshold in milliseconds (default: 300000 = 5 minutes)
+   * @returns Array of provider names that were unloaded
+   */
+  unloadIdleProviders(timeoutMs: number = 300_000): ModelProviderType[] {
+    const now = Date.now();
+    const unloaded: ModelProviderType[] = [];
+
+    for (const [provider, state] of this.stateMap) {
+      if (now - state.lastUsedAt > timeoutMs) {
+        this.stateMap.delete(provider);
+        this.healthMap.delete(provider);
+        this.circuitBreakers.delete(provider);
+        unloaded.push(provider);
+      }
     }
 
-    // Gemini CLI starts with circuit open until discovery validates it
-    const geminiCliCB = this.circuitBreakers.get('gemini-cli');
-    if (geminiCliCB) {
-      geminiCliCB.state = 'open'; // Not yet validated
-    }
-    const geminiCliHealth = this.healthMap.get('gemini-cli');
-    if (geminiCliHealth) {
-      geminiCliHealth.healthy = false; // Not yet validated
-    }
+    return unloaded;
+  }
+
+  // ────────────────────────────────────────────────────────
+  // Active Provider Tracking
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Get the list of currently initialized (active) providers.
+   * Only providers that have been accessed at least once are included.
+   */
+  getActiveProviders(): ModelProviderType[] {
+    return Array.from(this.stateMap.keys());
+  }
+
+  /**
+   * Get the count of currently initialized providers.
+   */
+  getLoadedProviderCount(): number {
+    return this.stateMap.size;
+  }
+
+  /**
+   * Get the total count of available providers (including uninitialized).
+   */
+  getTotalProviderCount(): number {
+    return ALL_PROVIDERS.length;
   }
 
   // ────────────────────────────────────────────────────────
@@ -223,6 +322,9 @@ class ModelRouter {
     let lastError: string | undefined;
 
     for (const provider of failoverChain) {
+      // Ensure provider is lazily initialized before checking circuit
+      this.ensureProvider(provider);
+
       // Circuit breaker check
       const cbState = this.getCircuitState(provider);
       if (cbState === 'open') continue; // skip tripped circuits
@@ -397,6 +499,7 @@ class ModelRouter {
     // Weighted random selection among top 3 to avoid thundering herd
     const topN = available.slice(0, 3);
     const totalScore = topN.reduce((sum, s) => sum + s.score, 0);
+    if (totalScore <= 0) return topN[0]!.provider;
     let rand = Math.random() * totalScore;
     for (const s of topN) {
       rand -= s.score;
@@ -412,6 +515,7 @@ class ModelRouter {
     const preferences = TASK_PROVIDER_PREFERENCE[taskType];
     if (preferences && preferences.length > 0) {
       for (const p of preferences) {
+        this.ensureProvider(p);
         if (this.getCircuitState(p) !== 'open') return p;
       }
     }
@@ -420,11 +524,16 @@ class ModelRouter {
   }
 
   /**
-   * Compute Kubernetes-style composite scores for all providers.
+   * Compute Kubernetes-style composite scores for initialized providers only.
    * Score = (health * 40) + (reliability * 30) + (speed * 20) + (cost * 10)
+   *
+   * Only providers that have been lazily initialized via ensureProvider()
+   * are scored — uninitialized providers are not included.
    */
   scoreProviders(): ProviderScore[] {
-    return ALL_PROVIDERS.map((provider) => {
+    const initializedProviders = Array.from(this.stateMap.keys());
+
+    return initializedProviders.map((provider) => {
       const state = this.stateMap.get(provider)!;
       const health = this.healthMap.get(provider)!;
       const cb = this.circuitBreakers.get(provider)!;
@@ -467,6 +576,7 @@ class ModelRouter {
   // ────────────────────────────────────────────────────────
 
   private getCircuitState(provider: ModelProviderType): CircuitBreakerState['state'] {
+    this.ensureProvider(provider);
     const cb = this.circuitBreakers.get(provider)!;
     const now = Date.now();
 
@@ -496,10 +606,13 @@ class ModelRouter {
   // Health Monitoring
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Get health status for all initialized providers.
+   * Only providers that have been lazily initialized are included.
+   */
   getProviderHealth(): Map<ModelProviderType, ModelHealth> {
-    // Update health based on circuit breaker states
-    for (const provider of ALL_PROVIDERS) {
-      const health = this.healthMap.get(provider)!;
+    // Update health based on circuit breaker states (initialized providers only)
+    for (const [provider, health] of this.healthMap) {
       const cbState = this.getCircuitState(provider);
       if (cbState === 'open') {
         health.healthy = false;
@@ -527,17 +640,24 @@ class ModelRouter {
     }));
   }
 
+  /**
+   * Get circuit breaker states for all initialized providers.
+   * Only providers that have been lazily initialized are included.
+   */
   getCircuitBreakerStates(): CircuitBreakerState[] {
-    // Refresh states before returning
-    for (const provider of ALL_PROVIDERS) {
+    // Refresh states for initialized providers
+    for (const provider of this.stateMap.keys()) {
       this.getCircuitState(provider);
     }
-    return ALL_PROVIDERS.map((p) => ({ ...this.circuitBreakers.get(p)! }));
+    return Array.from(this.circuitBreakers.values()).map((cb) => ({ ...cb }));
   }
 
+  /**
+   * Get detailed metrics for all initialized providers.
+   * Only providers that have been lazily initialized are included.
+   */
   getProviderMetrics(): ProviderMetrics[] {
-    return ALL_PROVIDERS.map((provider) => {
-      const state = this.stateMap.get(provider)!;
+    return Array.from(this.stateMap.entries()).map(([provider, state]) => {
       const cb = this.circuitBreakers.get(provider)!;
 
       const totalRequests = state.requestCount || 1;
@@ -550,8 +670,9 @@ class ModelRouter {
         ? sorted.reduce((a, b) => a + b, 0) / sorted.length
         : 0;
 
-      const contextWindowUsage = CONTEXT_WINDOW[provider] > 0
-        ? state.contextTokensUsed / CONTEXT_WINDOW[provider]
+      const contextWindow = this.dynamicContextWindow.get(provider) ?? CONTEXT_WINDOW[provider];
+      const contextWindowUsage = contextWindow > 0
+        ? state.contextTokensUsed / contextWindow
         : 0;
 
       // Compute sub-scores
@@ -601,33 +722,31 @@ class ModelRouter {
   /**
    * Mark a provider as validated (circuit closed, healthy).
    * Called by the Gemini CLI Discovery Engine after successful validation.
+   * Lazily initializes the provider if not yet loaded.
    */
   markProviderValidated(provider: ModelProviderType): void {
-    const cb = this.circuitBreakers.get(provider);
-    if (cb) {
-      cb.state = 'closed';
-      cb.failureCount = 0;
-    }
-    const health = this.healthMap.get(provider);
-    if (health) {
-      health.healthy = true;
-    }
+    this.ensureProvider(provider);
+    const cb = this.circuitBreakers.get(provider)!;
+    cb.state = 'closed';
+    cb.failureCount = 0;
+    const health = this.healthMap.get(provider)!;
+    health.healthy = true;
   }
 
   /**
    * Mark a provider as degraded (circuit open, unhealthy).
    * Called by the Gemini CLI Discovery Engine when CLI is unavailable.
+   * Lazily initializes the provider if not yet loaded.
    */
   markProviderDegraded(provider: ModelProviderType, reason?: string): void {
-    const cb = this.circuitBreakers.get(provider);
-    if (cb) {
-      cb.state = 'open';
-      cb.lastFailureTime = Date.now();
-    }
-    const health = this.healthMap.get(provider);
-    if (health) {
-      health.healthy = false;
-    }
+    this.ensureProvider(provider);
+    const cb = this.circuitBreakers.get(provider)!;
+    cb.state = 'open';
+    cb.lastFailureTime = Date.now();
+    const health = this.healthMap.get(provider)!;
+    health.healthy = false;
+    // Reason is logged but not stored in current schema
+    void reason;
   }
 
   /**
@@ -636,7 +755,8 @@ class ModelRouter {
    * For 'gemini-cli': Uses the Gemini CLI Discovery Engine to execute
    * prompts locally via the discovered CLI executable.
    *
-   * For all other providers: Routes through the Z-AI SDK gateway.
+   * For all other providers: Routes through the Z-AI SDK gateway
+   * using the cached SDK client for connection reuse.
    */
   private async callProvider(provider: ModelProviderType, request: ModelRequest): Promise<ModelResponse> {
     // Special handling for Gemini CLI provider
@@ -644,10 +764,10 @@ class ModelRouter {
       return this.callGeminiCLI(request);
     }
 
-    // Standard Z-AI SDK gateway for all other providers
+    // Standard Z-AI SDK gateway for all other providers (using pooled client)
     const startTime = Date.now();
 
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
+    const ZAI = await this.getSDKClient();
     const response = await ZAI.chat.completions.create({
       model: this.dynamicModelMap.get(provider) ?? MODEL_MAP[provider] ?? 'gpt-4o',
       messages: [
@@ -721,8 +841,8 @@ class ModelRouter {
       .join('\n\n---\n\n');
 
     try {
-      // Z-AI SDK gateway for multi-model merge (see callProvider architecture note)
-      const ZAI = (await import('z-ai-web-dev-sdk')).default;
+      // Z-AI SDK gateway for multi-model merge (using pooled client)
+      const ZAI = await this.getSDKClient();
       const response = await ZAI.chat.completions.create({
         model: 'gpt-4o',
         messages: [
@@ -783,20 +903,23 @@ class ModelRouter {
   }
 
   private recordSuccess(provider: ModelProviderType, latencyMs: number, tokensUsed: number): void {
+    this.ensureProvider(provider);
     const state = this.stateMap.get(provider)!;
     const health = this.healthMap.get(provider)!;
     const cb = this.circuitBreakers.get(provider)!;
+
+    const now = Date.now();
 
     state.requestCount++;
     state.totalTokensUsed += tokensUsed;
     state.estimatedCost += (tokensUsed / 1000) * COST_PER_1K_TOKENS[provider];
     state.contextTokensUsed = tokensUsed; // last request's context usage
+    state.lastUsedAt = now; // track usage for idle unloading
 
     // Update latency ring buffer
     pushRingBuffer(state.latencyBuffer, latencyMs);
 
     // Track recent results (keep last 5 minutes)
-    const now = Date.now();
     state.recentResults.push({ success: true, timestamp: now });
     state.recentResults = state.recentResults.filter((r) => now - r.timestamp < 300_000);
 
@@ -815,15 +938,18 @@ class ModelRouter {
   }
 
   private recordFailure(provider: ModelProviderType): void {
+    this.ensureProvider(provider);
     const state = this.stateMap.get(provider)!;
     const health = this.healthMap.get(provider)!;
     const cb = this.circuitBreakers.get(provider)!;
 
+    const now = Date.now();
+
     state.requestCount++;
     state.failCount++;
+    state.lastUsedAt = now; // track usage for idle unloading
 
     // Track recent results (keep last 5 minutes)
-    const now = Date.now();
     state.recentResults.push({ success: false, timestamp: now });
     state.recentResults = state.recentResults.filter((r) => now - r.timestamp < 300_000);
 

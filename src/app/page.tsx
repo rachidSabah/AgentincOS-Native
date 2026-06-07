@@ -1,25 +1,10 @@
 'use client';
 
 // ============================================================
-// Agentic OS V2 — Enhanced Main Page
+// Agentic OS V2 — Enhanced Main Page (Lazy-Loaded Architecture)
 // ============================================================
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy, memo } from 'react';
 import { useOSStore } from '@/lib/store';
-import { AppSidebar } from '@/components/app-sidebar';
-import { ChatWorkspace } from '@/components/chat-workspace';
-import { ArtifactPanel } from '@/components/artifact-panel';
-import { TerminalPanel } from '@/components/terminal-panel';
-import { AgentMonitor } from '@/components/agent-monitor';
-import { ModelMonitor } from '@/components/model-monitor';
-import { HomeDashboard } from '@/components/home-dashboard';
-import { SelfHealingDashboard } from '@/components/self-healing-dashboard';
-import { SwarmViewer } from '@/components/swarm-viewer';
-import { ObservabilityDashboard } from '@/components/observability-dashboard';
-import { MemoryBrowser } from '@/components/memory-browser';
-import { KnowledgeBrowser } from '@/components/knowledge-browser';
-import { SettingsPanel } from '@/components/settings-panel';
-import { FileEditor } from '@/components/file-editor';
-import { BrowserAgent } from '@/components/browser-agent';
 import type { ViewType, BrainOverlayType, KernelState } from '@/lib/types';
 import {
   Bot, Terminal, Activity, FileCode, Brain, Cpu, Clock,
@@ -33,6 +18,108 @@ import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AnimatePresence, motion } from 'framer-motion';
+
+// ─── Lazy-loaded external components ───
+
+const LazyAppSidebar = lazy(() =>
+  import('@/components/app-sidebar').then((m) => ({ default: m.AppSidebar }))
+);
+
+const LazyHomeDashboard = lazy(() =>
+  import('@/components/home-dashboard').then((m) => ({ default: m.HomeDashboard }))
+);
+
+const LazyChatWorkspace = lazy(() =>
+  import('@/components/chat-workspace').then((m) => ({ default: m.ChatWorkspace }))
+);
+
+const LazyArtifactPanel = lazy(() =>
+  import('@/components/artifact-panel').then((m) => ({ default: m.ArtifactPanel }))
+);
+
+const LazyTerminalPanel = lazy(() =>
+  import('@/components/terminal-panel').then((m) => ({ default: m.TerminalPanel }))
+);
+
+const LazyAgentMonitor = lazy(() =>
+  import('@/components/agent-monitor').then((m) => ({ default: m.AgentMonitor }))
+);
+
+const LazyModelMonitor = lazy(() =>
+  import('@/components/model-monitor').then((m) => ({ default: m.ModelMonitor }))
+);
+
+const LazySelfHealingDashboard = lazy(() =>
+  import('@/components/self-healing-dashboard').then((m) => ({ default: m.SelfHealingDashboard }))
+);
+
+const LazySwarmViewer = lazy(() =>
+  import('@/components/swarm-viewer').then((m) => ({ default: m.SwarmViewer }))
+);
+
+const LazyObservabilityDashboard = lazy(() =>
+  import('@/components/observability-dashboard').then((m) => ({ default: m.ObservabilityDashboard }))
+);
+
+const LazyMemoryBrowser = lazy(() =>
+  import('@/components/memory-browser').then((m) => ({ default: m.MemoryBrowser }))
+);
+
+const LazyKnowledgeBrowser = lazy(() =>
+  import('@/components/knowledge-browser').then((m) => ({ default: m.KnowledgeBrowser }))
+);
+
+const LazySettingsPanel = lazy(() =>
+  import('@/components/settings-panel').then((m) => ({ default: m.SettingsPanel }))
+);
+
+const LazyFileEditor = lazy(() =>
+  import('@/components/file-editor').then((m) => ({ default: m.FileEditor }))
+);
+
+const LazyBrowserAgent = lazy(() =>
+  import('@/components/browser-agent').then((m) => ({ default: m.BrowserAgent }))
+);
+
+// ─── Preload on hover ───
+
+const preloadComponent = (view: ViewType) => {
+  switch (view) {
+    case 'home': import('@/components/home-dashboard'); break;
+    case 'chat': import('@/components/chat-workspace'); break;
+    case 'swarm': import('@/components/swarm-viewer'); break;
+    case 'memory': import('@/components/memory-browser'); break;
+    case 'knowledge': import('@/components/knowledge-browser'); break;
+    case 'observability': import('@/components/observability-dashboard'); break;
+    case 'healing': import('@/components/self-healing-dashboard'); break;
+    case 'settings': import('@/components/settings-panel'); break;
+    case 'editor': import('@/components/file-editor'); break;
+    case 'browser': import('@/components/browser-agent'); break;
+    // Inline views — no import needed, already in bundle
+    case 'agents':
+    case 'brain':
+    case 'kernel':
+    case 'artifacts':
+    case 'terminal':
+      break;
+  }
+};
+
+// ─── Suspense fallback wrapper ───
+
+function LazyView({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-full flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+}
 
 // ─── Kernel Status Bar Data ───
 
@@ -170,7 +257,7 @@ function KernelStatusBar() {
   );
 }
 
-// ─── Brain View ───
+// ─── Brain View (inline — wrapped in memo) ───
 
 const ALL_OVERLAYS: { id: BrainOverlayType; label: string; color: string }[] = [
   { id: 'default', label: 'Default', color: '#888888' },
@@ -196,7 +283,7 @@ const PIPELINE_STAGES = [
   { id: 'output', label: 'Response Output', icon: CheckCircle2 },
 ];
 
-function BrainView() {
+const BrainView = memo(function BrainView() {
   const { activeOverlays, toggleOverlay } = useOSStore();
   const [pipelineStage, setPipelineStage] = useState(0);
 
@@ -366,11 +453,11 @@ function BrainView() {
       </div>
     </div>
   );
-}
+});
 
-// ─── Kernel View ───
+// ─── Kernel View (inline — wrapped in memo) ───
 
-function KernelView() {
+const KernelView = memo(function KernelView() {
   const [data, setData] = useState<KernelState & {
     memoryUsage?: number;
     activeModelProvider?: string;
@@ -581,11 +668,11 @@ function KernelView() {
       </Tabs>
     </div>
   );
-}
+});
 
-// ─── Sub-views (kept from original) ───
+// ─── Agents View (inline — wrapped in memo) ───
 
-function AgentsView() {
+const AgentsView = memo(function AgentsView() {
   const [agents, setAgents] = useState<Array<{ id: string; name: string; type: string; status: string; currentTask?: string }>>([]);
   const [loading, setLoading] = useState(true);
 
@@ -666,9 +753,11 @@ function AgentsView() {
       )}
     </div>
   );
-}
+});
 
-function ArtifactsView() {
+// ─── Artifacts View (inline — wrapped in memo) ───
+
+const ArtifactsView = memo(function ArtifactsView() {
   const [artifacts, setArtifacts] = useState<Array<{ id: string; name: string; type: string; version: number }>>([]);
   const { setActiveArtifact, setArtifactPanelOpen } = useOSStore();
 
@@ -707,9 +796,11 @@ function ArtifactsView() {
       )}
     </div>
   );
-}
+});
 
-function TerminalView() {
+// ─── Terminal View (inline — wrapped in memo) ───
+
+const TerminalView = memo(function TerminalView() {
   const { setTerminalOpen } = useOSStore();
   useEffect(() => { setTerminalOpen(true); }, [setTerminalOpen]);
   return (
@@ -721,28 +812,88 @@ function TerminalView() {
       </div>
     </div>
   );
-}
+});
 
-// ─── View Router ───
+// ─── View Router (uses lazy components with Suspense) ───
 
 function ViewRenderer({ view }: { view: ViewType }) {
   switch (view) {
-    case 'home': return <HomeDashboard />;
-    case 'chat': return <ChatWorkspace />;
-    case 'agents': return <AgentsView />;
-    case 'brain': return <BrainView />;
-    case 'kernel': return <KernelView />;
-    case 'swarm': return <SwarmViewer />;
-    case 'memory': return <MemoryBrowser />;
-    case 'knowledge': return <KnowledgeBrowser />;
-    case 'artifacts': return <ArtifactsView />;
-    case 'editor': return <FileEditor />;
-    case 'terminal': return <TerminalView />;
-    case 'observability': return <ObservabilityDashboard />;
-    case 'healing': return <SelfHealingDashboard />;
-    case 'settings': return <SettingsPanel />;
-    case 'browser': return <BrowserAgent />;
-    default: return <HomeDashboard />;
+    case 'home':
+      return (
+        <LazyView>
+          <LazyHomeDashboard />
+        </LazyView>
+      );
+    case 'chat':
+      return (
+        <LazyView>
+          <LazyChatWorkspace />
+        </LazyView>
+      );
+    case 'agents':
+      return <AgentsView />;
+    case 'brain':
+      return <BrainView />;
+    case 'kernel':
+      return <KernelView />;
+    case 'swarm':
+      return (
+        <LazyView>
+          <LazySwarmViewer />
+        </LazyView>
+      );
+    case 'memory':
+      return (
+        <LazyView>
+          <LazyMemoryBrowser />
+        </LazyView>
+      );
+    case 'knowledge':
+      return (
+        <LazyView>
+          <LazyKnowledgeBrowser />
+        </LazyView>
+      );
+    case 'artifacts':
+      return <ArtifactsView />;
+    case 'editor':
+      return (
+        <LazyView>
+          <LazyFileEditor />
+        </LazyView>
+      );
+    case 'terminal':
+      return <TerminalView />;
+    case 'observability':
+      return (
+        <LazyView>
+          <LazyObservabilityDashboard />
+        </LazyView>
+      );
+    case 'healing':
+      return (
+        <LazyView>
+          <LazySelfHealingDashboard />
+        </LazyView>
+      );
+    case 'settings':
+      return (
+        <LazyView>
+          <LazySettingsPanel />
+        </LazyView>
+      );
+    case 'browser':
+      return (
+        <LazyView>
+          <LazyBrowserAgent />
+        </LazyView>
+      );
+    default:
+      return (
+        <LazyView>
+          <LazyHomeDashboard />
+        </LazyView>
+      );
   }
 }
 
@@ -781,8 +932,10 @@ export default function HomePage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a1a]">
-      {/* Left Sidebar */}
-      <AppSidebar />
+      {/* Left Sidebar (lazy-loaded) */}
+      <LazyView>
+        <LazyAppSidebar />
+      </LazyView>
 
       {/* Center Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -805,18 +958,28 @@ export default function HomePage() {
           </AnimatePresence>
         </main>
 
-        {/* Terminal Panel (bottom) */}
-        <TerminalPanel />
+        {/* Terminal Panel (lazy-loaded) */}
+        <LazyView>
+          <LazyTerminalPanel />
+        </LazyView>
       </div>
 
-      {/* Right Artifact Panel */}
+      {/* Right Artifact Panel (lazy-loaded) */}
       <AnimatePresence>
-        {artifactPanelOpen && <ArtifactPanel />}
+        {artifactPanelOpen && (
+          <LazyView>
+            <LazyArtifactPanel />
+          </LazyView>
+        )}
       </AnimatePresence>
 
-      {/* Floating Monitors */}
-      <AgentMonitor />
-      <ModelMonitor />
+      {/* Floating Monitors (lazy-loaded) */}
+      <LazyView>
+        <LazyAgentMonitor />
+      </LazyView>
+      <LazyView>
+        <LazyModelMonitor />
+      </LazyView>
 
       {/* Bottom toolbar */}
       <div className="fixed bottom-0 left-0 right-0 h-8 bg-[#0d0d20]/90 backdrop-blur-md border-t border-border flex items-center justify-between px-3 z-40">

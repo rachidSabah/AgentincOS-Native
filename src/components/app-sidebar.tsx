@@ -54,6 +54,30 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+// ─── Preload helper — triggers dynamic import on hover ───
+
+const preloadComponent = (view: ViewType) => {
+  switch (view) {
+    case 'home': import('@/components/home-dashboard'); break;
+    case 'chat': import('@/components/chat-workspace'); break;
+    case 'swarm': import('@/components/swarm-viewer'); break;
+    case 'memory': import('@/components/memory-browser'); break;
+    case 'knowledge': import('@/components/knowledge-browser'); break;
+    case 'observability': import('@/components/observability-dashboard'); break;
+    case 'healing': import('@/components/self-healing-dashboard'); break;
+    case 'settings': import('@/components/settings-panel'); break;
+    case 'editor': import('@/components/file-editor'); break;
+    case 'browser': import('@/components/browser-agent'); break;
+    case 'terminal': import('@/components/terminal-panel'); break;
+    // Inline views — no separate chunk to preload
+    case 'agents':
+    case 'brain':
+    case 'kernel':
+    case 'artifacts':
+      break;
+  }
+};
+
 export function AppSidebar() {
   const { activeView, setActiveView, sidebarCollapsed, toggleSidebar } = useOSStore();
 
@@ -91,6 +115,7 @@ export function AppSidebar() {
                 key={item.id}
                 variant="ghost"
                 onClick={() => setActiveView(item.id)}
+                onMouseEnter={() => preloadComponent(item.id)}
                 className={cn(
                   'justify-start gap-3 h-10 px-3 rounded-lg transition-all text-muted-foreground hover:text-foreground',
                   isActive && 'bg-[#E8751A]/10 text-[#E8751A] hover:text-[#E8751A] hover:bg-[#E8751A]/15'

@@ -1,9 +1,10 @@
 // ============================================================
 // Agentic OS V2 — Agentic Kernel (Central Orchestrator)
+// Minimal Core Architecture with Lazy Subsystem Loading
 // ============================================================
-// The kernel manages all subsystems: Event Bus, State Manager,
-// Scheduler, Registries, Permission Engine, Security Engine,
-// and Kernel Lifecycle.
+// The kernel core only contains: EventBus, StateManager,
+// Scheduler, Registries (lazy), PermissionEngine, SecurityEngine.
+// All other subsystems are loaded on-demand via lazy getters.
 // ============================================================
 
 import type {
@@ -18,26 +19,6 @@ import type {
   ModelProviderConfig,
   ArtifactData,
 } from './types';
-
-import { agentRegistry } from './agent-runtime';
-import { modelRouter } from './model-router';
-import { memoryEngine } from './memory-engine';
-import { brainEngine } from './brain-engine';
-import { observabilityEngine } from './observability';
-import { selfHealingEngine } from './self-healing';
-import { swarmEngine } from './swarm-engine';
-import { db } from './db';
-import { geminiCLIDiscovery } from './gemini-cli-discovery';
-
-// Conditional import for knowledge-engine — may not exist yet
-let knowledgeEngine: any = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const ke = require('./knowledge-engine');
-  knowledgeEngine = ke.knowledgeEngine ?? null;
-} catch {
-  // knowledge-engine not available — kernel can still initialize
-}
 
 // ─── Utility ───
 function generateId(prefix: string): string {
@@ -130,6 +111,16 @@ class EventBus {
    */
   get totalEvents(): number {
     return this.eventLog.length;
+  }
+
+  /**
+   * Clear old events from the log, keeping only the most recent `keep` entries.
+   */
+  trimEvents(keep: number = 500): number {
+    if (this.eventLog.length <= keep) return 0;
+    const removed = this.eventLog.length - keep;
+    this.eventLog = this.eventLog.slice(-keep);
+    return removed;
   }
 
   /**
@@ -295,6 +286,25 @@ class Scheduler {
   }
 
   /**
+   * Clean up completed/failed tasks older than the given age.
+   */
+  cleanupOldTasks(maxAgeMs: number = 300_000): number {
+    const now = Date.now();
+    let removed = 0;
+    for (const [id, task] of this.tasks.entries()) {
+      if (
+        (task.status === 'completed' || task.status === 'failed') &&
+        task.completedAt &&
+        now - task.completedAt > maxAgeMs
+      ) {
+        this.tasks.delete(id);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  /**
    * Process the next highest-priority pending task.
    */
   private processNext(): void {
@@ -333,7 +343,7 @@ class Scheduler {
 }
 
 // ============================================================
-// 4. REGISTRIES — Central registry accessors
+// 4. REGISTRIES — Central registry accessors (lazy delegates)
 // ============================================================
 interface RegistryEntry {
   id: string;
@@ -350,18 +360,28 @@ class RegistryManager {
   private artifactRegistry: Map<string, ArtifactData> = new Map();
   private eventBus: EventBus;
 
+  // Lazy reference to agent-runtime — set during kernel init
+  private _agentRegistry: any = null;
+
   constructor(eventBus: EventBus) {
     this.eventBus = eventBus;
     this.initializeDefaultRegistries();
   }
 
-  // ─── Agent Registry (delegates to agent-runtime) ───
+  /** Bind the agent registry (called lazily during kernel init step 4) */
+  bindAgentRegistry(registry: any): void {
+    this._agentRegistry = registry;
+  }
+
+  // ─── Agent Registry (delegates to agent-runtime, lazy) ───
   get agents(): AgentConfig[] {
-    return agentRegistry.list();
+    if (!this._agentRegistry) return [];
+    return this._agentRegistry.list();
   }
 
   getAgent(id: string): AgentConfig | undefined {
-    return agentRegistry.get(id)?.getStatus();
+    if (!this._agentRegistry) return undefined;
+    return this._agentRegistry.get(id)?.getStatus();
   }
 
   // ─── Brain Registry ───
@@ -456,16 +476,6 @@ class RegistryManager {
 
   get artifactCount(): number {
     return this.artifactRegistry.size;
-  }
-
-  // ─── Memory Registry (delegates to memory-engine) ───
-  get memoryEngineRef(): typeof memoryEngine {
-    return memoryEngine;
-  }
-
-  // ─── Knowledge Registry (delegates to knowledge-engine if available) ───
-  get knowledgeEngineRef(): any {
-    return knowledgeEngine;
   }
 
   // ─── Initialize with default entries ───
@@ -765,21 +775,121 @@ class SecurityEngine {
   /**
    * Clear expired rate limit entries.
    */
-  cleanupRateLimits(): void {
+  cleanupRateLimits(): number {
     const now = Date.now();
+    let removed = 0;
     for (const [source, entry] of this.rateLimits.entries()) {
       if (now - entry.windowStart > this.defaultWindowMs * 2) {
         this.rateLimits.delete(source);
+        removed++;
       }
     }
+    return removed;
   }
 }
 
 // ============================================================
-// 7. AGENTIC KERNEL — Lifecycle management & orchestration
+// 7. LAZY SUBSYSTEM LOADER — On-demand subsystem imports
+// ============================================================
+class LazySubsystemLoader {
+  private cache: Map<string, unknown> = new Map();
+  private loadTimestamps: Map<string, number> = new Map();
+
+  /**
+   * Lazy-load a subsystem module. Caches after first import.
+   * Returns the named export from the module.
+   */
+  async load(modulePath: string, exportName: string): Promise<unknown> {
+    const cacheKey = `${modulePath}:${exportName}`;
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey);
+    }
+
+    try {
+      const mod = await import(modulePath);
+      const instance = mod[exportName];
+      if (instance) {
+        this.cache.set(cacheKey, instance);
+        this.loadTimestamps.set(cacheKey, Date.now());
+        return instance;
+      }
+      return null;
+    } catch (err) {
+      console.warn(`[LazyLoader] Failed to load ${exportName} from ${modulePath}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Synchronous lazy-load attempt using require (for backward compat
+   * with code that expects synchronous access). Caches after first require.
+   */
+  loadSync(modulePath: string, exportName: string): unknown {
+    const cacheKey = `${modulePath}:${exportName}`;
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey);
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require(modulePath);
+      const instance = mod[exportName];
+      if (instance) {
+        this.cache.set(cacheKey, instance);
+        this.loadTimestamps.set(cacheKey, Date.now());
+        return instance;
+      }
+      return null;
+    } catch (err) {
+      console.warn(`[LazyLoader] Failed to sync-load ${exportName} from ${modulePath}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Check if a subsystem has been loaded.
+   */
+  isLoaded(modulePath: string, exportName: string): boolean {
+    return this.cache.has(`${modulePath}:${exportName}`);
+  }
+
+  /**
+   * Get the timestamp when a subsystem was loaded.
+   */
+  getLoadTime(modulePath: string, exportName: string): number | null {
+    return this.loadTimestamps.get(`${modulePath}:${exportName}`) ?? null;
+  }
+
+  /**
+   * Get list of all loaded subsystems.
+   */
+  getLoadedSubsystems(): Array<{ modulePath: string; exportName: string; loadedAt: number }> {
+    const result: Array<{ modulePath: string; exportName: string; loadedAt: number }> = [];
+    for (const [key, timestamp] of this.loadTimestamps.entries()) {
+      const [modulePath, exportName] = key.split(':');
+      result.push({ modulePath: modulePath!, exportName: exportName!, loadedAt: timestamp });
+    }
+    return result;
+  }
+}
+
+// ============================================================
+// 8. INIT STEP TIMING TRACKER
+// ============================================================
+interface InitStepTiming {
+  step: string;
+  startTime: number;
+  endTime: number;
+  durationMs: number;
+  success: boolean;
+  error?: string;
+}
+
+// ============================================================
+// 9. AGENTIC KERNEL — Lifecycle management & orchestration
 // ============================================================
 class AgenticKernel {
-  // Subsystems
+  // ─── Core subsystems (always loaded) ───
   readonly eventBus: EventBus;
   readonly stateManager: StateManager;
   readonly scheduler: Scheduler;
@@ -787,21 +897,33 @@ class AgenticKernel {
   readonly permissions: PermissionEngine;
   readonly security: SecurityEngine;
 
-  // Lifecycle state
+  // ─── Lifecycle state ───
   private _status: KernelStatus = 'stopped';
   private _initializedAt: number | null = null;
 
-  // References to external subsystems
-  readonly agentRegistry = agentRegistry;
-  readonly modelRouter = modelRouter;
-  readonly memoryEngine = memoryEngine;
-  readonly brainEngine = brainEngine;
-  readonly observabilityEngine = observabilityEngine;
-  readonly selfHealingEngine = selfHealingEngine;
-  readonly swarmEngine = swarmEngine;
-  readonly knowledgeEngine = knowledgeEngine;
-  readonly geminiCLIDiscovery = geminiCLIDiscovery;
-  readonly db = db;
+  // ─── Performance tracking ───
+  private initStartTime: number = 0;
+  private initEndTime: number = 0;
+  private initStepTimings: InitStepTiming[] = [];
+
+  // ─── Lazy subsystem loader ───
+  private lazyLoader: LazySubsystemLoader;
+
+  // ─── Maintenance cycle ───
+  private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
+
+  // ─── Cached lazy subsystem references (populated on first access or during init) ───
+  private _agentRegistry: any = null;
+  private _modelRouter: any = null;
+  private _memoryEngine: any = null;
+  private _brainEngine: any = null;
+  private _observabilityEngine: any = null;
+  private _selfHealingEngine: any = null;
+  private _swarmEngine: any = null;
+  private _memoryOptimizer: any = null;
+  private _db: any = null;
+  private _geminiCLIDiscovery: any = null;
+  private _knowledgeEngine: any = null;
 
   constructor() {
     this.eventBus = new EventBus();
@@ -810,12 +932,145 @@ class AgenticKernel {
     this.registries = new RegistryManager(this.eventBus);
     this.permissions = new PermissionEngine(this.eventBus);
     this.security = new SecurityEngine(this.eventBus);
+    this.lazyLoader = new LazySubsystemLoader();
   }
 
-  // ─── Lifecycle ───
+  // ────────────────────────────────────────────────────────
+  // LAZY SUBSYSTEM GETTERS
+  // ────────────────────────────────────────────────────────
 
   /**
-   * Initialize the kernel and all subsystems.
+   * Lazy getter for agent-runtime.
+   * Loads on first access; returns cached instance afterwards.
+   */
+  get agentRuntime(): any {
+    if (!this._agentRegistry) {
+      this._agentRegistry = this.lazyLoader.loadSync('./agent-runtime', 'agentRegistry');
+    }
+    return this._agentRegistry;
+  }
+
+  /**
+   * Lazy getter for model-router.
+   */
+  get modelRouter(): any {
+    if (!this._modelRouter) {
+      this._modelRouter = this.lazyLoader.loadSync('./model-router', 'modelRouter');
+    }
+    return this._modelRouter;
+  }
+
+  /**
+   * Lazy getter for memory-engine.
+   */
+  get memoryEngine(): any {
+    if (!this._memoryEngine) {
+      this._memoryEngine = this.lazyLoader.loadSync('./memory-engine', 'memoryEngine');
+    }
+    return this._memoryEngine;
+  }
+
+  /**
+   * Lazy getter for brain-engine.
+   */
+  get brainEngine(): any {
+    if (!this._brainEngine) {
+      this._brainEngine = this.lazyLoader.loadSync('./brain-engine', 'brainEngine');
+    }
+    return this._brainEngine;
+  }
+
+  /**
+   * Lazy getter for observability engine.
+   */
+  get observabilityEngine(): any {
+    if (!this._observabilityEngine) {
+      this._observabilityEngine = this.lazyLoader.loadSync('./observability', 'observabilityEngine');
+    }
+    return this._observabilityEngine;
+  }
+
+  /**
+   * Lazy getter for self-healing engine.
+   */
+  get selfHealingEngine(): any {
+    if (!this._selfHealingEngine) {
+      this._selfHealingEngine = this.lazyLoader.loadSync('./self-healing', 'selfHealingEngine');
+    }
+    return this._selfHealingEngine;
+  }
+
+  /**
+   * Lazy getter for swarm-engine.
+   */
+  get swarmEngine(): any {
+    if (!this._swarmEngine) {
+      this._swarmEngine = this.lazyLoader.loadSync('./swarm-engine', 'swarmEngine');
+    }
+    return this._swarmEngine;
+  }
+
+  /**
+   * Lazy getter for memory-optimizer (NEW).
+   */
+  get memoryOptimizer(): any {
+    if (!this._memoryOptimizer) {
+      this._memoryOptimizer = this.lazyLoader.loadSync('./memory-optimizer', 'memoryOptimizer');
+    }
+    return this._memoryOptimizer;
+  }
+
+  /**
+   * Lazy getter for database client.
+   */
+  get db(): any {
+    if (!this._db) {
+      this._db = this.lazyLoader.loadSync('./db', 'db');
+    }
+    return this._db;
+  }
+
+  /**
+   * Lazy getter for Gemini CLI discovery.
+   */
+  get geminiCLIDiscovery(): any {
+    if (!this._geminiCLIDiscovery) {
+      this._geminiCLIDiscovery = this.lazyLoader.loadSync('./gemini-cli-discovery', 'geminiCLIDiscovery');
+    }
+    return this._geminiCLIDiscovery;
+  }
+
+  /**
+   * Lazy getter for knowledge-engine (optional — may not exist).
+   */
+  get knowledgeEngine(): any {
+    if (!this._knowledgeEngine) {
+      this._knowledgeEngine = this.lazyLoader.loadSync('./knowledge-engine', 'knowledgeEngine');
+    }
+    return this._knowledgeEngine;
+  }
+
+  // ─── Backward-compatible aliases (match old public API) ───
+
+  /** @deprecated Use agentRuntime for clarity; kept for backward compat */
+  get agentRegistry(): any {
+    return this.agentRuntime;
+  }
+
+  // ────────────────────────────────────────────────────────
+  // LIFECYCLE
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Initialize the kernel using the 6-step validation pipeline.
+   * Each step has a timeout and failure doesn't block subsequent steps.
+   *
+   * Step 1: Database connection (optional, non-blocking)
+   * Step 2: Core subsystems load (EventBus, StateManager, Scheduler, Security)
+   * Step 3: Model Router init (lazy, only loads default provider)
+   * Step 4: Agent Runtime init (lazy, only registers descriptors)
+   * Step 5: Memory Engine init
+   * Step 6: Gemini CLI Discovery (non-blocking)
    */
   async init(): Promise<void> {
     if (this._status === 'running' || this._status === 'initializing') {
@@ -824,115 +1079,214 @@ class AgenticKernel {
     }
 
     this._status = 'initializing';
+    this.initStartTime = Date.now();
+    this.initStepTimings = [];
     this.eventBus.emit('kernel:initializing', {});
 
     try {
-      // Connect to the database
-      try {
-        await db.$connect();
-        console.log('[Kernel] Database connected');
-      } catch (err) {
-        console.warn('[Kernel] Database connection failed (continuing with stub):', err);
-      }
-
-      // Initialize observability
-      observabilityEngine.trackMetric('kernel_init', 1, { status: 'starting' });
-
-      // Set initial kernel state
-      this.stateManager.setState('kernel.status', 'initializing');
-      this.stateManager.setState('kernel.startedAt', Date.now());
-
-      // ─── Gemini CLI Auto-Discovery ───
-      // Automatically detect and register Gemini CLI on startup
-      try {
-        console.log('[Kernel] Starting Gemini CLI auto-discovery...');
-        this.eventBus.emit('gemini-cli:discovering', {});
-
-        const cliState = await geminiCLIDiscovery.discover();
-
-        if (cliState.discovery.status === 'available' && cliState.health.available) {
-          // CLI found and validated — register with model router
-          modelRouter.markProviderValidated('gemini-cli');
-
-          const bestModel = geminiCLIDiscovery.selectBestModel('balanced');
-          if (bestModel) {
-            modelRouter.updateDynamicModel('gemini-cli', bestModel.id, bestModel.contextWindow);
+      // ─── Step 1: Database connection (optional, non-blocking) ───
+      await this.runInitStep('database', async () => {
+        try {
+          const database = this.db;
+          if (database) {
+            await database.$connect();
+            console.log('[Kernel] Step 1: Database connected');
           }
+        } catch (err) {
+          console.warn('[Kernel] Step 1: Database connection failed (continuing with stub):', err);
+          throw err; // Re-throw so step records as failed but pipeline continues
+        }
+      }, 5000);
 
-          // Register discovered models in the kernel model registry
-          for (const model of cliState.models) {
-            this.registries.registerModel({
-              id: `gemini-cli-${model.id}`,
-              name: model.name,
-              provider: 'gemini-cli',
-              enabled: model.status === 'available',
-              priority: cliState.routingPriority,
-              config: {
-                modelId: model.id,
-                contextWindow: model.contextWindow,
-                capabilities: model.capabilities,
-                mode: cliState.mode,
-                executablePath: cliState.discovery.executablePath,
-                version: cliState.discovery.version,
-              },
-            });
-          }
+      // ─── Step 2: Core subsystems (already loaded in constructor) ───
+      await this.runInitStep('core_subsystems', async () => {
+        this.stateManager.setState('kernel.status', 'initializing');
+        this.stateManager.setState('kernel.startedAt', Date.now());
+        console.log('[Kernel] Step 2: Core subsystems ready (EventBus, StateManager, Scheduler, Security)');
+      }, 2000);
 
-          console.log(`[Kernel] Gemini CLI discovered: ${cliState.discovery.version} at ${cliState.discovery.executablePath}`);
-          console.log(`[Kernel] Gemini CLI models: ${cliState.models.map((m) => m.id).join(', ')}`);
-          this.eventBus.emit('gemini-cli:discovered', {
-            version: cliState.discovery.version,
-            executablePath: cliState.discovery.executablePath,
-            models: cliState.models.map((m) => m.id),
-            healthScore: cliState.health.healthScore,
-          });
+      // ─── Step 3: Model Router init (lazy, only loads default provider) ───
+      await this.runInitStep('model_router', async () => {
+        const router = this.modelRouter;
+        if (router) {
+          // Model router self-initializes in constructor — just verify it's available
+          console.log('[Kernel] Step 3: Model Router initialized (lazy load)');
         } else {
-          // CLI not available — mark provider as degraded in router
-          modelRouter.markProviderDegraded('gemini-cli', cliState.health.degradationReason ?? 'Not found');
-          console.log('[Kernel] Gemini CLI not available — using Gemini API fallback');
-          this.eventBus.emit('gemini-cli:unavailable', {
-            reason: cliState.health.degradationReason,
-          });
+          throw new Error('Model Router not available');
         }
-      } catch (err) {
-        // Discovery failure should not block kernel startup
-        console.warn('[Kernel] Gemini CLI discovery failed (non-blocking):', err);
-        modelRouter.markProviderDegraded('gemini-cli', 'Discovery error');
-        this.eventBus.emit('gemini-cli:error', { error: err });
-      }
+      }, 3000);
 
-      // Wire up Gemini CLI discovery events to model router
-      geminiCLIDiscovery.on('health:recovered', () => {
-        modelRouter.markProviderValidated('gemini-cli');
-        const bestModel = geminiCLIDiscovery.selectBestModel('balanced');
-        if (bestModel) {
-          modelRouter.updateDynamicModel('gemini-cli', bestModel.id, bestModel.contextWindow);
+      // ─── Step 4: Agent Runtime init (lazy, only registers descriptors) ───
+      await this.runInitStep('agent_runtime', async () => {
+        const registry = this.agentRuntime;
+        if (registry) {
+          // Bind the agent registry to the RegistryManager for lazy delegation
+          this.registries.bindAgentRegistry(registry);
+          console.log('[Kernel] Step 4: Agent Runtime initialized (lazy load, descriptors registered)');
+        } else {
+          throw new Error('Agent Runtime not available');
         }
-        console.log('[Kernel] Gemini CLI recovered — routing restored');
-      });
+      }, 3000);
 
-      geminiCLIDiscovery.on('health:degraded', () => {
-        modelRouter.markProviderDegraded('gemini-cli');
-        console.log('[Kernel] Gemini CLI degraded — failing over to Gemini API');
-      });
+      // ─── Step 5: Memory Engine init ───
+      await this.runInitStep('memory_engine', async () => {
+        const memory = this.memoryEngine;
+        if (memory) {
+          console.log('[Kernel] Step 5: Memory Engine initialized (lazy load)');
+        } else {
+          throw new Error('Memory Engine not available');
+        }
+      }, 3000);
 
-      // Mark as running
+      // ─── Step 6: Gemini CLI Discovery (non-blocking) ───
+      await this.runInitStep('gemini_cli_discovery', async () => {
+        const discovery = this.geminiCLIDiscovery;
+        if (discovery) {
+          try {
+            console.log('[Kernel] Step 6: Starting Gemini CLI auto-discovery...');
+            this.eventBus.emit('gemini-cli:discovering', {});
+
+            const cliState = await discovery.discover();
+
+            if (cliState.discovery.status === 'available' && cliState.health.available) {
+              // CLI found and validated — register with model router
+              const router = this.modelRouter;
+              if (router) {
+                router.markProviderValidated('gemini-cli');
+
+                const bestModel = discovery.selectBestModel('balanced');
+                if (bestModel) {
+                  router.updateDynamicModel('gemini-cli', bestModel.id, bestModel.contextWindow);
+                }
+
+                // Register discovered models in the kernel model registry
+                for (const model of cliState.models) {
+                  this.registries.registerModel({
+                    id: `gemini-cli-${model.id}`,
+                    name: model.name,
+                    provider: 'gemini-cli',
+                    enabled: model.status === 'available',
+                    priority: cliState.routingPriority,
+                    config: {
+                      modelId: model.id,
+                      contextWindow: model.contextWindow,
+                      capabilities: model.capabilities,
+                      mode: cliState.mode,
+                      executablePath: cliState.discovery.executablePath,
+                      version: cliState.discovery.version,
+                    },
+                  });
+                }
+              }
+
+              console.log(`[Kernel] Step 6: Gemini CLI discovered: ${cliState.discovery.version} at ${cliState.discovery.executablePath}`);
+              this.eventBus.emit('gemini-cli:discovered', {
+                version: cliState.discovery.version,
+                executablePath: cliState.discovery.executablePath,
+                models: cliState.models.map((m: any) => m.id),
+                healthScore: cliState.health.healthScore,
+              });
+            } else {
+              // CLI not available — mark provider as degraded in router
+              const router = this.modelRouter;
+              if (router) {
+                router.markProviderDegraded('gemini-cli', cliState.health.degradationReason ?? 'Not found');
+              }
+              console.log('[Kernel] Step 6: Gemini CLI not available — using Gemini API fallback');
+              this.eventBus.emit('gemini-cli:unavailable', {
+                reason: cliState.health.degradationReason,
+              });
+            }
+
+            // Wire up Gemini CLI discovery events to model router
+            discovery.on('health:recovered', () => {
+              const router = this.modelRouter;
+              if (router) {
+                router.markProviderValidated('gemini-cli');
+                const bestModel = discovery.selectBestModel('balanced');
+                if (bestModel) {
+                  router.updateDynamicModel('gemini-cli', bestModel.id, bestModel.contextWindow);
+                }
+                console.log('[Kernel] Gemini CLI recovered — routing restored');
+              }
+            });
+
+            discovery.on('health:degraded', () => {
+              const router = this.modelRouter;
+              if (router) {
+                router.markProviderDegraded('gemini-cli');
+                console.log('[Kernel] Gemini CLI degraded — failing over to Gemini API');
+              }
+            });
+          } catch (err) {
+            // Discovery failure should not block kernel startup
+            console.warn('[Kernel] Step 6: Gemini CLI discovery failed (non-blocking):', err);
+            const router = this.modelRouter;
+            if (router) {
+              router.markProviderDegraded('gemini-cli', 'Discovery error');
+            }
+            this.eventBus.emit('gemini-cli:error', { error: err });
+          }
+        } else {
+          console.warn('[Kernel] Step 6: Gemini CLI Discovery not available');
+        }
+      }, 10000); // Longer timeout for discovery (involves shell commands)
+
+      // ─── Mark as running ───
       this._status = 'running';
       this._initializedAt = Date.now();
+      this.initEndTime = Date.now();
       this.stateManager.setState('kernel.status', 'running');
+
+      // Track observability metric if available
+      try {
+        const obs = this.observabilityEngine;
+        if (obs) {
+          obs.trackMetric('kernel_init', 1, { status: 'success' });
+        }
+      } catch {
+        // Non-critical
+      }
+
+      // ─── Emit performance event ───
+      const totalInitMs = this.initEndTime - this.initStartTime;
+      this.eventBus.emit('kernel:performance', {
+        initStartTime: this.initStartTime,
+        initEndTime: this.initEndTime,
+        totalInitMs,
+        coldStartTarget: 3000,
+        coldStartOnTarget: totalInitMs < 3000,
+        stepTimings: this.initStepTimings.map((t) => ({
+          step: t.step,
+          durationMs: t.durationMs,
+          success: t.success,
+        })),
+        loadedSubsystems: this.lazyLoader.getLoadedSubsystems(),
+      });
 
       this.eventBus.emit('kernel:initialized', {
         uptime: 0,
         registryCounts: this.getRegistryCounts(),
+        initDurationMs: totalInitMs,
       });
 
-      observabilityEngine.trackMetric('kernel_init', 1, { status: 'success' });
-      console.log('[Kernel] Agentic Kernel initialized successfully');
+      console.log(`[Kernel] Agentic Kernel initialized successfully in ${totalInitMs}ms (target: <3000ms)`);
     } catch (error) {
       this._status = 'stopped';
+      this.initEndTime = Date.now();
       this.stateManager.setState('kernel.status', 'error');
       this.eventBus.emit('kernel:init_failed', { error });
-      observabilityEngine.trackMetric('kernel_init', 0, { status: 'failed' });
+
+      // Track observability metric if available
+      try {
+        const obs = this.observabilityEngine;
+        if (obs) {
+          obs.trackMetric('kernel_init', 0, { status: 'failed' });
+        }
+      } catch {
+        // Non-critical
+      }
+
       console.error('[Kernel] Initialization failed:', error);
       throw error;
     }
@@ -952,6 +1306,9 @@ class AgenticKernel {
     this.eventBus.emit('kernel:shutting_down', {});
 
     try {
+      // Stop maintenance cycle
+      this.stopMaintenanceCycle();
+
       // Cancel all pending tasks
       const pendingTasks = this.scheduler.getTasks('pending');
       for (const task of pendingTasks) {
@@ -967,18 +1324,35 @@ class AgenticKernel {
 
       // Disconnect from the database
       try {
-        await db.$disconnect();
-        console.log('[Kernel] Database disconnected');
+        const database = this.db;
+        if (database) {
+          await database.$disconnect();
+          console.log('[Kernel] Database disconnected');
+        }
       } catch (err) {
         console.warn('[Kernel] Database disconnect failed:', err);
       }
 
       // Shut down Gemini CLI discovery
       try {
-        geminiCLIDiscovery.shutdown();
-        console.log('[Kernel] Gemini CLI discovery shut down');
+        const discovery = this.geminiCLIDiscovery;
+        if (discovery) {
+          discovery.shutdown();
+          console.log('[Kernel] Gemini CLI discovery shut down');
+        }
       } catch (err) {
         console.warn('[Kernel] Gemini CLI shutdown failed:', err);
+      }
+
+      // Shut down memory optimizer auto-GC if loaded
+      try {
+        const optimizer = this._memoryOptimizer;
+        if (optimizer && typeof optimizer.destroy === 'function') {
+          optimizer.destroy();
+          console.log('[Kernel] Memory optimizer shut down');
+        }
+      } catch (err) {
+        console.warn('[Kernel] Memory optimizer shutdown failed:', err);
       }
 
       this._status = 'stopped';
@@ -1022,6 +1396,180 @@ class AgenticKernel {
    */
   get isRunning(): boolean {
     return this._status === 'running';
+  }
+
+  // ────────────────────────────────────────────────────────
+  // PERFORMANCE METRICS
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Get the initialization performance metrics.
+   */
+  getInitPerformance(): {
+    initStartTime: number;
+    initEndTime: number;
+    totalInitMs: number;
+    coldStartOnTarget: boolean;
+    stepTimings: InitStepTiming[];
+    loadedSubsystems: Array<{ modulePath: string; exportName: string; loadedAt: number }>;
+  } {
+    return {
+      initStartTime: this.initStartTime,
+      initEndTime: this.initEndTime,
+      totalInitMs: this.initEndTime - this.initStartTime,
+      coldStartOnTarget: (this.initEndTime - this.initStartTime) < 3000,
+      stepTimings: [...this.initStepTimings],
+      loadedSubsystems: this.lazyLoader.getLoadedSubsystems(),
+    };
+  }
+
+  // ────────────────────────────────────────────────────────
+  // MAINTENANCE CYCLE
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Start a periodic maintenance cycle that cleans up idle resources.
+   * Runs every `intervalMs` milliseconds (default: 60s).
+   *
+   * Cleans up: idle agents, idle providers, stale rate limits, old events.
+   * Emits `kernel:maintenance` event after each cycle.
+   */
+  startMaintenanceCycle(intervalMs: number = 60_000): void {
+    this.stopMaintenanceCycle();
+
+    this.maintenanceTimer = setInterval(() => {
+      this.runMaintenance();
+    }, intervalMs);
+
+    // Allow the process to exit even if the timer is running
+    if (this.maintenanceTimer && typeof this.maintenanceTimer === 'object' && 'unref' in this.maintenanceTimer) {
+      this.maintenanceTimer.unref();
+    }
+
+    console.log(`[Kernel] Maintenance cycle started (interval: ${intervalMs}ms)`);
+  }
+
+  /**
+   * Stop the periodic maintenance cycle.
+   */
+  stopMaintenanceCycle(): void {
+    if (this.maintenanceTimer) {
+      clearInterval(this.maintenanceTimer);
+      this.maintenanceTimer = null;
+    }
+  }
+
+  /**
+   * Run a single maintenance pass. Called by the maintenance cycle timer.
+   */
+  private runMaintenance(): void {
+    const startTime = Date.now();
+    const results: Record<string, unknown> = {};
+
+    // 1. Clean up stale rate limits
+    try {
+      results.rateLimitsCleaned = this.security.cleanupRateLimits();
+    } catch {
+      results.rateLimitsCleaned = 'error';
+    }
+
+    // 2. Clean up old scheduler tasks
+    try {
+      results.oldTasksCleaned = this.scheduler.cleanupOldTasks();
+    } catch {
+      results.oldTasksCleaned = 'error';
+    }
+
+    // 3. Trim event log
+    try {
+      results.eventsTrimmed = this.eventBus.trimEvents(500);
+    } catch {
+      results.eventsTrimmed = 'error';
+    }
+
+    // 4. Clean up idle agents (if agent runtime is loaded)
+    try {
+      const registry = this._agentRegistry;
+      if (registry && typeof registry.cleanupIdle === 'function') {
+        results.idleAgentsCleaned = registry.cleanupIdle();
+      }
+    } catch {
+      results.idleAgentsCleaned = 'error';
+    }
+
+    // 5. Clean up idle model providers (if model router is loaded)
+    try {
+      const router = this._modelRouter;
+      if (router && typeof router.cleanupProviders === 'function') {
+        results.idleProvidersCleaned = router.cleanupProviders();
+      }
+    } catch {
+      results.idleProvidersCleaned = 'error';
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    this.eventBus.emit('kernel:maintenance', {
+      timestamp: Date.now(),
+      durationMs,
+      results,
+    });
+  }
+
+  // ────────────────────────────────────────────────────────
+  // INTERNAL HELPERS
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Run a single initialization step with timeout and error handling.
+   * Failures are recorded but do NOT block subsequent steps.
+   */
+  private async runInitStep(
+    step: string,
+    fn: () => Promise<void>,
+    timeoutMs: number = 5000,
+  ): Promise<void> {
+    const stepStart = Date.now();
+
+    const stepPromise = fn();
+
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error(`Init step "${step}" timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+
+    try {
+      await Promise.race([stepPromise, timeoutPromise]);
+
+      const timing: InitStepTiming = {
+        step,
+        startTime: stepStart,
+        endTime: Date.now(),
+        durationMs: Date.now() - stepStart,
+        success: true,
+      };
+      this.initStepTimings.push(timing);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      const timing: InitStepTiming = {
+        step,
+        startTime: stepStart,
+        endTime: Date.now(),
+        durationMs: Date.now() - stepStart,
+        success: false,
+        error: errorMessage,
+      };
+      this.initStepTimings.push(timing);
+
+      console.warn(`[Kernel] Init step "${step}" failed (non-blocking): ${errorMessage}`);
+
+      // Emit step failure event but do NOT throw — subsequent steps continue
+      this.eventBus.emit('kernel:init_step_failed', {
+        step,
+        error: errorMessage,
+        durationMs: timing.durationMs,
+      });
+    }
   }
 
   /**

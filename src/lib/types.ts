@@ -36,11 +36,62 @@ export type AgentType = 'planner' | 'architect' | 'researcher' | 'coder' | 'revi
 
 export type ExtendedAgentType =
   | AgentType
+  // Engineering
   | 'devops' | 'security' | 'testing' | 'uiux' | 'seo'
   | 'automation' | 'business' | 'recruitment' | 'aviation'
-  | 'database' | 'documentation' | 'deployment';
+  | 'database' | 'documentation' | 'deployment'
+  // Executive
+  | 'ceo' | 'cto' | 'product_manager'
+  // Engineering (additional)
+  | 'backend' | 'frontend' | 'fullstack' | 'cloud' | 'code_review'
+  // Research
+  | 'fact_verification' | 'market_intelligence' | 'competitor_analysis'
+  // Business
+  | 'hr' | 'crm' | 'sales' | 'marketing' | 'content'
+  // Data
+  | 'data_analyst' | 'etl' | 'bi' | 'reporting'
+  // Knowledge
+  | 'knowledge' | 'rag' | 'graph'
+  // Security (additional)
+  | 'audit' | 'compliance' | 'threat_detection'
+  // Automation (additional)
+  | 'workflow' | 'scheduler' | 'integration'
+  // Platform
+  | 'github' | 'docker' | 'kubernetes' | 'cloudflare' | 'wordpress' | 'moodle'
+  // AI
+  | 'prompt_engineering' | 'model_optimization' | 'swarm_optimization' | 'brain_optimization'
+  // Multimodal
+  | 'voice' | 'vision' | 'meeting' | 'browser' | 'computer_use'
+  // Industry
+  | 'airline_recruitment' | 'aviation_training' | 'financial_analysis' | 'legal_research'
+  | 'procurement' | 'customer_success' | 'strategic_planning';
 
 export type AgentStatus = 'idle' | 'active' | 'error';
+
+// ─── Agent Category ───
+export type AgentCategory =
+  | 'executive'
+  | 'engineering'
+  | 'research'
+  | 'business'
+  | 'data'
+  | 'knowledge'
+  | 'security'
+  | 'automation'
+  | 'platform'
+  | 'ai'
+  | 'multimodal'
+  | 'industry';
+
+// ─── Agent Descriptor (Lazy Loading Metadata) ───
+export interface AgentDescriptor {
+  type: ExtendedAgentType;
+  name: string;
+  category: AgentCategory;
+  skills: string[];
+  tools: string[];
+  systemPrompt: string;
+}
 
 // ─── Agent DNA ───
 export interface AgentDNA {
@@ -71,6 +122,7 @@ export interface AgentConfig {
   currentTask?: string;
   dna?: AgentDNA;
   memory?: AgentMemory;
+  category?: AgentCategory;
 }
 
 export interface AgentMessage {
@@ -569,4 +621,145 @@ export interface RAGResult {
   }>;
   context: string;
   totalChunksSearched: number;
+}
+
+// ─── Memory Optimizer Types ───
+
+export interface MemoryPoolEntry {
+  hash: string;
+  content: string;
+  sizeBytes: number;
+  referenceCount: number;
+  createdAt: number;
+  lastAccessedAt: number;
+  accessCount: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface CompressionResult {
+  original: string;
+  compressed: string;
+  originalSizeBytes: number;
+  compressedSizeBytes: number;
+  ratio: number; // compressedSizeBytes / originalSizeBytes (0-1, lower = better compression)
+  method: 'summary' | 'structural' | 'delta' | 'delta_full' | 'delta_fallback_structural' | 'code' | 'text';
+  metadata: Record<string, unknown>;
+}
+
+export interface SessionSnapshot {
+  id: string;
+  timestamp: number;
+  state: Record<string, unknown>;
+  isIncremental: boolean;
+  diffFromId?: string;
+  sizeBytes: number;
+  metadata: {
+    agentCount: number;
+    swarmCount: number;
+    memoryNodeCount: number;
+  };
+}
+
+export interface MemoryMetrics {
+  totalBytesUsed: number;
+  peakBytesUsed: number;
+  deduplicationSavingsBytes: number;
+  compressionSavingsBytes: number;
+  poolHitRate: number;
+  poolMissRate: number;
+  poolEntryCount: number;
+  snapshotCount: number;
+  snapshotTotalBytes: number;
+  gcRunCount: number;
+  gcLastRunAt: number | null;
+  gcEntriesCollected: number;
+  compressionCount: number;
+  averageCompressionRatio: number;
+}
+
+// ─── Swarm Template Types ───
+export type SwarmTemplateName =
+  | 'software_factory'
+  | 'research'
+  | 'marketing'
+  | 'recruitment'
+  | 'security'
+  | 'data'
+  | 'knowledge'
+  | 'devops'
+  | 'cloud_infrastructure'
+  | 'wordpress'
+  | 'moodle'
+  | 'aviation_recruitment'
+  | 'customer_success'
+  | 'executive_planning';
+
+export interface SwarmTemplateAgentSlot {
+  role: SwarmRoleType;
+  agentType: ExtendedAgentType;
+  label?: string;
+}
+
+export interface SwarmTemplate {
+  name: string;
+  description: string;
+  agents: SwarmTemplateAgentSlot[];
+  complexity: TaskComplexity;
+  canParallelize: boolean;
+  retentionMsCompleted?: number;
+  retentionMsFailed?: number;
+}
+
+// ─── Readiness Validation Types ───
+
+/** Result of validating a single agent type across all capability axes */
+export interface AgentCheckResult {
+  type: string;
+  canLoad: boolean;
+  canUnload: boolean;
+  canExecute: boolean;
+  canCommunicate: boolean;
+  canTerminate: boolean;
+  spawnTimeMs: number;
+}
+
+/** Result of validating a single swarm template */
+export interface SwarmCheckResult {
+  template: string;
+  canInstantiate: boolean;
+  canExecute: boolean;
+  canReleaseResources: boolean;
+  canTerminate: boolean;
+  spawnTimeMs: number;
+}
+
+/** Result of system integrity checks */
+export interface SystemCheckResult {
+  noMemoryLeaks: boolean;
+  noZombieProcesses: boolean;
+  noOrphanAgents: boolean;
+}
+
+/** Result of performance target validation */
+export interface PerformanceCheckResult {
+  coldStartMs: number;
+  dashboardLoadMs: number;
+  agentSpawnMs: number;
+  swarmSpawnMs: number;
+  memoryQueryMs: number;
+  artifactPreviewMs: number;
+  apiResponseMs: number;
+}
+
+/** Comprehensive readiness report produced by the ReadinessValidator */
+export interface ReadinessReport {
+  timestamp: number;
+  passed: boolean;
+  agentChecks: AgentCheckResult[];
+  swarmChecks: SwarmCheckResult[];
+  systemChecks: SystemCheckResult;
+  performanceChecks: PerformanceCheckResult;
+  totalChecks: number;
+  passedChecks: number;
+  failedChecks: number;
 }
