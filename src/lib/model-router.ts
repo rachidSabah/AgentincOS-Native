@@ -570,6 +570,17 @@ class ModelRouter {
   // Provider Call
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Call a model provider through the Z-AI SDK gateway.
+   *
+   * ARCHITECTURE NOTE: All provider calls route through z-ai-web-dev-sdk,
+   * which acts as a unified API gateway. The "provider" name selects the
+   * underlying model (e.g., 'openai' → gpt-4o, 'claude' → claude-sonnet-4),
+   * but the actual HTTP call goes to the Z-AI gateway endpoint configured
+   * in /etc/.z-ai-config or .z-ai-config. This is NOT hidden routing —
+   * it is the intentional architecture. To use direct provider APIs instead,
+   * replace callProvider() with direct fetch() calls to each provider's API.
+   */
   private async callProvider(provider: ModelProviderType, request: ModelRequest): Promise<ModelResponse> {
     const startTime = Date.now();
 
@@ -613,6 +624,7 @@ class ModelRouter {
       .join('\n\n---\n\n');
 
     try {
+      // Z-AI SDK gateway for multi-model merge (see callProvider architecture note)
       const ZAI = (await import('z-ai-web-dev-sdk')).default;
       const response = await ZAI.chat.completions.create({
         model: 'gpt-4o',
