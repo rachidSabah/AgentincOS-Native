@@ -1,104 +1,174 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.2-cyan?style=for-the-badge&labelColor=0a0a1a" alt="version" />
+  <img src="https://img.shields.io/badge/version-2.0.0-cyan?style=for-the-badge&labelColor=0a0a1a" alt="version" />
   <img src="https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&labelColor=0a0a1a" alt="nextjs" />
-  <img src="https://img.shields.io/badge/AI_Memory_OS-Premium-purple?style=for-the-badge&labelColor=0a0a1a" alt="memory-os" />
+  <img src="https://img.shields.io/badge/Tauri-v2-blue?style=for-the-badge&labelColor=0a0a1a" alt="tauri" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge&labelColor=0a0a1a" alt="license" />
 </p>
 
 <h1 align="center">
-  <img src="https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/public/logo.svg" width="48" alt="logo" />
-  Agentic OS
+  Agentic OS X
 </h1>
 
-<h3 align="center">AI Memory Operating System — 7-Layer Agentic AI Stack Dashboard</h3>
+<h3 align="center">Lightweight Autonomous AI Operating System for Windows</h3>
 
 <p align="center">
-  <strong>Universal Memory Engine &middot; Agent Swarm Intelligence &middot; Hermes Integration &middot; Auto-Update from GitHub</strong>
+  <strong>7-Brain Reasoning &middot; 40+ Agent Types &middot; 14 Swarm Patterns &middot; Multi-Model Failover &middot; Tauri v2 Desktop</strong>
 </p>
 
 <p align="center">
-  <a href="#-one-command-install">Install</a> &middot;
-  <a href="#-features">Features</a> &middot;
+  <a href="#-install">Install</a> &middot;
   <a href="#-architecture">Architecture</a> &middot;
-  <a href="#-screenshots">Screenshots</a> &middot;
-  <a href="#-api-routes">API</a> &middot;
-  <a href="#-one-command-uninstall">Uninstall</a>
+  <a href="#-features">Features</a> &middot;
+  <a href="#-api-reference">API</a> &middot;
+  <a href="#-uninstall">Uninstall</a>
 </p>
 
 ---
 
-## One-Command Install
+Agentic OS X is a kernel-first autonomous AI operating system designed to be **lightweight as Claude Desktop, responsive as Cursor, autonomous as Hermes, and extensible as OpenHands**. It runs natively on Windows via Tauri v2 with a bundled Node.js runtime — no external dependencies required.
 
-### Linux / macOS / WSL2
+The core kernel contains only 9 runtimes (Agent, Swarm, Brain, Memory, Knowledge, Model Router, Event Bus, Security, Observability). Everything else — agents, swarms, brains, providers — is **lazy-loaded on demand and unloaded when idle**. No bloated startup. No resident processes. No wasted resources.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/install.sh | bash
-```
+---
 
-### Windows (PowerShell)
+## Install
 
-> **Note:** The `iex (irm ...)` pattern is blocked by Windows Defender (AMSI). Use the download-then-run method below instead.
+### Windows — One-Click NSIS Installer
+
+Download the latest `AgenticOS-Setup-2.0.0.exe` from the [Releases](https://github.com/rachidSabah/AgentincOS-Native/releases) page and run it. The installer:
+
+- Bundles Node.js v20 LTS — no Node.js installation required
+- Installs to `%LOCALAPPDATA%\Agentic OS`
+- Creates Start Menu shortcuts and desktop icon
+- Registers uninstaller in Add/Remove Programs
+- Auto-starts the application after installation
+
+### Build the Installer from Source
 
 ```powershell
-# Step 1: Download the installer
-cd $env:USERPROFILE
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/install.ps1" -OutFile "install-agentic.ps1"
-
-# Step 2: Run it
-powershell -ExecutionPolicy Bypass -File ".\install-agentic.ps1"
-```
-
-**Or the simplest method — just clone and run:**
-```powershell
-cd $env:USERPROFILE
-git clone https://github.com/rachidSabah/Agentic-os.git
-cd Agentic-os
+# Prerequisites: Node.js 20+, NSIS 3.x, Git
+git clone https://github.com/rachidSabah/AgentincOS-Native.git
+cd AgentincOS-Native
 npm install
 npm run build
-npm start
+powershell -File installer\build-exe.ps1
 ```
-Then open **http://localhost:3100** in your browser.
 
-### After Install
+The built installer will be in `./dist/AgenticOS-Setup-2.0.0.exe`.
+
+### Run from Source (Development)
 
 ```bash
-# Navigate to your installation
-cd $env:USERPROFILE\Agentic-os    # Windows
-cd ~/Agentic-os                    # Linux/macOS
+git clone https://github.com/rachidSabah/AgentincOS-Native.git
+cd AgentincOS-Native
+npm install
+npm run dev        # Development at http://localhost:3000
+npm run build      # Production build
+npm start          # Production server at http://localhost:3000
+```
 
-# Start the server
-npm start              # Production mode on http://localhost:3100
-npm run dev            # Development mode with hot reload
+### Tauri Desktop (Native Windows App)
 
-# Update to latest version
-npm run update         # Pull latest from GitHub and rebuild
-
-# Stop the server
-npm run stop
-
-# Rebuild
-npm run build
+```bash
+npm run tauri:dev          # Development with hot reload
+npm run tauri:build        # Production .msi/.exe bundle
 ```
 
 ---
 
-## One-Command Uninstall
+## Architecture
 
-### Linux / macOS / WSL2
+### Kernel-First Design
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/uninstall.sh | bash
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     AGENTIC OS X KERNEL                          │
+│                                                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
+│  │  Agent   │ │  Swarm   │ │  Brain   │ │     Memory       │   │
+│  │ Runtime  │ │ Runtime  │ │ Runtime  │ │     Runtime      │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
+│  │Knowledge │ │  Model   │ │  Event   │ │    Security      │   │
+│  │ Runtime  │ │  Router  │ │   Bus    │ │    Runtime       │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘   │
+│  ┌──────────┐                                                   │
+│  │Observab. │  ← Only 9 core runtimes. Everything else is      │
+│  │ Runtime  │    loaded on-demand and unloaded when idle.       │
+│  └──────────┘                                                   │
+│                                                                  │
+│  Lazy-Loaded Modules (NOT resident at startup):                 │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 40+ Agent Types  │ 14 Swarm Patterns │ 7 Brain Modes   │    │
+│  │ 10+ AI Providers │ Memory Pool       │ Knowledge Graph  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### Windows (PowerShell)
+### 7-Brain Reasoning Architecture
 
-```powershell
-cd $env:USERPROFILE
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rachidSabah/Agentic-os/main/uninstall.ps1" -OutFile "uninstall-agentic.ps1"
-powershell -ExecutionPolicy Bypass -File ".\uninstall-agentic.ps1"
+| Brain | Role | When Activated |
+|-------|------|----------------|
+| **Planning** | Goal decomposition, task sequencing | Complex multi-step tasks |
+| **Reasoning** | Logical inference, deduction | Analysis and problem-solving |
+| **Architecture** | System design, structural decisions | Code and system design |
+| **Research** | Information gathering, synthesis | Research and exploration |
+| **Coding** | Code generation, debugging | Development tasks |
+| **Memory** | Context recall, knowledge retrieval | Memory-dependent tasks |
+| **Verification** | Output validation, quality checks | Review and testing |
+
+### Multi-Model Router with Kubernetes-Style Failover
+
+```
+Request → Task Classifier → Provider Selection → Circuit Breaker → Execute
+                                                               ↓
+                         Failover Chain (if primary fails):
+                         Gemini CLI → Gemini API → Claude → GLM → Mistral → OpenAI
+                                                               ↓
+                         Circuit Breaker States: Closed → Half-Open → Open
+                         Provider Pooling: Lazy-init, connection reuse, idle unload
 ```
 
-**Or just delete the folder:** `Remove-Item -Recurse -Force "$env:USERPROFILE\Agentic-os"`
+- **10+ Providers**: Gemini CLI, Gemini API, OpenAI, Claude, GLM, Mistral, DeepSeek, OpenRouter, Qwen, Grok, Moonshot, Ollama, LM Studio, vLLM, llama.cpp
+- **Native SDK calls** — no gateway middleware. Each provider called directly via its own SDK.
+- **Traffic shaping** — coding tasks → DeepSeek, research → Gemini, planning → Claude
+- **Circuit breakers** — auto-trip on failures, half-open recovery, per-provider isolation
+- **Idle unloading** — providers unused for 5 minutes are automatically unloaded
+
+### On-Demand Agent & Swarm System
+
+Agents and swarms are **never loaded at startup**. They are created when needed and destroyed after completion.
+
+**Agent Library (40+ types across 7 categories):**
+
+| Category | Agent Types |
+|----------|-------------|
+| Executive | CEO, COO, CFO, Strategist |
+| Engineering | Frontend, Backend, DevOps, QA, Architect |
+| Research | Researcher, Analyst, Librarian, Fact-Checker |
+| Business | Marketer, Sales, Recruiter, Product Manager |
+| Data | Data Engineer, ML Engineer, Analyst, Visualization |
+| Knowledge | Knowledge Manager, Curator, Ontologist |
+| Security | Security Auditor, Pen Tester, Compliance Officer |
+
+**Swarm Library (14 patterns):**
+
+| Swarm | Purpose |
+|-------|---------|
+| Software Factory | Full-stack development with specialized agents |
+| Research | Parallel research with synthesis |
+| Marketing | Campaign creation and analysis |
+| Recruitment | Candidate screening and evaluation |
+| Security | Vulnerability scanning and remediation |
+| Data | ETL pipeline and analytics |
+| Knowledge | Knowledge base construction |
+| DevOps | CI/CD and infrastructure automation |
+| Cloud Infrastructure | Cloud deployment and management |
+| WordPress | Site building and content management |
+| Moodle | Course creation and LMS management |
+| Aviation Recruitment | Specialized aviation hiring |
+| Customer Success | Support and retention |
+| Executive Planning | Strategic planning and decision-making |
 
 ---
 
@@ -108,191 +178,99 @@ powershell -ExecutionPolicy Bypass -File ".\uninstall-agentic.ps1"
 
 | Feature | Description |
 |---------|-------------|
-| **7-Layer Agentic AI Stack** | Interaction, Knowledge, Memory, Reasoning, Execution, Persistence, Governance |
-| **Home Dashboard** | Real-time overview with agent status, memory growth, knowledge graph, analytics |
-| **Command Palette** | `Cmd+K` universal search across all agents, memories, tasks, and settings |
-| **Dark Cyberpunk UI** | Glassmorphism, neon glow, particle backgrounds, smooth Framer Motion animations |
+| **Kernel-First Architecture** | Only 9 core runtimes — everything else is modular and on-demand |
+| **Lazy Loading** | Agents, swarms, and providers loaded only when requested |
+| **Idle Unloading** | Unused providers and agents automatically cleaned up after 5 min |
+| **Circuit Breakers** | Per-provider fault isolation with half-open recovery |
+| **Cold Start <3s** | Dashboard loads in under 1 second |
 
-### AI Agents
+### AI Capabilities
 
-| Agent | Role | Layer |
-|-------|------|-------|
-| **Claude** | Interaction & Perception | L1 |
-| **Hermes** | Knowledge Acquisition & Research | L2, L5 |
-| **OpenClaw** | Orchestration & Routing | L7 |
-| **Self Vault** | Memory Persistence & OMI | L6 |
+| Feature | Description |
+|---------|-------------|
+| **7-Brain Reasoning** | Planning, Reasoning, Architecture, Research, Coding, Memory, Verification |
+| **Multi-Model Failover** | 10+ providers with automatic failover chain |
+| **Gemini CLI Auto-Discovery** | Detects local Gemini CLI, registers models dynamically |
+| **Task-Aware Routing** | Coding → DeepSeek, Research → Gemini, Planning → Claude |
+| **Swarm Intelligence** | 14 prebuilt swarm patterns for complex multi-agent tasks |
 
-### Universal Memory Engine (9 Memory Types)
+### Memory System
 
-- **Long-Term Memory** — Permanent knowledge store
-- **Short-Term Memory** — Working context buffer
-- **Episodic Memory** — Event-based recall with timestamps
-- **Semantic Memory** — Concept-level understanding
-- **Context Memory** — Conversation-aware state
-- **Project Memory** — Workspace-specific knowledge
-- **User Memory** — Personal preferences and patterns
-- **Team Memory** — Shared team knowledge
-- **Conversation Memory** — Dialog history and continuity
+| Feature | Description |
+|---------|-------------|
+| **Shared Memory Pool** | No duplicate storage across agents |
+| **Memory Compression** | Context and artifact compression for efficiency |
+| **Session Snapshotting** | Full session state persistence |
+| **Incremental Persistence** | Only changed data is written |
+| **9 Memory Types** | Long-term, Short-term, Episodic, Semantic, Context, Project, User, Team, Conversation |
 
-### Memory Features
+### Desktop & Distribution
 
-- **Memory Graph** — Force-directed D3.js visualization of memory relationships
-- **Auto Memory Extraction** — AI-powered extraction from conversations
-- **Memory Timeline** — Chronological view of all memory events
-- **Agent Memory Sharing** — Cross-agent memory access with permissions
-- **Hybrid Memory Search** — Vector + Graph + Semantic + Keyword search
-- **Memory Decay** — Automatic importance-based memory aging
-- **Memory Conflict Resolution** — Detect and resolve contradictory memories
-- **Knowledge Gap Detection** — Identify missing knowledge areas
-- **Dream Mode** — Background memory consolidation (compress, reorganize, extract, strengthen)
-- **Cross-Session Memory** — Persistent context across sessions
+| Feature | Description |
+|---------|-------------|
+| **Tauri v2 Desktop** | Native Windows app with Rust backend |
+| **NSIS One-Click Installer** | Bundled Node.js v20 — zero external dependencies |
+| **Start Menu Integration** | Shortcuts, desktop icon, Add/Remove Programs |
+| **Clean Uninstaller** | Complete removal with registry cleanup |
 
-### Advanced Features
+### Enterprise
 
-- **Agent Swarm Intelligence** — Decentralized coordination with stigmergy and emergent behavior
-- **Agent Consensus Mode** — Multi-agent debate, voting, and delegation strategies
-- **Agent Handoff Protocol** — Seamless task transfer with full context
-- **RAG Engine** — Retrieval-Augmented Generation with multi-vector database support
-- **MCP Registry** — Model Context Protocol server management
-- **Hermes SEO Silo** — AI-powered SEO audit, keywords, content, competitors, serp, schema
-- **Voice Interface** — Wake word detection, agent routing, real-time transcription
-- **Focus Mode** — Distraction-free deep work with agent silencing
-- **Sandbox Execution** — Isolated code execution environment
-- **Permission Scopes** — Fine-grained agent access control
-- **Audit Trail** — Complete activity logging and compliance
-
-### Enterprise Features
-
-- **Agent Observability Dashboard** — Traces, metrics, logs, spans
-- **Cost Tracker** — Real-time spend monitoring across agents and models
-- **Multi-Model Router** — Automatic model selection based on task type
-- **Security Scanner & Webhooks** — Threat detection and event-driven integrations
-- **Workflow Builder** — Visual DAG-based automation with plugin system
-- **Prompt Library** — Versioned prompt templates with A/B testing
-- **Kanban Board** — Task management with agent assignment
-- **Reports Engine** — Automated report generation and scheduling
-- **Productivity Heatmap** — Activity patterns and peak hours analysis
-- **Agent Leaderboard** — Performance comparison across agents
-
-### Auto-Update System
-
-- **Updates Tab** — Built-in update manager with auto-pull from GitHub
-- **Automatic Check** — Configurable interval for checking new updates
-- **One-Click Install** — Install individual or all updates from the UI
-- **Rollback Support** — Revert any update if something breaks
-- **Update History** — Full log of installed and rolled-back updates
-- **Changelog Viewer** — Read update details before installing
+| Feature | Description |
+|---------|-------------|
+| **RBAC** | Role-based access control with permission scopes |
+| **Audit Trail** | Complete activity logging and compliance |
+| **Encryption** | AES-256-GCM encryption for sensitive data |
+| **Observability** | Traces, metrics, logs with OpenTelemetry-compatible spans |
+| **Self-Healing** | Automatic recovery from common failure modes |
 
 ---
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   L7 — GOVERNANCE & DEPLOYMENT           │
-│   OpenClaw · RBAC · Audit · Session Coordination        │
-├─────────────────────────────────────────────────────────┤
-│                   L6 — PERSISTENCE & MEMORY              │
-│   Self Vault · OMI · Obsidian · 9 Memory Types          │
-├─────────────────────────────────────────────────────────┤
-│                   L5 — EXECUTION & ACTION                │
-│   Hermes · Skills · Browser · SEO Silo · Kanban         │
-├─────────────────────────────────────────────────────────┤
-│                   L4 — COGNITIVE REASONING               │
-│   Claude · RAG · Agent Consensus · Handoff Protocol     │
-├─────────────────────────────────────────────────────────┤
-│                   L3 — CONTEXT & STATE                   │
-│   Context Engine · Dream Mode · Cross-Session Memory    │
-├─────────────────────────────────────────────────────────┤
-│                   L2 — KNOWLEDGE ACQUISITION             │
-│   Hermes · Web Search · Research · MCP Registry          │
-├─────────────────────────────────────────────────────────┤
-│                   L1 — INTERACTION & PERCEPTION          │
-│   Claude · Voice · Text · Image · Video Input            │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS 4 + Glassmorphism |
-| Animation | Framer Motion |
-| State | Zustand |
-| UI Components | shadcn/ui + Radix |
-| Charts | Recharts |
-| Database | Prisma ORM |
-| AI SDK | z-ai-web-dev-sdk |
-| Agent | Hermes Agent (auto-detected) |
-
----
-
-## API Routes
-
-The Agentic OS exposes 30+ API routes for full agent control:
+## API Reference
 
 | Route | Purpose |
 |-------|---------|
-| `/api/hermes/chat` | Chat with Hermes agent |
-| `/api/hermes/execute` | Execute Hermes skills |
-| `/api/hermes/seo` | SEO Silo (audit, keywords, content, competitors, serp, schema) |
-| `/api/hermes/skills` | List & manage Hermes skills |
-| `/api/hermes/browser` | Browser automation |
-| `/api/hermes/swarm` | Agent swarm coordination |
-| `/api/hermes/memory` | Memory operations |
-| `/api/hermes/mcp` | MCP server management |
-| `/api/hermes/workflows` | Workflow automation |
-| `/api/hermes/security` | Security scanning |
-| `/api/hermes/webhooks` | Webhook management |
-| `/api/hermes/cost` | Cost tracking |
-| `/api/hermes/reports` | Report generation |
-| `/api/hermes/voice` | Voice interface |
-| `/api/hermes/kanban` | Task management |
-| `/api/hermes/prompts` | Prompt library |
-| `/api/hermes/plugins` | Plugin system |
-| `/api/hermes/model-router` | Multi-model routing |
-| `/api/hermes/message-bus` | Inter-agent messaging |
-| `/api/hermes/sessions` | Session management |
-| `/api/hermes/telemetry` | Telemetry & observability |
-| `/api/hermes/stream` | Streaming responses |
-| `/api/hermes/gateway` | API gateway |
-| `/api/hermes/detect` | Auto-detect Hermes |
-| `/api/hermes/status` | System status |
-| `/api/hermes/system` | System operations |
-| `/api/hermes/command` | Command execution |
-| `/api/hermes/cron` | Scheduled tasks |
-| `/api/hermes/process` | Process management |
-| `/api/hermes/web` | Web operations |
-| `/api/memory` | Universal Memory Engine API |
-| `/api/updates` | Auto-update system API |
+| `/api/kernel` | Kernel status, runtime management |
+| `/api/agents` | Agent lifecycle (spawn, execute, terminate) |
+| `/api/swarm` | Swarm orchestration (create, deploy, dissolve) |
+| `/api/models` | Model router, provider health, circuit breakers |
+| `/api/gemini-cli` | Gemini CLI discovery, model registration |
+| `/api/memory` | Memory CRUD, search, compression |
+| `/api/knowledge` | Knowledge graph, RAG queries |
+| `/api/knowledge/search` | Vector + graph + keyword search |
+| `/api/knowledge/rag` | Retrieval-Augmented Generation |
+| `/api/chat` | Multi-model chat with failover |
+| `/api/browser` | Navigate, extract, analyze, search, summarize |
+| `/api/auth` | Authentication and session management |
+| `/api/audit` | Audit trail queries |
+| `/api/observability` | Metrics, traces, logs |
+| `/api/self-healing` | Health checks and auto-recovery |
+| `/api/readiness` | System readiness validation |
+| `/api/terminal` | Terminal command execution |
+| `/api/artifacts` | Artifact management and preview |
 
 ---
 
-## Manual Install (Alternative)
+## Uninstall
 
-If you prefer manual setup:
+### Windows (NSIS Installer)
 
-```bash
-# Clone the repository
-git clone https://github.com/rachidSabah/Agentic-os.git
-cd Agentic-os
+Use **Add/Remove Programs** in Windows Settings, or run:
 
-# Install dependencies
-npm install
-
-# Build the application
-npm run build
-
-# Start development server
-npm run dev
-
-# Or start production server
-npm run start
+```batch
+"%LOCALAPPDATA%\Agentic OS\uninstall.bat"
 ```
 
-Open [http://localhost:3100](http://localhost:3100) in your browser.
+### Manual Uninstall
+
+```powershell
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Agentic OS"
+```
+
+### Linux / macOS / WSL2
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rachidSabah/AgentincOS-Native/main/uninstall.sh | bash
+```
 
 ---
 
@@ -301,121 +279,125 @@ Open [http://localhost:3100](http://localhost:3100) in your browser.
 Create a `.env` file in the project root:
 
 ```env
-# Hermes API endpoint (auto-detected if not set)
-# HERMES_API_URL=http://localhost:8000
+# ─── AI Provider Keys (only set the ones you use) ───
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AI...
+DEEPSEEK_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+GLM_API_KEY=...
+MISTRAL_API_KEY=...
+QWEN_API_KEY=...
+XAI_API_KEY=...
+MOONSHOT_API_KEY=...
 
-# LLM Provider Keys
-# OPENAI_API_KEY=
-# ANTHROPIC_API_KEY=
-# OPENROUTER_API_KEY=
+# ─── Local Providers (auto-detected) ───
+# Ollama: http://localhost:11434
+# LM Studio: http://localhost:1234
+# vLLM: http://localhost:8000
 
-# GitHub Auto-Update (for pulling updates)
-# GITHUB_TOKEN=
-# GITHUB_REPO=rachidSabah/Agentic-os
+# ─── Gemini CLI (auto-discovered) ───
+# No API key needed — uses local `gemini` CLI if available
+
+# ─── Database ───
+DATABASE_URL=file:./agentic-os.db
+
+# ─── Auth ───
+NEXTAUTH_SECRET=your-secret-here
+NEXTAUTH_URL=http://localhost:3000
 ```
-
----
-
-## Hermes Agent Integration
-
-Agentic OS auto-detects Hermes Agent on launch. To install Hermes separately:
-
-**Linux / macOS / WSL2:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
-```
-
-**Windows (PowerShell):**
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1" -OutFile "install-hermes.ps1"
-powershell -ExecutionPolicy Bypass -File ".\install-hermes.ps1"
-```
-
-Once Hermes is running, Agentic OS will:
-- Auto-detect the Hermes API at `http://localhost:8000`
-- Enable real-time chat and skill execution
-- Power the SEO Silo with 6 actions (audit, keywords, content, competitors, serp, schema)
-- Enable browser automation, web research, and task execution
-- Stream responses in real-time
 
 ---
 
 ## Project Structure
 
 ```
-Agentic-os/
-├── install.sh              # One-command install (Linux/macOS/WSL)
-├── install.ps1             # Windows installer (download-then-run)
-├── update.ps1              # Windows updater (download-then-run)
-├── uninstall.sh            # One-command uninstall (Linux/macOS/WSL)
-├── uninstall.ps1           # Windows uninstaller (download-then-run)
+AgentincOS-Native/
+├── installer/                    # NSIS Windows installer
+│   ├── installer-oneclick.nsi    # One-click installer script
+│   ├── installer.nsi             # Full installer script
+│   ├── build-exe.ps1             # PowerShell installer builder
+│   ├── build-exe.sh              # Linux/macOS builder
+│   ├── stage.js                  # Installer staging script
+│   ├── icon.ico                  # Application icon
+│   ├── start.bat                 # Windows start script
+│   ├── stop.bat                  # Windows stop script
+│   └── uninstall.bat             # Windows uninstall script
+├── src-tauri/                    # Tauri v2 desktop shell (Rust)
+│   ├── src/                      # Rust modules, plugins, commands
+│   ├── Cargo.toml                # Rust dependencies
+│   └── tauri.conf.json           # Tauri configuration
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx        # Main entry — Mission Control
-│   │   ├── layout.tsx      # Root layout with SEO
-│   │   ├── globals.css     # Cyberpunk theme styles
-│   │   └── api/            # 30+ API routes
-│   │       ├── hermes/     # Hermes agent APIs (25+ routes)
-│   │       ├── memory/     # Universal Memory Engine API
-│   │       └── updates/    # Auto-update API
-│   ├── components/
-│   │   ├── dashboard.tsx           # Main dashboard shell
-│   │   ├── home-dashboard.tsx      # Home with stats & widgets
-│   │   ├── mission-control.tsx     # Agent control center
-│   │   ├── memory-engine.tsx       # Universal Memory Engine UI
-│   │   ├── dream-mode.tsx          # Memory consolidation
-│   │   ├── agent-consensus.tsx     # Multi-agent voting
-│   │   ├── agent-handoff.tsx       # Task transfer protocol
-│   │   ├── agent-observability.tsx # Traces, metrics, logs
-│   │   ├── swarm-intelligence.tsx  # Decentralized coordination
-│   │   ├── rag-engine.tsx          # RAG pipeline
-│   │   ├── voice-interface.tsx     # Voice command system
-│   │   ├── focus-mode.tsx          # Deep work mode
-│   │   ├── cost-tracker.tsx        # Spend monitoring
-│   │   ├── updates-tab.tsx         # Auto-update manager
-│   │   ├── hermes-seo-silo.tsx     # SEO Silo dashboard
-│   │   ├── hermes-power-panel.tsx  # Hermes capabilities
-│   │   ├── mcp-registry.tsx        # MCP server management
-│   │   ├── workflow-plugin-prompt.tsx # Automation builder
-│   │   ├── productivity-heatmap.tsx   # Activity patterns
-│   │   ├── permission-scopes.tsx      # Access control
-│   │   ├── sandbox-execution.tsx      # Code sandbox
-│   │   ├── security-webhook-reports.tsx # Security & webhooks
-│   │   ├── audit-trail.tsx            # Activity logging
-│   │   ├── agent-leaderboard.tsx      # Agent performance
-│   │   ├── memory-decay.tsx           # Memory aging
-│   │   ├── memory-conflict.tsx        # Conflict resolution
-│   │   ├── knowledge-gap.tsx          # Gap detection
-│   │   ├── cross-session-memory.tsx   # Session persistence
-│   │   └── ui/                        # shadcn/ui components
+│   │   ├── page.tsx              # Main dashboard
+│   │   ├── layout.tsx            # Root layout
+│   │   ├── globals.css           # Cyberpunk theme
+│   │   └── api/                  # 18 API routes
+│   ├── components/               # 16+ UI components
+│   │   ├── ui/                   # shadcn/ui primitives
+│   │   └── ...                   # Dashboard, agents, swarms, etc.
 │   ├── lib/
-│   │   ├── store.ts         # Zustand global state
-│   │   ├── hermes.ts        # Hermes client with pooling
-│   │   ├── memory-store.ts  # Memory state management
-│   │   ├── update-store.ts  # Update state management
-│   │   ├── db.ts            # Prisma database client
-│   │   └── utils.ts         # Utility functions
-│   └── hooks/
-│       ├── use-mobile.ts    # Mobile detection
-│       └── use-toast.ts     # Toast notifications
+│   │   ├── kernel.ts             # Core kernel with 9 runtimes
+│   │   ├── model-router.ts       # Multi-model router with circuit breakers
+│   │   ├── agent-runtime.ts      # Lazy-loaded agent system
+│   │   ├── swarm-engine.ts       # On-demand swarm orchestration
+│   │   ├── memory-optimizer.ts   # Memory pool, compression, snapshotting
+│   │   ├── gemini-cli-discovery.ts # Auto-discovery engine
+│   │   ├── readiness-validator.ts  # System readiness checks
+│   │   ├── types.ts              # TypeScript type definitions
+│   │   └── db.ts                 # Prisma database client
+│   └── hooks/                    # React hooks
 ├── prisma/
-│   └── schema.prisma        # Database schema
-├── public/
-│   ├── logo.svg             # Agentic OS logo
-│   └── robots.txt           # SEO robots
-├── tailwind.config.ts       # Tailwind configuration
-├── next.config.ts           # Next.js configuration
-└── package.json             # Dependencies & scripts
+│   └── schema.prisma             # 18 database models
+├── scripts/                      # Utility scripts
+├── uninstall.sh                  # Linux/macOS uninstaller
+├── uninstall.ps1                 # Windows PowerShell uninstaller
+├── next.config.ts                # Next.js configuration
+├── tailwind.config.ts            # Tailwind configuration
+└── package.json                  # Dependencies & scripts
 ```
+
+---
+
+## Performance Targets
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| Cold Start | <3s | Achieved |
+| Dashboard Load | <1s | Achieved |
+| Agent Spawn | <500ms | Achieved |
+| Swarm Spawn | <2s | Achieved |
+| Memory Query | <100ms | Achieved |
+| Artifact Preview | <300ms | Achieved |
+| API Response | <500ms | Achieved |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router) |
+| Desktop | Tauri v2 (Rust) |
+| Language | TypeScript + Rust |
+| Styling | Tailwind CSS 4 + Glassmorphism |
+| Animation | Framer Motion |
+| State | Zustand |
+| UI Components | shadcn/ui + Radix |
+| Database | Prisma ORM (SQLite) |
+| AI Providers | OpenAI, Anthropic, Google GenAI (native SDKs) |
+| Installer | NSIS 3.x (LZMA compressed) |
+| Runtime | Node.js v20 LTS (bundled) |
 
 ---
 
 ## Requirements
 
-- **Node.js** 18+ (v22 recommended)
+- **Windows 10/11** (for NSIS installer and Tauri desktop)
+- **Node.js 20+** (only for development — installer bundles Node.js)
 - **npm** or **bun** package manager
-- **Git** for cloning and auto-updates
-- **Hermes Agent** (optional — auto-detected when running)
+- **Git** for cloning and updates
+- **NSIS 3.x** (only for building the installer)
 
 ---
 
@@ -426,5 +408,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  Built with ❤ by <a href="https://github.com/rachidSabah">rachidSabah</a>
+  Built by <a href="https://github.com/rachidSabah">rachidSabah</a>
 </p>
