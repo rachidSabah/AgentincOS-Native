@@ -69,6 +69,10 @@ agent-ctx/
 mini-services/
 download/
 worklog.md
+db/
+
+# Skills directory (AI agent internal, NOT part of Agentic OS X)
+skills/
 
 # Old/irrelevant data files (should never be in repo)
 hermes_*.json
@@ -76,6 +80,34 @@ hermes_full_docs.md
 image_analysis.json
 *.mbz
 *.xls
+
+# School/education files
+controle et examens/
+School programs/
+*.docx
+
+# WordPress/Moodle artifacts
+moodle_*/
+backups/
+ready_for_ftp/
+*.php
+
+# Random debug/report files
+lighthouse_report.json
+pagespeed_*.png
+avada_*.png
+ubermenu_*.png
+wp_*.png
+wp_*.js
+modules_*.png
+modules_*.csv
+login_*.png
+error_*.png
+dashboard.png
+live_verification.png
+
+# Skill files (not part of project)
+*.skill
 
 # Word temp files
 ~$*
