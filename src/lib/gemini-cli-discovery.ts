@@ -724,20 +724,24 @@ class GeminiCLIDiscoveryEngine {
 
     return defaultModelIds.map((modelId) => {
       const known = KNOWN_GEMINI_MODELS[modelId];
+      const fallbackCapabilities: GeminiCLIModelCapabilities = {
+        streaming: true,
+        functionCalling: true,
+        reasoning: false,
+        toolUse: true,
+        codeExecution: false,
+        grounding: true,
+        outputModes: ['text', 'json'],
+      };
+      const capabilities: GeminiCLIModelCapabilities = known?.capabilities
+        ? { ...fallbackCapabilities, ...known.capabilities }
+        : fallbackCapabilities;
       return {
         id: modelId,
         name: this.formatModelName(modelId),
         provider: 'gemini-cli' as const,
         contextWindow: known?.contextWindow ?? 1_000_000,
-        capabilities: known?.capabilities ?? {
-          streaming: true,
-          functionCalling: true,
-          reasoning: false,
-          toolUse: true,
-          codeExecution: false,
-          grounding: true,
-          outputModes: ['text', 'json'],
-        },
+        capabilities,
         discoveredAt: now,
         lastValidatedAt: now,
         status: 'available' as const,

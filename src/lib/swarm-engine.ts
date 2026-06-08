@@ -549,7 +549,11 @@ class Swarm {
   readonly templateName?: SwarmTemplateName;
 
   private _status: SwarmStatus;
-  private completedAt?: number;
+  private _completedAt?: number;
+
+  get completedAt(): number | undefined {
+    return this._completedAt;
+  }
 
   constructor(
     task: string,
@@ -582,7 +586,7 @@ class Swarm {
   set status(value: SwarmStatus) {
     this._status = value;
     if (value === 'completed' || value === 'failed' || value === 'cancelled') {
-      this.completedAt = Date.now();
+      this._completedAt = Date.now();
     }
   }
 
@@ -625,7 +629,7 @@ class Swarm {
       status: this._status,
       memory: this.memory.snapshot(),
       createdAt: this.createdAt,
-      completedAt: this.completedAt,
+      completedAt: this._completedAt,
       parentSwarmId: this.parentSwarmId,
       childSwarmIds: this.childSwarmIds,
       artifacts: this.artifacts,

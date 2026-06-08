@@ -405,7 +405,7 @@ export class ContextCompression {
       originalSizeBytes: originalSize,
       compressedSizeBytes: compressedSize,
       ratio,
-      method,
+      method: method as CompressionResult['method'],
       metadata: { key, hadPreviousState: previous !== undefined },
     };
   }
@@ -420,7 +420,7 @@ export class ContextCompression {
     const deltaLines = delta.split('\n');
 
     for (const dl of deltaLines) {
-      const match = dl.match(/^([+~\-])(\d+):(.*)$/s);
+      const match = dl.match(/^([+~\-])(\d+):(.*)$/);
       if (!match) continue;
 
       const [, op, idxStr, content] = match;

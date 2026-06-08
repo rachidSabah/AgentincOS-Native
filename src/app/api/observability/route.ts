@@ -33,7 +33,7 @@ export async function GET() {
     const requestHistory = observabilityEngine.getMetricHistory('request', 30);
 
     // ─── Enhanced: Kernel health data ───
-    let kernelHealth = null;
+    let kernelHealth: Record<string, unknown> | null = null;
     try {
       if (kernel) {
         kernelHealth = kernel.healthCheck();
@@ -44,7 +44,7 @@ export async function GET() {
 
     // ─── Enhanced: Self-healing events ───
     let selfHealingEvents: any[] = [];
-    let selfHealingStatus = null;
+    let selfHealingStatus: Record<string, unknown> | null = null;
     try {
       selfHealingEvents = selfHealingEngine.getEvents(20);
       selfHealingStatus = selfHealingEngine.getHealthStatus();

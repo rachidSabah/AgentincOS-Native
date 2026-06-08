@@ -182,14 +182,14 @@ class ReadinessValidator {
           const statusAfterExecute = agent.status;
 
           // Manually transition to active then back to idle
-          (agent as Record<string, unknown>).status = 'active';
+          (agent as unknown as Record<string, unknown>).status = 'active';
           const isNowActive = agent.status === 'active';
 
-          (agent as Record<string, unknown>).status = 'idle';
+          (agent as unknown as Record<string, unknown>).status = 'idle';
           const isNowIdle = agent.status === 'idle';
 
           // Restore original status
-          (agent as Record<string, unknown>).status = statusAfterExecute;
+          (agent as unknown as Record<string, unknown>).status = statusAfterExecute;
 
           if (isNowActive && isNowIdle) {
             result.canTerminate = true;

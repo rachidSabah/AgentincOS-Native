@@ -518,7 +518,7 @@ class RegistryManager {
         t.id,
         t.name,
         t.description,
-        async (params: Record<string, unknown>) => ({ tool: t.name, params, result: 'Tool executed (stub)' }),
+        async (params: unknown) => ({ tool: t.name, params, result: 'Tool executed (stub)' }),
       );
     }
 
@@ -539,7 +539,7 @@ class RegistryManager {
         s.id,
         s.name,
         s.description,
-        async (params: Record<string, unknown>) => ({ skill: s.name, params, result: 'Skill executed (stub)' }),
+        async (params: unknown) => ({ skill: s.name, params, result: 'Skill executed (stub)' }),
       );
     }
   }
@@ -675,7 +675,7 @@ class PermissionEngine {
 // ============================================================
 class SecurityEngine {
   private rateLimits: Map<string, { count: number; windowStart: number }> = new Map();
-  private auditLog: AuditLogEntry[] = [];
+  private _auditLog: AuditLogEntry[] = [];
   private maxAuditLogSize = 5000;
 
   // Rate limiting configuration
@@ -757,9 +757,9 @@ class SecurityEngine {
       metadata,
     };
 
-    this.auditLog.push(entry);
-    if (this.auditLog.length > this.maxAuditLogSize) {
-      this.auditLog.shift();
+    this._auditLog.push(entry);
+    if (this._auditLog.length > this.maxAuditLogSize) {
+      this._auditLog.shift();
     }
 
     this.eventBus.emit('security:audit', entry);
@@ -769,7 +769,7 @@ class SecurityEngine {
    * Get recent audit log entries.
    */
   getAuditLog(limit: number = 100): AuditLogEntry[] {
-    return this.auditLog.slice(-limit);
+    return this._auditLog.slice(-limit);
   }
 
   /**
