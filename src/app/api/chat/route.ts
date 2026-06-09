@@ -40,9 +40,22 @@ export async function POST(request: NextRequest) {
     // Get or create conversation
     let convId = conversationId;
     if (!convId) {
+      // Ensure workspace exists
+      const wsId = workspaceId ?? 'default';
+      const existingWs = await db.workspace.findUnique({ where: { id: wsId } });
+      if (!existingWs) {
+        await db.workspace.create({
+          data: {
+            id: wsId,
+            name: wsId === 'default' ? 'Default Workspace' : wsId,
+            description: wsId === 'default' ? 'Auto-created default workspace' : undefined,
+          },
+        });
+      }
+
       const conversation = await db.conversation.create({
         data: {
-          workspaceId: workspaceId ?? 'default',
+          workspaceId: wsId,
           title: message.slice(0, 50),
         },
       });

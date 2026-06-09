@@ -408,6 +408,20 @@ class ModelRouter {
     return ALL_PROVIDERS.length;
   }
 
+  /**
+   * Get all available provider types.
+   */
+  getAllProviders(): ModelProviderType[] {
+    return [...ALL_PROVIDERS];
+  }
+
+  /**
+   * Get the priority index for a provider.
+   */
+  getPriority(provider: ModelProviderType): number {
+    return PROVIDER_PRIORITY.indexOf(provider);
+  }
+
   // ────────────────────────────────────────────────────────
   // Public API — Backward Compatible
   // ────────────────────────────────────────────────────────

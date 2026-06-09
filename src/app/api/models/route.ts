@@ -10,22 +10,47 @@ export async function GET() {
   try {
     const providerHealth = modelRouter.getProviderHealth();
     const scores = modelRouter.scoreProviders();
+    const activeProviders = modelRouter.getActiveProviders();
 
-    const providers: Array<{
+    // Get all providers with their status (initialized vs not)
+    const allProviders: Array<{
       provider: ModelProviderType;
       healthy: boolean;
       latencyMs: number;
       successRate: number;
       score: number;
       priority: number;
-    }> = scores.map((s) => ({
-      provider: s.provider,
-      healthy: s.health.healthy,
-      latencyMs: s.health.latencyMs,
-      successRate: s.health.successRate,
-      score: s.score,
-      priority: s.priority,
-    }));
+      initialized: boolean;
+    }> = [];
+
+    // Add initialized providers with their actual scores
+    for (const s of scores) {
+      allProviders.push({
+        provider: s.provider,
+        healthy: s.health.healthy,
+        latencyMs: s.health.latencyMs,
+        successRate: s.health.successRate,
+        score: s.score,
+        priority: s.priority,
+        initialized: true,
+      });
+    }
+
+    // Add uninitialized providers with default values
+    const uninitializedProviders = modelRouter.getAllProviders().filter(
+      (p) => !activeProviders.includes(p)
+    );
+    for (const provider of uninitializedProviders) {
+      allProviders.push({
+        provider,
+        healthy: false,
+        latencyMs: 0,
+        successRate: 0,
+        score: 0,
+        priority: modelRouter.getPriority(provider),
+        initialized: false,
+      });
+    }
 
     // Get DB providers for config info
     const dbProviders = await db.modelProvider.findMany({
@@ -33,7 +58,8 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      providers,
+      providers: allProviders,
+      activeProviders,
       dbProviders,
       selectedModel: modelRouter.selectModel(),
     });

@@ -3,6 +3,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { artifactEngine } from '@/lib/artifact-engine';
+import { db } from '@/lib/db';
 import type { ArtifactType } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -39,12 +40,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name, type, and content are required' }, { status: 400 });
     }
 
+    // Ensure workspace exists
+    const workspaceId = body.workspaceId ?? 'default';
+    const existingWorkspace = await db.workspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!existingWorkspace) {
+      // Create default workspace if it doesn't exist
+      await db.workspace.create({
+        data: {
+          id: workspaceId,
+          name: workspaceId === 'default' ? 'Default Workspace' : workspaceId,
+          description: workspaceId === 'default' ? 'Auto-created default workspace' : undefined,
+        },
+      });
+    }
+
     const artifact = await artifactEngine.create({
       name: body.name,
       type: body.type,
       content: body.content,
       language: body.language,
-      workspaceId: body.workspaceId ?? 'default',
+      workspaceId: workspaceId,
       conversationId: body.conversationId,
       metadata: body.metadata,
     });

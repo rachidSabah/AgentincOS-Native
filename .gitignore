@@ -125,3 +125,13 @@ installer/AgenticOS-Setup-2.0.0.exe
 installer/payload.zip
 installer/AgenticOS-payload.zip
 gemini-desktop/
+
+# Temp test files
+*.json
+!package.json
+!tsconfig.json
+!next.config.ts
+!kernel_init.json
+!components.json
+!eslint.config.mjs
+server.err
